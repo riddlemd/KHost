@@ -41,6 +41,7 @@ public class EditVenueModel
     public bool TippingEnabled { get; set; } = true;
     public bool WarnOnDuplicateSong { get; set; }
     public int DuplicateSongWindowHours { get; set; } = 4;
+    public bool RefuseSongQueuedForAnotherSinger { get; set; }
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;
@@ -155,6 +156,7 @@ public class EditVenueModel
             DuplicateSongWindowHours = DuplicateWindowOptions.Contains(settings.DuplicateSongWindowHours)
                 ? settings.DuplicateSongWindowHours
                 : 4,
+            RefuseSongQueuedForAnotherSinger = settings.RefuseSongQueuedForAnotherSinger,
             PromptBeforeRemovingSinger = settings.PromptBeforeRemovingSinger,
             PromptBeforeRemovingPerformance = settings.PromptBeforeRemovingPerformance,
             ClearQueueOnClose = settings.ClearQueueOnClose,
@@ -226,6 +228,7 @@ public class EditVenueModel
         venue.Settings.TippingEnabled = TippingEnabled;
         venue.Settings.WarnOnDuplicateSong = WarnOnDuplicateSong;
         venue.Settings.DuplicateSongWindowHours = DuplicateSongWindowHours;
+        venue.Settings.RefuseSongQueuedForAnotherSinger = RefuseSongQueuedForAnotherSinger;
         venue.Settings.PromptBeforeRemovingSinger = PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = ClearQueueOnClose;
