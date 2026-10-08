@@ -6,6 +6,7 @@ using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
@@ -28,6 +29,8 @@ public class EditVenueDialogNextSingerTests : BunitContext
         _breakMusic.Providers.Returns(new List<IBreakMusicProvider>());
 
         Services.AddSingleton(_breakMusic);
+        Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
         Services.AddSingleton(_media);
         Services.AddSingleton<IMessageBroker>(_broker);

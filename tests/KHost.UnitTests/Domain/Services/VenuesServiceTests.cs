@@ -223,6 +223,21 @@ public class VenuesServiceTests : IDisposable
         await _repository.Received(1).UpdateAsync(Arg.Is<Venue>(v => v.Settings.QrCodeOffset == expected));
     }
 
+    /// <summary>A negative limit would read as "already over" for everyone; zero is no limit.</summary>
+    [Theory]
+    [InlineData(-3, 0)]
+    [InlineData(150, 99)]
+    [InlineData(4, 4)]
+    public async Task UpdateAsync_ClampsTheRemoteSongLimit(int typed, int expected)
+    {
+        var venue = await _service.CreateAsync(new Venue { Name = "Room" });
+
+        venue.Settings.RemoteSongLimit = typed;
+        await _service.UpdateAsync(venue);
+
+        await _repository.Received(1).UpdateAsync(Arg.Is<Venue>(v => v.Settings.RemoteSongLimit == expected));
+    }
+
     public static TheoryData<Action<QueueRotationConfig>, Func<QueueRotationConfig, bool>> RotationBoundaries() => new()
     {
         { c => c.DropFixedIndex = -1, c => c.DropFixedIndex == 0 },

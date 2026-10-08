@@ -120,6 +120,36 @@ public class EditPerformanceDialogTests : BunitContext
     }
 
     [Fact]
+    public async Task Opening_ShowsTheSingersNotesToRead()
+    {
+        _performance.SingerNotes = "For Sam's birthday";
+
+        var host = await OpenAsync();
+
+        Assert.Equal("For Sam's birthday", host.Find(".kh-edit-performance-dialog__singer-notes-text").TextContent.Trim());
+    }
+
+    /// <summary>The singer wrote it; the host reads it and has nothing to change it with.</summary>
+    [Fact]
+    public async Task Opening_OffersNoWayToEditTheSingersNotes()
+    {
+        _performance.SingerNotes = "For Sam's birthday";
+
+        var host = await OpenAsync();
+
+        Assert.Empty(host.FindAll(".kh-edit-performance-dialog__singer-notes input, .kh-edit-performance-dialog__singer-notes textarea"));
+        Assert.DoesNotContain(host.FindAll("input, textarea"), field => field.GetAttribute("value") == "For Sam's birthday");
+    }
+
+    [Fact]
+    public async Task Opening_ATurnWithNoNotes_ShowsNoNotes()
+    {
+        var host = await OpenAsync();
+
+        Assert.Empty(host.FindAll(".kh-edit-performance-dialog__singer-notes"));
+    }
+
+    [Fact]
     public async Task Saving_TheAliasAlone_HandsBackTheNameAndNoSettings()
     {
         var host = await OpenAsync();

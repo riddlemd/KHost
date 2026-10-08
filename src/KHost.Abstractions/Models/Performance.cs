@@ -38,6 +38,11 @@ public class Performance : RepositoryModel
     /// name.</remarks>
     public string? SungAs { get; set; }
 
+    /// <summary>What the singer left with the song for the host to read: a dedication, a request.
+    /// Null when they left nothing.</summary>
+    /// <remarks>Shown to the host, never announced or drawn on a screen.</remarks>
+    public string? SingerNotes { get; set; }
+
     /// <summary>When this turn was created, UTC.</summary>
     public DateTime CreatedDate { get; set; }
 }

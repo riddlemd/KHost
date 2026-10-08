@@ -93,14 +93,16 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     public async Task<Performance?> CreateAndEnqueueAsync(Performance performance)
         => (await TryCreateAndEnqueueAsync(performance)).Performance;
 
-    public async Task<EnqueueResult> TryCreateAndEnqueueAsync(Performance performance)
+    public Task<EnqueueResult> TryCreateAndEnqueueAsync(Performance performance)
+        => TryCreateAndEnqueueAsync(performance, EnqueueOrigin.Host);
+
+    public async Task<EnqueueResult> TryCreateAndEnqueueAsync(Performance performance, EnqueueOrigin origin)
     {
         var settings = (await _venuesService.ReadSelectedVenueAsync())?.Settings;
-        var refuseOtherSingers = settings?.RefuseSongQueuedForAnotherSinger == true;
 
         // Before the duplicate-song warning: a remote's double tap must not put a dialog in front of
         // the host. The plugin that sent it reads the conflict off the result to tell the singer.
-        if (await RefusalForQueuedConflictAsync(performance, refuseOtherSingers) is { } conflict)
+        if (await RefusalByTheQueueAsync(performance, settings, origin) is { } conflict)
             return conflict;
 
         if (!await ConfirmNotADuplicateAsync(performance.MediaId, settings))
@@ -137,7 +139,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         {
             // Asked again under the lock: two taps arriving together both pass the first check while
             // the gate is awaited, and the lock is not held there because the warning waits on a person.
-            if (await RefusalForQueuedConflictAsync(performance, refuseOtherSingers) is { } lateConflict)
+            if (await RefusalByTheQueueAsync(performance, settings, origin) is { } lateConflict)
                 return lateConflict;
 
             performance.QueuePosition = await Repository.ReadNextQueuePositionForSingerAsync(performance.SingerId);
@@ -192,9 +194,10 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
     /// <summary>The refusal a song already in the queue earns, or null when nothing queued stands in
     /// its way.</summary>
-    private async Task<EnqueueResult?> RefusalForQueuedConflictAsync(Performance performance, bool refuseOtherSingers)
+    private async Task<EnqueueResult?> RefusalByTheQueueAsync(Performance performance, Venue.VenueSettings? settings, EnqueueOrigin origin)
     {
-        var holders = (await ReadQueuedAsync()).Where(p => p.MediaId == performance.MediaId).ToList();
+        var queued = await ReadQueuedAsync();
+        var holders = queued.Where(p => p.MediaId == performance.MediaId).ToList();
 
         if (holders.FirstOrDefault(p => p.SingerId == performance.SingerId) is { } own)
         {
@@ -202,10 +205,18 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             return new EnqueueResult(EnqueueResultType.AlreadyQueued, Conflict: own);
         }
 
-        if (refuseOtherSingers && holders.FirstOrDefault() is { } other)
+        if (settings?.RefuseSongQueuedForAnotherSinger == true && holders.FirstOrDefault() is { } other)
         {
             Logger.LogInformation("Enqueue of media {MediaId} for singer {SingerId} refused: singer {HolderId} has it queued", performance.MediaId, performance.SingerId, other.SingerId);
             return new EnqueueResult(EnqueueResultType.QueuedForAnotherSinger, Conflict: other);
+        }
+
+        if (origin == EnqueueOrigin.Remote
+            && settings?.RemoteSongLimit is > 0 and var limit
+            && queued.Count(p => p.SingerId == performance.SingerId) >= limit)
+        {
+            Logger.LogInformation("Remote enqueue of media {MediaId} refused: singer {SingerId} has the venue's limit of {Limit} queued", performance.MediaId, performance.SingerId, limit);
+            return new EnqueueResult(EnqueueResultType.SingerAtLimit);
         }
 
         return null;

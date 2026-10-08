@@ -354,6 +354,10 @@ namespace KHost.DataAccess.Migrations
                     b.Property<Guid>("SingerId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SingerNotes")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SungAs")
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
@@ -664,6 +668,10 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<int?>("QrCodeSize");
 
                             b1.Property<string>("QrCodeSource");
+
+                            b1.Property<bool>("RefuseSongQueuedForAnotherSinger");
+
+                            b1.Property<int>("RemoteSongLimit");
 
                             b1.Property<bool>("ShowEstimatedWaitTime");
 

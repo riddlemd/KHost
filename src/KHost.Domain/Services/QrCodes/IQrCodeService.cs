@@ -12,4 +12,8 @@ public interface IQrCodeService : IQrCodeOfferService
 
     /// <summary>Withdraws what <paramref name="ownerId"/> offered. Unknown owners are not an error.</summary>
     Task UnregisterAsync(string ownerId);
+
+    /// <summary>What <paramref name="ownerId"/> offers now, whatever the venue shows; null when it
+    /// offers nothing.</summary>
+    Task<QrCodeRegistration?> ReadRegisteredAsync(string ownerId);
 }

@@ -10,6 +10,15 @@
             <p class="@(_rootClassName)__title">@Media!.Title</p>
         }
 
+        @* Shown, never an input: the singer wrote it, and the host reads it. *@
+        @if (!string.IsNullOrWhiteSpace(Performance?.SingerNotes))
+        {
+            <div class="@(_rootClassName)__singer-notes">
+                <span class="kh-form-label">From the singer</span>
+                <p class="@(_rootClassName)__singer-notes-text">@Performance!.SingerNotes</p>
+            </div>
+        }
+
         @if (_allowAliases)
         {
             <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync" class="@($"{_rootClassName}__alias")">
