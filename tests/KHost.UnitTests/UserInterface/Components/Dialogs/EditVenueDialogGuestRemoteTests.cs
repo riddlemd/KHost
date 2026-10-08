@@ -68,14 +68,28 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
         => Assert.False(Render(new Venue.VenueSettings { AllowGuestRemote = false })
             .Find(RemoteSelector).HasAttribute("checked"));
 
-    /// <summary>Showing the queue means nothing with no guests to show it to, so the dialog does
-    /// not offer a switch that decides nothing.</summary>
+    /// <summary>Seeing the queue stands apart from signing up: a code may offer it with sign-ups
+    /// closed, so the switch is there either way.</summary>
     [Fact]
-    public void WithGuestsTurnedAway_TheQueueSwitchIsNotOffered()
+    public void WithSignupsClosed_TheQueueSwitchIsStillOffered()
     {
         var cut = Render(new Venue.VenueSettings { AllowGuestRemote = false });
 
-        Assert.Empty(cut.FindAll(QueueSelector));
+        Assert.Single(cut.FindAll(QueueSelector));
+    }
+
+    [Fact]
+    public void WithSignupsClosed_HidingTheQueue_ReachesTheVenueThatIsSaved()
+    {
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings { AllowGuestRemote = false }, venue => saved = venue);
+
+        cut.Find(QueueSelector).Change(false);
+        cut.Find("form").Submit();
+
+        Assert.NotNull(saved);
+        Assert.False(saved!.Settings.ShowQueueToGuests);
+        Assert.False(saved!.Settings.AllowGuestRemote);
     }
 
     [Fact]
