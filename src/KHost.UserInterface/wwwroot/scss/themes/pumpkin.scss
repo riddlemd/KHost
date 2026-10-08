@@ -9,7 +9,6 @@
     --kh-accent-hover: #DC2626;
     --kh-accent-bright: #FF8C42;
     --kh-accent-glow: rgba(249, 115, 22, 0.45);
-    --kh-accent-subtle: rgba(249, 115, 22, 0.14);
     --kh-bg: #2A1810;
     --kh-button-primary-text: #FFFBF0;
     --kh-bg-card: #3D2817;
@@ -50,7 +49,6 @@
     --kh-bg-header: linear-gradient(180deg, #6B3E2E 0%, #3D2817 100%);
     --kh-logo-from: #FB923C;
     --kh-logo-to: #FDE047;
-    --kh-np-gradient-from: #6B3E2E;
     --kh-card-header-bg: rgba(249, 115, 22, 0.18);
 
     --kh-primary-active: rgba(249, 115, 22, 0.3);
@@ -64,13 +62,11 @@
     --kh-scrim: rgba(0, 0, 0, 0.6);
     --kh-track-bg: rgba(255, 255, 255, 0.08);
     --kh-table-stripe: rgba(0, 0, 0, 0.2);
-    --kh-badge-pending-bg: rgba(255, 255, 255, 0.04);
     --kh-error-bg: linear-gradient(135deg, #2D0A0A, #1A0A0A);
 
     --kh-danger-bg-subtle: rgba(239, 68, 68, 0.1);
     --kh-danger-bg-dim: rgba(239, 68, 68, 0.2);
     --kh-danger-border-subtle: rgba(239, 68, 68, 0.35);
-    --kh-danger-text-subtle: rgba(239, 68, 68, 0.7);
     --kh-danger-bright: #ff7040;
 
     --kh-warning-subtle: rgba(245, 158, 11, 0.1);
@@ -79,6 +75,5 @@
     --kh-success-subtle: rgba(34, 197, 94, 0.1);
     --kh-success-border-subtle: rgba(34, 197, 94, 0.25);
 
-    --kh-flag-tipper: #4ADE80;
     --kh-flag-regular: #F472B6;
 }

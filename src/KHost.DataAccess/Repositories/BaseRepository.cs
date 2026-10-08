@@ -27,9 +27,6 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         SearchableComponent = new(ContextFactory, PaginationComponent);
     }
 
-    protected async Task<DefaultContext> GetContextAsync()
-        => await ContextFactory.CreateDbContextAsync();
-
     public virtual async Task<T> CreateAsync(T entity)
     {
         using var context = await ContextFactory.CreateDbContextAsync();

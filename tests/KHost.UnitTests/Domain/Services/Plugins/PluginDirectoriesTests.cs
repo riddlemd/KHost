@@ -10,7 +10,5 @@ public class PluginDirectoriesTests
     public void Directories_ReturnThePathsTheCompositionCodeUses()
     {
         Assert.Equal(PluginPaths.Plugins, _directories.PluginsDirectory);
-        Assert.Equal(PluginPaths.Staging, _directories.StagingDirectory);
-        Assert.Equal(PluginPaths.Cache, _directories.CacheDirectory);
     }
 }

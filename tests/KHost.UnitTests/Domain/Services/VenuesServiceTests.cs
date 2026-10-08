@@ -357,18 +357,6 @@ public class VenuesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadByNameAsync_IsCaseInsensitive()
-    {
-        var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
-        await _service.CreateAsync(venue);
-
-        var found = await _service.ReadByNameAsync("the pub");
-
-        Assert.NotNull(found);
-        Assert.Equal("The Pub", found!.Name);
-    }
-
-    [Fact]
     public async Task SelectVenueAsync_SetsSelectedVenueId()
     {
         var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };

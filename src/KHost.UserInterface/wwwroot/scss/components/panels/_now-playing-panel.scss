@@ -351,15 +351,6 @@
         color: var(--kh-text-muted);
     }
 
-    &__finished {
-        font-size: 0.72rem;
-        color: var(--kh-success);
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        margin-top: 4px;
-    }
-
     &__bars {
         display: flex;
         align-items: flex-end;

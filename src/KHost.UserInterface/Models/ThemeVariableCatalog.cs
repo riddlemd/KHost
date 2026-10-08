@@ -42,7 +42,6 @@ public static class ThemeVariableCatalog
         new("--kh-bg-card-dark", "Card (sunken)", SurfacesGroup, ThemeVariableKind.Color, "#0f0b1f"),
         new("--kh-bg-elevated", "Elevated", SurfacesGroup, ThemeVariableKind.Color, "#1C1836"),
         new("--kh-bg-input", "Input", SurfacesGroup, ThemeVariableKind.Color, "#0E0C1C"),
-        new("--kh-np-gradient-from", "Now playing gradient", SurfacesGroup, ThemeVariableKind.Color, "#271649"),
 
         new("--kh-text", "Text", TextGroup, ThemeVariableKind.Color, "#DDD4F0"),
         new("--kh-text-secondary", "Text secondary", TextGroup, ThemeVariableKind.Color, "#8878A8"),
@@ -59,7 +58,6 @@ public static class ThemeVariableCatalog
         new("--kh-logo-from", "Logo gradient from", AccentsGroup, ThemeVariableKind.Color, "#A86AD4"),
         new("--kh-logo-to", "Logo gradient to", AccentsGroup, ThemeVariableKind.Color, "#C59AE8"),
         new("--kh-badge-info-text", "Badge text", AccentsGroup, ThemeVariableKind.Color, "#C59AE8"),
-        new("--kh-flag-tipper", "Tipper flag", AccentsGroup, ThemeVariableKind.Color, "#4ADE80"),
         new("--kh-flag-regular", "Regular flag", AccentsGroup, ThemeVariableKind.Color, "#F472B6"),
 
         new("--kh-primary-glow", "Primary glow", ShadesGroup, ThemeVariableKind.Text, "rgba(93, 43, 144, 0.45)"),
@@ -74,12 +72,10 @@ public static class ThemeVariableCatalog
         new("--kh-badge-info-bg", "Badge background", ShadesGroup, ThemeVariableKind.Text, "rgba(168, 106, 212, 0.2)"),
         new("--kh-badge-info-border", "Badge border", ShadesGroup, ThemeVariableKind.Text, "rgba(168, 106, 212, 0.4)"),
         new("--kh-accent-glow", "Accent glow", ShadesGroup, ThemeVariableKind.Text, "rgba(204, 85, 0, 0.45)"),
-        new("--kh-accent-subtle", "Accent subtle", ShadesGroup, ThemeVariableKind.Text, "rgba(204, 85, 0, 0.14)"),
         new("--kh-danger-glow", "Danger glow", ShadesGroup, ThemeVariableKind.Text, "rgba(239, 68, 68, 0.3)"),
         new("--kh-danger-bg-subtle", "Danger background", ShadesGroup, ThemeVariableKind.Text, "rgba(239, 68, 68, 0.1)"),
         new("--kh-danger-bg-dim", "Danger background (dim)", ShadesGroup, ThemeVariableKind.Text, "rgba(239, 68, 68, 0.2)"),
         new("--kh-danger-border-subtle", "Danger border", ShadesGroup, ThemeVariableKind.Text, "rgba(239, 68, 68, 0.35)"),
-        new("--kh-danger-text-subtle", "Danger text", ShadesGroup, ThemeVariableKind.Text, "rgba(239, 68, 68, 0.7)"),
         new("--kh-warning-subtle", "Warning background", ShadesGroup, ThemeVariableKind.Text, "rgba(245, 158, 11, 0.1)"),
         new("--kh-warning-border-subtle", "Warning border", ShadesGroup, ThemeVariableKind.Text, "rgba(245, 158, 11, 0.3)"),
         new("--kh-success-subtle", "Success background", ShadesGroup, ThemeVariableKind.Text, "rgba(34, 197, 94, 0.1)"),
@@ -95,8 +91,7 @@ public static class ThemeVariableCatalog
         new("--kh-error-bg", "Error screen", BackdropsGroup, ThemeVariableKind.Text, "linear-gradient(135deg, #2D0A0A, #1A0A0A)"),
         new("--kh-scrim", "Dialog scrim", BackdropsGroup, ThemeVariableKind.Text, "rgba(0, 0, 0, 0.6)"),
         new("--kh-track-bg", "Slider track", BackdropsGroup, ThemeVariableKind.Text, "rgba(255, 255, 255, 0.08)"),
-        new("--kh-table-stripe", "Table stripe", BackdropsGroup, ThemeVariableKind.Text, "rgba(0, 0, 0, 0.2)"),
-        new("--kh-badge-pending-bg", "Pending badge", BackdropsGroup, ThemeVariableKind.Text, "rgba(255, 255, 255, 0.04)")
+        new("--kh-table-stripe", "Table stripe", BackdropsGroup, ThemeVariableKind.Text, "rgba(0, 0, 0, 0.2)")
     ];
 
     /// <summary>How each shade relates to its source colour, as (shade, source, usual alpha).</summary>
@@ -115,12 +110,10 @@ public static class ThemeVariableCatalog
         ("--kh-badge-info-bg", "--kh-primary-bright", 0.2),
         ("--kh-badge-info-border", "--kh-primary-bright", 0.4),
         ("--kh-accent-glow", "--kh-accent", 0.45),
-        ("--kh-accent-subtle", "--kh-accent", 0.14),
         ("--kh-danger-glow", "--kh-danger", 0.3),
         ("--kh-danger-bg-subtle", "--kh-danger", 0.1),
         ("--kh-danger-bg-dim", "--kh-danger", 0.2),
         ("--kh-danger-border-subtle", "--kh-danger", 0.35),
-        ("--kh-danger-text-subtle", "--kh-danger", 0.7),
         ("--kh-warning-subtle", "--kh-warning", 0.1),
         ("--kh-warning-border-subtle", "--kh-warning", 0.3),
         ("--kh-success-subtle", "--kh-success", 0.1),

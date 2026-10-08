@@ -244,10 +244,6 @@
     // Handed to <Icon>, so it renders on that component's element, not ours. The leading `&` is
     // load-bearing: `::deep &__x` would put ::deep first, which Blazor can't rewrite, dropping the rule.
     & ::deep &__flag-icon {
-        &--tipper {
-            color: var(--kh-flag-tipper);
-        }
-
         &--regular {
             color: var(--kh-flag-regular);
         }

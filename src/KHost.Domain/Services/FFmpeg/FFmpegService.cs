@@ -127,7 +127,7 @@ public sealed class FFmpegService : BaseService, IFFmpegService, IDisposable
 
             SetInstall(FFmpegInstallState.Downloading, 0);
 
-            TryDeleteDirectory(work);
+            ScratchDirectory.TryDelete(work);
             var staged = Path.Combine(work, "staged");
             Directory.CreateDirectory(staged);
 
@@ -161,7 +161,7 @@ public sealed class FFmpegService : BaseService, IFFmpegService, IDisposable
         }
         finally
         {
-            TryDeleteDirectory(work);
+            ScratchDirectory.TryDelete(work);
             _installLock.Release();
         }
 
@@ -396,19 +396,6 @@ public sealed class FFmpegService : BaseService, IFFmpegService, IDisposable
             _broker.Announce(new FFmpegChanged());
 
         return after;
-    }
-
-    private static void TryDeleteDirectory(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (Exception)
-        {
-            // Scratch; a locked copy is cleared by the next attempt.
-        }
     }
 
     internal static async Task<FFmpegVersionRun> RunVersionAsync(string path, CancellationToken cancellationToken)

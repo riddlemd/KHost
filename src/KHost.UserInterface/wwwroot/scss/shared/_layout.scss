@@ -135,15 +135,6 @@
         }
     }
 
-    &__singer-inputs {
-        border-bottom: 2px solid var(--kh-border);
-        overflow: hidden;
-
-        form {
-            margin: 0;
-        }
-    }
-
     &__col--detail {
         flex: 1;
         min-width: 0;
