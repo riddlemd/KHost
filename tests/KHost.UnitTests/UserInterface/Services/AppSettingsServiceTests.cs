@@ -367,14 +367,14 @@ public class AppSettingsServiceTests : IDisposable
     {
         var service = Service();
 
-        await service.SaveAsync(new AppSettings { DefaultSearchMode = "KaraFunMediaProvider" });
+        await service.SaveAsync(new AppSettings { DefaultSearchMode = "ExampleMediaProvider" });
 
         using var overlay = JsonDocument.Parse(
             await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
-        Assert.Equal("KaraFunMediaProvider", overlay.RootElement.GetProperty("Search").GetProperty("DefaultMode").GetString());
+        Assert.Equal("ExampleMediaProvider", overlay.RootElement.GetProperty("Search").GetProperty("DefaultMode").GetString());
 
-        Assert.Equal("KaraFunMediaProvider",
-            Service(new KeyValuePair<string, string?>("Search:DefaultMode", "KaraFunMediaProvider")).Current.DefaultSearchMode);
+        Assert.Equal("ExampleMediaProvider",
+            Service(new KeyValuePair<string, string?>("Search:DefaultMode", "ExampleMediaProvider")).Current.DefaultSearchMode);
     }
 
     [Fact]

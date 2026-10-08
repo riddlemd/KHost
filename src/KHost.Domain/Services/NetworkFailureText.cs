@@ -6,7 +6,7 @@ namespace KHost.Domain.Services;
 public static class NetworkFailureText
 {
     /// <summary>"Could not reach {thing}…" when the network is to blame, else "{thing} failed: …".</summary>
-    /// <param name="thing">What was being reached, as the host knows it: "KaraFun", "the plugin catalog".</param>
+    /// <param name="thing">What was being reached, as the host knows it: "the media library", "the plugin catalog".</param>
     /// <param name="callerToken">The caller's own token, so its cancellation is not taken for a timeout.</param>
     public static string Describe(string thing, Exception exception, CancellationToken callerToken = default)
         => IsNetworkFailure(exception, callerToken)

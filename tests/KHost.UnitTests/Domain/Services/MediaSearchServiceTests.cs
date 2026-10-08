@@ -108,7 +108,7 @@ public class MediaSearchServiceTests
     public async Task SearchAsync_ProviderCannotBeReached_FlashesThatItCouldNotBeReached()
     {
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
-            .Returns(Task.FromException<List<MediaSearchEntity>>(new HttpRequestException("Permission denied (karafun.com:443)")));
+            .Returns(Task.FromException<List<MediaSearchEntity>>(new HttpRequestException("Permission denied (media.example.test:443)")));
 
         await _service.SearchAsync("song", "FileSystem");
 

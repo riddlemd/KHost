@@ -39,7 +39,7 @@ public class EditPerformanceDialogTests : BunitContext
         SungAs = "flo",
     };
 
-    private readonly Media _media = new() { Id = Guid.NewGuid(), FilePath = "/music/duet.kit", Title = "Duet" };
+    private readonly Media _media = new() { Id = Guid.NewGuid(), FilePath = "/music/duet.ext", Title = "Duet" };
 
     private PerformanceEdit? _saved;
     private int _cancelled;

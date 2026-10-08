@@ -27,7 +27,7 @@ public class AppSettingsPageSearchModeTests : BunitContext
         Services.AddBreakMusicSection();
         Services.AddSearchSection(
             AppSettingsPageServices.FakeLocalProvider(),
-            AppSettingsPageServices.FakeProvider("KaraFunMediaProvider", "KaraFun"));
+            AppSettingsPageServices.FakeProvider("ExampleMediaProvider", "Example"));
     }
 
     [Fact]
@@ -38,10 +38,10 @@ public class AppSettingsPageSearchModeTests : BunitContext
         var options = page.FindAll("select#default-search-mode option");
 
         Assert.Equal(
-            [AppSettings.RememberLastSearchMode, AppSettings.LocalSearchMode, "KaraFunMediaProvider"],
+            [AppSettings.RememberLastSearchMode, AppSettings.LocalSearchMode, "ExampleMediaProvider"],
             options.Select(o => o.GetAttribute("value")));
         Assert.Equal(
-            ["Remember the last one used", "Local", "KaraFun"],
+            ["Remember the last one used", "Local", "Example"],
             options.Select(o => o.TextContent.Trim()));
         Assert.Equal(AppSettings.LocalSearchMode, page.Find("select#default-search-mode").GetAttribute("value"));
     }
@@ -51,10 +51,10 @@ public class AppSettingsPageSearchModeTests : BunitContext
     {
         var page = Render<AppSettingsPage>();
 
-        page.Find("select#default-search-mode").Change("KaraFunMediaProvider");
+        page.Find("select#default-search-mode").Change("ExampleMediaProvider");
         await page.Find(".kh-app-settings__actions button").ClickAsync(new());
 
-        await _settings.Received(1).SaveAsync(Arg.Is<AppSettings>(s => s.DefaultSearchMode == "KaraFunMediaProvider"));
+        await _settings.Received(1).SaveAsync(Arg.Is<AppSettings>(s => s.DefaultSearchMode == "ExampleMediaProvider"));
     }
 
     [Fact]

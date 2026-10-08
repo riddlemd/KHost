@@ -13,9 +13,9 @@ public class QrCodePngExporterTests : IDisposable
 
     public QrCodePngExporterTests()
     {
-        _codes.ReadRegisteredAsync("karafun").Returns(new QrCodeRegistration
+        _codes.ReadRegisteredAsync("example-owner").Returns(new QrCodeRegistration
         {
-            OwnerId = "karafun",
+            OwnerId = "example-owner",
             Payload = "https://example.test/join",
         });
 
@@ -31,7 +31,7 @@ public class QrCodePngExporterTests : IDisposable
     [Fact]
     public async Task SaveAsync_ARegisteredCode_WritesAPngNamedAsAsked()
     {
-        var path = await _exporter.SaveAsync("karafun", "The Lounge QR code");
+        var path = await _exporter.SaveAsync("example-owner", "The Lounge QR code");
 
         Assert.Equal(Path.Combine(_directory, "The Lounge QR code.png"), path);
         Assert.Equal(PngSignature, File.ReadAllBytes(path!).Take(8));
@@ -41,10 +41,10 @@ public class QrCodePngExporterTests : IDisposable
     [Fact]
     public async Task SaveAsync_TheNameIsTaken_NumbersTheNewFileRatherThanOverwriting()
     {
-        var first = await _exporter.SaveAsync("karafun", "The Lounge QR code");
+        var first = await _exporter.SaveAsync("example-owner", "The Lounge QR code");
         var firstBytes = File.ReadAllBytes(first!);
 
-        var second = await _exporter.SaveAsync("karafun", "The Lounge QR code");
+        var second = await _exporter.SaveAsync("example-owner", "The Lounge QR code");
 
         Assert.Equal(Path.Combine(_directory, "The Lounge QR code (2).png"), second);
         Assert.Equal(firstBytes, File.ReadAllBytes(first!));
@@ -63,7 +63,7 @@ public class QrCodePngExporterTests : IDisposable
     [Fact]
     public async Task SaveAsync_ANameWithPathCharacters_StaysInTheFolder()
     {
-        var path = await _exporter.SaveAsync("karafun", "AC/DC Night: Main QR code");
+        var path = await _exporter.SaveAsync("example-owner", "AC/DC Night: Main QR code");
 
         Assert.Equal(_directory, Path.GetDirectoryName(path));
         Assert.Equal("AC-DC Night- Main QR code.png", Path.GetFileName(path));
@@ -73,7 +73,7 @@ public class QrCodePngExporterTests : IDisposable
     [Fact]
     public async Task SaveAsync_EncodesTheRegisteredPayload()
     {
-        var path = await _exporter.SaveAsync("karafun", "The Lounge QR code");
+        var path = await _exporter.SaveAsync("example-owner", "The Lounge QR code");
 
         using var generator = new QRCoder.QRCodeGenerator();
         using var expected = generator.CreateQrCode("https://example.test/join", QRCoder.QRCodeGenerator.ECCLevel.M);
