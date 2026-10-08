@@ -12,6 +12,15 @@ window.openSectionsWithErrors = function(selector) {
     });
 };
 
+// A note cut short in a two-column settings row shows its whole text on hover. Set as the pointer
+// arrives rather than in markup, so the wording lives once and only a truncated note gets one.
+document.addEventListener('mouseover', function(event) {
+    const note = event.target instanceof Element && event.target.closest('.kh-venue-settings--columns .kh-venue-settings__row .kh-note');
+    if (!note) return;
+
+    note.title = note.scrollWidth > note.clientWidth ? note.textContent.replace(/\s+/g, ' ').trim() : '';
+});
+
 window.focusFirstInput = function(container) {
     const el = container.querySelector('[autofocus]')
         ?? container.querySelector('input:not([type=hidden]):not([readonly]), textarea, select');

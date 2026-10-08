@@ -6,7 +6,7 @@
         <Icon Name="geo-alt-fill" /> @(_isNew ? "Add Venue" : "Edit Venue")
     </Header>
     <Body>
-        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync" OnInvalidSubmit="RevealErrors" class="kh-venue-settings">
+        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync" OnInvalidSubmit="RevealErrors" class="kh-venue-settings kh-venue-settings--columns">
             <DataAnnotationsValidator />
             <div class="kh-venue-settings__section kh-venue-settings__section--head">
                 <div class="kh-venue-settings__field">
