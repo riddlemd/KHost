@@ -1,0 +1,70 @@
+@using KHost.Abstractions.Models
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
+
+<VenueSettingsSection Title="Break music">
+
+    <div class="kh-venue-settings__row">
+        <label for="venue-break-music-mode" class="kh-form-label">Break music mode</label>
+        <select id="venue-break-music-mode" class="kh-form-select" @bind="Model.BreakMusicProvider">
+            @if (UnavailableProviderSource is { } unavailable)
+            {
+                <option value="@unavailable">@unavailable: not loaded</option>
+            }
+            @foreach (var provider in BreakMusic.Providers)
+            {
+                <option value="@provider.SourceName">@DescribeProvider(provider)</option>
+            }
+        </select>
+    </div>
+
+    @if (IsOnUnavailableProvider)
+    {
+        <p class="kh-note kh-note--warning">
+            Nothing loaded provides this mode. Check its plugin under
+            Settings &rsaquo; Plugins Manager. Picking another mode here replaces this
+            venue's choice for good.
+        </p>
+    }
+
+    @if (UsesLocalPlaylists)
+    {
+        <div class="kh-venue-settings__row">
+            <label class="kh-form-label">Break music playlist</label>
+            <ComboBox TItem="MediaPool"
+                      Class="kh-venue-settings__picker kh-venue-settings__picker--break-music"
+                      Value="_breakMusicPool"
+                      ValueChanged="OnBreakMusicPoolChanged"
+                      @bind-Text="_breakMusicPoolText"
+                      Search="SearchBreakMusicPoolsAsync"
+                      DisplayName="@(pool => pool.Name)"
+                      MinimumSearchLength="0"
+                      OpenWhenEmpty="true"
+                      Placeholder="None: silence between singers" />
+        </div>
+    }
+
+    @* Last, with the corner it reveals right under it. *@
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">
+            Break music label
+            <span class="kh-note">
+                Names the track on screen, only while it is actually playing: it comes
+                down for a singer, and for a pause.
+            </span>
+        </span>
+        <input id="venue-break-music-card" type="checkbox" class="kh-form-check-input"
+               @bind="Model.BreakMusicCardEnabled" />
+    </label>
+
+    @if (Model.BreakMusicCardEnabled)
+    {
+        <div class="kh-venue-settings__row">
+            <label for="venue-break-music-card-corner" class="kh-form-label">Label corner</label>
+            <InputSelect id="venue-break-music-card-corner" class="kh-form-select"
+                         @bind-Value="Model.BreakMusicCardCorner">
+                <OverlayCornerOptions />
+            </InputSelect>
+        </div>
+    }
+</VenueSettingsSection>
