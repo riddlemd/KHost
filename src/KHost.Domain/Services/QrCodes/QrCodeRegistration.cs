@@ -1,3 +1,5 @@
+using KHost.Abstractions.Models;
+
 namespace KHost.Domain.Services.QrCodes;
 
 /// <summary>A QR code someone has offered, with the host's own name for who offered it.</summary>
@@ -12,4 +14,7 @@ public sealed record QrCodeRegistration
 
     /// <summary>A line under the code, already composed: a display draws it, nothing else.</summary>
     public string? Caption { get; init; }
+
+    /// <summary>What scanning it offers; <see cref="QrCodeFeatures.None"/> declares nothing.</summary>
+    public QrCodeFeatures Features { get; init; }
 }
