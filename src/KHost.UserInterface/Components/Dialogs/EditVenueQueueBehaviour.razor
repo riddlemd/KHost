@@ -25,6 +25,15 @@
         <span class="kh-form-check-label">Warn when queueing a song already queued or recently sung</span>
         <InputCheckbox class="kh-form-check-input" @bind-Value="Model.WarnOnDuplicateSong" />
     </label>
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">
+            Refuse a song another singer already has queued
+            <span class="kh-note">
+                Turned away without asking you. A remote tells the singer who has it.
+            </span>
+        </span>
+        <InputCheckbox id="venue-refuse-song-queued-for-another-singer" class="kh-form-check-input" @bind-Value="Model.RefuseSongQueuedForAnotherSinger" />
+    </label>
     @if (Model.WarnOnDuplicateSong)
     {
         <div class="kh-venue-settings__row">
