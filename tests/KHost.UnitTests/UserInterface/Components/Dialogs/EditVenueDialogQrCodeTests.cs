@@ -7,6 +7,7 @@ using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Models.Plugins;
+using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
@@ -53,6 +54,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
 
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_exporter);
+        Services.AddSingleton(Substitute.For<IImageUploader>());
         Services.AddSingleton(_flash);
         Services.AddSingleton(_mediaPools);
 
