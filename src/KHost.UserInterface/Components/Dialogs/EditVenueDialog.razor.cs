@@ -49,7 +49,7 @@ public partial class EditVenueDialog
     protected override async Task OnInitializedAsync()
     {
         _isNew = Venue is null;
-        _model = EditVenueModel.From(Venue, BreakMusic.ActiveProvider?.SourceName);
+        _model = EditVenueModel.From(Venue);
         _editContext = new EditContext(_model);
 
         // Read when the dialog opens, not held, since a new playlist would be missing.

@@ -26,6 +26,31 @@ internal static class AppSettingsPageServices
         return search;
     }
 
+    /// <summary>What the page's Break music section injects, for fixtures testing something else on
+    /// it. Defaults to the host's own playlists alone, active.</summary>
+    public static IBreakMusicService AddBreakMusicSection(this IServiceCollection services, params IBreakMusicProvider[] providers)
+    {
+        // Built ahead of Returns(), for the same reason as the search section's providers.
+        IReadOnlyList<IBreakMusicProvider> effective = providers.Length > 0 ? providers : [FakeBreakMusicProvider("LibraryBreakMusicProvider", "Local")];
+
+        var breakMusic = Substitute.For<IBreakMusicService>();
+        breakMusic.Providers.Returns(effective);
+        breakMusic.LibraryProvider.Returns(effective[0]);
+        breakMusic.ActiveProvider.Returns(effective[0]);
+
+        services.AddSingleton(breakMusic);
+
+        return breakMusic;
+    }
+
+    public static IBreakMusicProvider FakeBreakMusicProvider(string sourceName, string displayName)
+    {
+        var provider = Substitute.For<IBreakMusicProvider>();
+        provider.SourceName.Returns(sourceName);
+        provider.DisplayName.Returns(displayName);
+        return provider;
+    }
+
     public static IMediaProvider FakeProvider(string sourceName, string displayName)
     {
         var provider = Substitute.For<IMediaProvider>();

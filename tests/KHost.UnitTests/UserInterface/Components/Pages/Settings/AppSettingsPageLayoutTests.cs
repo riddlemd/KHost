@@ -41,6 +41,7 @@ public class AppSettingsPageLayoutTests : BunitContext
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
         Services.AddSearchSection();
+        Services.AddBreakMusicSection();
     }
 
     [Fact]
@@ -51,18 +52,18 @@ public class AppSettingsPageLayoutTests : BunitContext
         var grid = page.Find(".kh-app-settings__grid");
         var panels = grid.QuerySelectorAll(":scope > .kh-app-settings__panel");
 
-        // Screens, Playback, Ads, Pagination, FFmpeg, Media, Search: one panel each, not folded
+        // Screens, Playback, Break music, Ads, Pagination, FFmpeg, Media, Search: one panel each, not folded
         // two-to-a-card, and every one is a direct child of the grid so the CSS grid actually
         // lays them out rather than a wrapper it never sees. No Security panel: sign-in is a
         // config-only flag now, not something this page saves.
-        Assert.Equal(7, panels.Length);
+        Assert.Equal(8, panels.Length);
         Assert.All(panels, panel => Assert.Contains("kh-card", panel.ClassList));
 
         var titles = panels
             .Select(panel => panel.QuerySelector(".kh-card__title")?.TextContent.Trim())
             .ToList();
         Assert.Equal(
-            ["Screens", "Playback", "Ads", "Pagination", "FFmpeg", "Media", "Search"],
+            ["Screens", "Playback", "Break music", "Ads", "Pagination", "FFmpeg", "Media", "Search"],
             titles);
     }
 

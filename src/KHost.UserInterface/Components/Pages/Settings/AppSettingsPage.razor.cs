@@ -20,6 +20,7 @@ public partial class AppSettingsPage : IDisposable
     [Inject] private IFFmpegService FFmpeg { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
+    [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -135,6 +136,27 @@ public partial class AppSettingsPage : IDisposable
         mode == KHost.UserInterface.Services.AppSettings.RememberLastSearchMode
             ? "Remember the last one used"
             : MediaSearchService.Providers.FirstOrDefault(provider => provider.SourceName == mode)?.DisplayName ?? mode;
+
+    /// <summary>Every loaded provider, plus the saved one when it is not loaded: an unmatched select
+    /// value renders blank, and saving that would quietly pick something else.</summary>
+    private IReadOnlyList<string> BreakMusicChoices
+    {
+        get
+        {
+            var loaded = BreakMusic.Providers.Select(provider => provider.SourceName).ToList();
+
+            return AppSettings.Current.BreakMusicProvider is { } saved
+                   && !loaded.Contains(saved, StringComparer.OrdinalIgnoreCase)
+                ? [saved, .. loaded]
+                : loaded;
+        }
+    }
+
+    /// <summary>The host's own playlists read as such; a plugin's provider names itself.</summary>
+    private string BreakMusicLabel(string source)
+        => BreakMusic.Providers.FirstOrDefault(p => string.Equals(p.SourceName, source, StringComparison.OrdinalIgnoreCase)) is { } provider
+            ? ReferenceEquals(provider, BreakMusic.LibraryProvider) ? $"{provider.DisplayName} playlist" : provider.DisplayName
+            : $"{source}: not loaded";
 
     private static IReadOnlyList<int> GraphicsScaleChoices => GraphicsScaling.Heights;
 

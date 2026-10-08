@@ -138,6 +138,28 @@
 
                 <section class="kh-app-settings__panel kh-card">
                     <div class="kh-card__header">
+                        <Icon Name="music-note-list" />
+                        <span class="kh-card__title">Break music</span>
+                    </div>
+                    <div class="kh-card__body">
+                        <SettingRow Label="Plays from" Applies="applies immediately">
+                            <Note>
+                                <span class="kh-note">
+                                    What fills the room between singers, at every venue. With this
+                                    host's playlists, each venue picks its playlist in its own settings.
+                                </span>
+                            </Note>
+                            <ChildContent>
+                                <ChoiceSelect TValue="string" Id="break-music-provider" Choices="BreakMusicChoices"
+                                              Value="_model.BreakMusicProvider!" ValueChanged="v => _model.BreakMusicProvider = v"
+                                              Label="BreakMusicLabel" />
+                            </ChildContent>
+                        </SettingRow>
+                    </div>
+                </section>
+
+                <section class="kh-app-settings__panel kh-card">
+                    <div class="kh-card__header">
                         <Icon Name="megaphone-fill" />
                         <span class="kh-card__title">Ads</span>
                     </div>
