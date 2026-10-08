@@ -2,10 +2,28 @@
 
 <VenueSettingsSection Title="Queue behavior">
 
-    <label class="kh-venue-settings__row kh-form-check">
-        <span class="kh-form-check-label">Clear queue when closing</span>
-        <InputCheckbox class="kh-form-check-input" @bind-Value="Model.ClearQueueOnClose" />
-    </label>
+    @* Who sings next and how many a singer may hold first; then the switches, grouped by what they
+       touch, the duplicate window right under the warning it belongs to. *@
+    <div class="kh-venue-queue-behaviour__rotation-row">
+        <button type="button" class="kh-venue-queue-behaviour__rotation-btn kh-button kh-button--secondary"
+                @onclick="() => _rotationDialogOpen = true">
+            <Icon Name="people-fill" /> Edit Singer Queue Rotation Strategy
+        </button>
+    </div>
+
+    <div class="kh-venue-settings__row">
+        <span class="kh-venue-settings__labelled">
+            <label for="venue-remote-song-limit" class="kh-form-label">Songs a singer may have queued</label>
+            <span class="kh-note">
+                Remote sign-ups past this are turned away; songs you add count but are never refused.
+                0 is no limit.
+            </span>
+        </span>
+        <InputNumber id="venue-remote-song-limit" class="kh-form-control" min="0" max="99"
+                     @bind-Value="Model.RemoteSongLimit" />
+        <ValidationMessage For="() => Model.RemoteSongLimit" />
+    </div>
+
     <label class="kh-venue-settings__row kh-form-check">
         <span class="kh-form-check-label">Show estimated wait time in the singer queue</span>
         <InputCheckbox class="kh-form-check-input" @bind-Value="Model.ShowEstimatedWaitTime" />
@@ -24,27 +42,6 @@
         <span class="kh-form-check-label">Warn when queueing a song already queued or recently sung</span>
         <InputCheckbox class="kh-form-check-input" @bind-Value="Model.WarnOnDuplicateSong" />
     </label>
-    <label class="kh-venue-settings__row kh-form-check">
-        <span class="kh-form-check-label">
-            Refuse a song another singer already has queued
-            <span class="kh-note">
-                Turned away without asking you. A remote tells the singer who has it.
-            </span>
-        </span>
-        <InputCheckbox id="venue-refuse-song-queued-for-another-singer" class="kh-form-check-input" @bind-Value="Model.RefuseSongQueuedForAnotherSinger" />
-    </label>
-    <div class="kh-venue-settings__row">
-        <span class="kh-venue-settings__labelled">
-            <label for="venue-remote-song-limit" class="kh-form-label">Songs a singer may have queued</label>
-            <span class="kh-note">
-                Remote sign-ups past this are turned away; songs you add count but are never refused.
-                0 is no limit.
-            </span>
-        </span>
-        <InputNumber id="venue-remote-song-limit" class="kh-form-control" min="0" max="99"
-                     @bind-Value="Model.RemoteSongLimit" />
-        <ValidationMessage For="() => Model.RemoteSongLimit" />
-    </div>
     @if (Model.WarnOnDuplicateSong)
     {
         <div class="kh-venue-settings__row">
@@ -57,13 +54,19 @@
             </InputSelect>
         </div>
     }
-
-    <div class="kh-venue-queue-behaviour__rotation-row">
-        <button type="button" class="kh-venue-queue-behaviour__rotation-btn kh-button kh-button--secondary"
-                @onclick="() => _rotationDialogOpen = true">
-            <Icon Name="people-fill" /> Edit Singer Queue Rotation Strategy
-        </button>
-    </div>
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">
+            Refuse a song another singer already has queued
+            <span class="kh-note">
+                Turned away without asking you. A remote tells the singer who has it.
+            </span>
+        </span>
+        <InputCheckbox id="venue-refuse-song-queued-for-another-singer" class="kh-form-check-input" @bind-Value="Model.RefuseSongQueuedForAnotherSinger" />
+    </label>
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">Clear queue when closing</span>
+        <InputCheckbox class="kh-form-check-input" @bind-Value="Model.ClearQueueOnClose" />
+    </label>
 </VenueSettingsSection>
 
 <SingerQueueDialog IsOpen="_rotationDialogOpen" Config="Model.QueueRotation" OnClose="CloseRotationDialog" />
