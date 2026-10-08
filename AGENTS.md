@@ -231,7 +231,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 - `KHost.Abstractions` and `KHost.Common` are **NuGet packages**; a plugin takes a `PackageReference`, never a `ProjectReference` into this repo.
 - `<ContractsVersion>` in `Directory.Build.props` versions both. Bump it on any shape change, additions included; 0.x while the contracts move.
-- `PluginApi.CurrentVersion` (at **6**) is the runtime gate checked against a manifest; it moves only on a break.
+- `PluginApi.CurrentVersion` (at **7**) is the runtime gate checked against a manifest; it moves only on a break.
   - A break: changing a method a plugin **calls or implements**, including adding an optional parameter (the default compiles into the call site; a changed implemented signature is a `TypeLoadException` at load).
   - Not a break: a new interface member with a **default body**.
   - Do not reason from the published catalog about who implements what — the hand-installed plugin is the one running.
