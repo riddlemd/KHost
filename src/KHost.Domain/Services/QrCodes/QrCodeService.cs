@@ -85,6 +85,19 @@ public sealed class QrCodeService : BaseService, IQrCodeService
         await _broker.PublishAsync(new QrCodeOfferChanged());
     }
 
+    public async Task<QrCodeRegistration?> ReadRegisteredAsync(string ownerId)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            return _codes.TryGetValue(ownerId, out var entry) ? entry.Code : null;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<QrCodeOffer?> ReadOfferAsync(CancellationToken cancellationToken = default)
     {
         var settings = (await _venuesService.ReadSelectedVenueAsync())?.Settings;

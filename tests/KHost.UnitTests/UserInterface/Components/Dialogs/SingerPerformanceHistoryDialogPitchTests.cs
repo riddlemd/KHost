@@ -62,6 +62,23 @@ public class SingerPerformanceHistoryDialogPitchTests : BunitContext
             Arg.Is<Performance>(p => p.MediaId == _media.Id && p.Pitch == -2));
     }
 
+    /// <summary>A note belongs to the night the singer wrote it; the host re-queuing the song is not
+    /// the singer asking again.</summary>
+    [Fact]
+    public void Enqueue_LeavesTheSingersNotesBehind()
+    {
+        History(new Performance { Id = Guid.NewGuid(), SingerId = _singerId, MediaId = _media.Id, Pitch = -2, SingerNotes = "For Sam" });
+
+        var dialog = Render<SingerPerformanceHistoryDialog>(p => p
+            .Add(d => d.IsOpen, true)
+            .Add(d => d.UserId, _singerId));
+
+        dialog.Find(EnqueueSelector).Click();
+
+        _performances.Received(1).CreateAndEnqueueAsync(
+            Arg.Is<Performance>(p => p.MediaId == _media.Id && p.Pitch == -2 && p.SingerNotes == null));
+    }
+
     [Fact]
     public void Enqueue_TakesTheKeyFromTheRowClicked_NotTheNewestTake()
     {

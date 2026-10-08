@@ -42,6 +42,9 @@ public class EditVenueModel
     public bool WarnOnDuplicateSong { get; set; }
     public int DuplicateSongWindowHours { get; set; } = 4;
     public bool RefuseSongQueuedForAnotherSinger { get; set; }
+
+    [Range(0, 99, ErrorMessage = "Between 0 and 99; 0 is no limit.")]
+    public int RemoteSongLimit { get; set; }
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;
@@ -157,6 +160,7 @@ public class EditVenueModel
                 ? settings.DuplicateSongWindowHours
                 : 4,
             RefuseSongQueuedForAnotherSinger = settings.RefuseSongQueuedForAnotherSinger,
+            RemoteSongLimit = settings.RemoteSongLimit,
             PromptBeforeRemovingSinger = settings.PromptBeforeRemovingSinger,
             PromptBeforeRemovingPerformance = settings.PromptBeforeRemovingPerformance,
             ClearQueueOnClose = settings.ClearQueueOnClose,
@@ -229,6 +233,7 @@ public class EditVenueModel
         venue.Settings.WarnOnDuplicateSong = WarnOnDuplicateSong;
         venue.Settings.DuplicateSongWindowHours = DuplicateSongWindowHours;
         venue.Settings.RefuseSongQueuedForAnotherSinger = RefuseSongQueuedForAnotherSinger;
+        venue.Settings.RemoteSongLimit = RemoteSongLimit;
         venue.Settings.PromptBeforeRemovingSinger = PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = ClearQueueOnClose;

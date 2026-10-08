@@ -1,25 +1,31 @@
 namespace KHost.Abstractions.Models;
 
 /// <summary>Whether a song reached the queue, and which rule stopped it when it did not.</summary>
+/// <remarks>Values are pinned: a plugin compiles them in as numbers, so a new member goes at the end.</remarks>
 public enum EnqueueResultType
 {
     /// <summary>Saved at the end of the singer's list.</summary>
-    Queued,
+    Queued = 0,
 
     /// <summary>The singer already has this song waiting. Refused without telling the host.</summary>
-    AlreadyQueued,
+    AlreadyQueued = 1,
 
     /// <summary>Another singer has this song waiting and the venue refuses such a song
     /// (<see cref="Venue.VenueSettings.RefuseSongQueuedForAnotherSinger"/>). Refused without telling
     /// the host.</summary>
-    QueuedForAnotherSinger,
+    QueuedForAnotherSinger = 2,
 
     /// <summary>The venue's duplicate-song warning was shown and the host declined it.</summary>
-    DeclinedAtWarning,
+    DeclinedAtWarning = 3,
 
     /// <summary>The gate that owns the media refused it for <see cref="Services.MediaAction.Queue"/>.
     /// </summary>
-    RefusedByProvider,
+    RefusedByProvider = 4,
+
+    /// <summary>A remote sign-up for a singer who already has as many songs queued as the venue
+    /// allows them (<see cref="Venue.VenueSettings.RemoteSongLimit"/>). Refused without telling the
+    /// host.</summary>
+    SingerAtLimit = 5,
 }
 
 /// <summary>What became of a request to put a song on a singer's list.</summary>

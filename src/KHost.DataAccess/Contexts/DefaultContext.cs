@@ -302,6 +302,9 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.SungAs)
                 .HasMaxLength(255);
 
+            entity.Property(e => e.SingerNotes)
+                .HasMaxLength(255);
+
             // A comparer by content: by reference, a level changed in place on a tracked row is
             // never seen as a change and never saved.
             entity.Property(e => e.VoiceVolumes)

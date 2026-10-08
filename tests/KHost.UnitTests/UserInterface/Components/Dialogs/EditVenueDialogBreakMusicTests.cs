@@ -6,6 +6,7 @@ using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
@@ -37,6 +38,8 @@ public class EditVenueDialogBreakMusicTests : BunitContext
         _breakMusic.LibraryProvider.Returns(library);
 
         Services.AddSingleton(_breakMusic);
+        Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
 
         // The dialog reads the visualisation playlists as it opens; none is all these need.

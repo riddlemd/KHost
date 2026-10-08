@@ -797,6 +797,112 @@ public class PerformanceServiceTests
     }
 
     [Fact]
+    public async Task TryCreateAndEnqueueAsync_RemoteSignupAtTheLimit_IsRefused()
+    {
+        _venue.Settings.RemoteSongLimit = 2;
+        var singerId = Guid.NewGuid();
+        await EnqueueMediaAsync(singerId, Guid.NewGuid());
+        await EnqueueMediaAsync(singerId, Guid.NewGuid());
+
+        var result = await RemoteSignupAsync(singerId);
+
+        Assert.Equal(EnqueueResultType.SingerAtLimit, result.Type);
+        Assert.Equal(2, (await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued)).Items.Count);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_RemoteSignupBelowTheLimit_IsQueued()
+    {
+        _venue.Settings.RemoteSongLimit = 2;
+        var singerId = Guid.NewGuid();
+        await EnqueueMediaAsync(singerId, Guid.NewGuid());
+
+        Assert.Equal(EnqueueResultType.Queued, (await RemoteSignupAsync(singerId)).Type);
+    }
+
+    /// <summary>The limit is on guests: the host adding one more for a singer is never refused, and
+    /// the overload that names nobody is the host.</summary>
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_TheHostAtTheLimit_IsQueued()
+    {
+        _venue.Settings.RemoteSongLimit = 1;
+        var singerId = Guid.NewGuid();
+        await EnqueueMediaAsync(singerId, Guid.NewGuid());
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
+
+        Assert.Equal(EnqueueResultType.Queued, result.Type);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_NoLimitSet_TakesEveryRemoteSignup()
+    {
+        var singerId = Guid.NewGuid();
+        for (var i = 0; i < 5; i++)
+            await EnqueueMediaAsync(singerId, Guid.NewGuid());
+
+        Assert.Equal(EnqueueResultType.Queued, (await RemoteSignupAsync(singerId)).Type);
+    }
+
+    /// <summary>Another singer's songs are theirs: a full room does not fill anyone else's quota.</summary>
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_RemoteSignup_CountsOnlyTheSingersOwnSongs()
+    {
+        _venue.Settings.RemoteSongLimit = 1;
+        var other = Guid.NewGuid();
+        await EnqueueMediaAsync(other, Guid.NewGuid());
+        await EnqueueMediaAsync(other, Guid.NewGuid());
+
+        Assert.Equal(EnqueueResultType.Queued, (await RemoteSignupAsync(Guid.NewGuid())).Type);
+    }
+
+    /// <summary>A song already sung is off the queue and no longer counts.</summary>
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_RemoteSignup_DoesNotCountSongsAlreadySung()
+    {
+        _venue.Settings.RemoteSongLimit = 1;
+        var singerId = Guid.NewGuid();
+        var sung = Assert.IsType<Performance>(await EnqueueMediaAsync(singerId, Guid.NewGuid()));
+        sung.QueuePosition = null;
+
+        Assert.Equal(EnqueueResultType.Queued, (await RemoteSignupAsync(singerId)).Type);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_TwoRemoteSignupsAtOnce_LimitOfOne_QueueOne()
+    {
+        _venue.Settings.RemoteSongLimit = 1;
+        var singerId = Guid.NewGuid();
+        var gateAsked = new TaskCompletionSource();
+        var releaseGate = new TaskCompletionSource<PlaybackGateResult>();
+        var asked = 0;
+        var gates = Substitute.For<IMediaGateService>();
+        gates.EvaluateAsync(MediaAction.Queue, Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (Interlocked.Increment(ref asked) == 2)
+                gateAsked.SetResult();
+            return releaseGate.Task;
+        });
+        _services.GetService(typeof(IMediaGateService)).Returns(gates);
+        _mediaService.ReadAsync(Arg.Any<Guid>()).Returns(call => new Media { Id = (Guid)call[0], FilePath = "/library/song.mp4", Title = "Song" });
+
+        var first = RemoteSignupAsync(singerId);
+        var second = RemoteSignupAsync(singerId);
+        await gateAsked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        releaseGate.SetResult(PlaybackGateResult.Ok);
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(
+            [EnqueueResultType.Queued, EnqueueResultType.SingerAtLimit],
+            results.Select(r => r.Type).Order());
+    }
+
+    private Task<EnqueueResult> RemoteSignupAsync(Guid singerId)
+        => _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() }, EnqueueOrigin.Remote);
+
+    [Fact]
     public async Task TryCreateAndEnqueueAsync_WarningDeclined_SaysSo()
     {
         _venue.Settings.WarnOnDuplicateSong = true;

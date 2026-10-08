@@ -67,6 +67,12 @@ public class Venue : RepositoryModel
         /// is only ever about a song sung recently.</remarks>
         public bool RefuseSongQueuedForAnotherSinger { get; set; }
 
+        /// <summary>How many songs a singer may have queued for a remote sign-up to be taken. Zero,
+        /// the default, is no limit.</summary>
+        /// <remarks>Counts every song the singer has queued, however it got there, but refuses only
+        /// remote sign-ups: the host can always add one more.</remarks>
+        public int RemoteSongLimit { get; set; }
+
         /// <summary>Asks for confirmation before a singer is removed from the queue.</summary>
         public bool PromptBeforeRemovingSinger { get; set; } = true;
 
