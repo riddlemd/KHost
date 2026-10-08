@@ -21,13 +21,7 @@
                            Value="@value.Compile()()" ValueChanged="setter" ValueExpression="@value" />
             </div>;
 
-        <div class="kh-venue-settings__row">
-            <label for="marquee-singer-count" class="kh-form-label">Singers to show</label>
-            <InputNumber id="marquee-singer-count" class="kh-form-control"
-                         @bind-Value="Model.MarqueeSingerCount" min="0" max="20" />
-            <ValidationMessage For="() => Model.MarqueeSingerCount" />
-        </div>
-
+        @* What it says, then where and how it moves, then how it looks, then the switches. *@
         <div class="kh-venue-settings__field">
             <label for="marquee-message" class="kh-form-label">Message</label>
             <InputText id="marquee-message" class="kh-form-control"
@@ -49,6 +43,21 @@
         </div>
 
         <div class="kh-venue-settings__row">
+            <label for="marquee-singer-count" class="kh-form-label">Singers to show</label>
+            <InputNumber id="marquee-singer-count" class="kh-form-control"
+                         @bind-Value="Model.MarqueeSingerCount" min="0" max="20" />
+            <ValidationMessage For="() => Model.MarqueeSingerCount" />
+        </div>
+
+        <div class="kh-venue-settings__row">
+            <label for="marquee-position" class="kh-form-label">Position</label>
+            <InputSelect id="marquee-position" class="kh-form-select" @bind-Value="Model.MarqueePosition">
+                <option value="@MarqueePosition.Bottom">Bottom of the screen</option>
+                <option value="@MarqueePosition.Top">Top of the screen</option>
+            </InputSelect>
+        </div>
+
+        <div class="kh-venue-settings__row">
             <label for="marquee-font-size" class="kh-form-label">Text size</label>
             <InputNumber id="marquee-font-size" class="kh-form-control"
                          @bind-Value="Model.MarqueeFontSizePixels" min="12" max="96" />
@@ -61,31 +70,6 @@
                          @bind-Value="Model.MarqueeScrollSpeed" min="15" max="400" />
             <ValidationMessage For="() => Model.MarqueeScrollSpeed" />
         </div>
-
-        <div class="kh-venue-settings__row">
-            <label for="marquee-position" class="kh-form-label">Position</label>
-            <InputSelect id="marquee-position" class="kh-form-select" @bind-Value="Model.MarqueePosition">
-                <option value="@MarqueePosition.Bottom">Bottom of the screen</option>
-                <option value="@MarqueePosition.Top">Top of the screen</option>
-            </InputSelect>
-        </div>
-
-        <label class="kh-venue-settings__row kh-form-check">
-            <span class="kh-form-check-label">
-                Hide while a song is playing
-                <span class="kh-note">
-                    Taken down for the whole performance, paused included, and back between singers.
-                </span>
-            </span>
-            <input id="venue-marquee-hide-during-song" type="checkbox" class="kh-form-check-input"
-                   @bind="Model.MarqueeHideDuringSong" />
-        </label>
-
-        <label class="kh-venue-settings__row kh-form-check">
-            <span class="kh-form-check-label">Hold &ldquo;Up next&rdquo; at the edge instead of scrolling it</span>
-            <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
-                   @bind="Model.MarqueePinLabel" />
-        </label>
 
         <div class="kh-venue-settings__row">
             <label for="marquee-divider-shape" class="kh-form-label">Divider</label>
@@ -118,5 +102,22 @@
         @ColorRow("marquee-singer-color", "Singer color", () => Model.MarqueeSingerColor, v => Model.MarqueeSingerColor = v)
         @ColorRow("marquee-song-color", "Song color", () => Model.MarqueeSongColor, v => Model.MarqueeSongColor = v)
         @ColorRow("marquee-divider-color", "Divider color", () => Model.MarqueeDividerColor, v => Model.MarqueeDividerColor = v)
+
+        <label class="kh-venue-settings__row kh-form-check">
+            <span class="kh-form-check-label">Hold &ldquo;Up next&rdquo; at the edge instead of scrolling it</span>
+            <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
+                   @bind="Model.MarqueePinLabel" />
+        </label>
+
+        <label class="kh-venue-settings__row kh-form-check">
+            <span class="kh-form-check-label">
+                Hide while a song is playing
+                <span class="kh-note">
+                    Taken down for the whole performance, paused included, and back between singers.
+                </span>
+            </span>
+            <input id="venue-marquee-hide-during-song" type="checkbox" class="kh-form-check-input"
+                   @bind="Model.MarqueeHideDuringSong" />
+        </label>
     }
 </VenueSettingsSection>
