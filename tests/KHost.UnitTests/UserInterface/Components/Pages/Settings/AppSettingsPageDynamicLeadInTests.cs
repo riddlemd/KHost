@@ -25,6 +25,7 @@ public class AppSettingsPageDynamicLeadInTests : BunitContext
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
         Services.AddSearchSection();
+        Services.AddBreakMusicSection();
     }
 
     [Fact]

@@ -50,6 +50,9 @@ namespace KHost.Domain
             serviceCollection.AddOptions<PlaybackService.ServiceOptions>()
                 .BindConfiguration(PlaybackService.ServiceOptions.SectionName);
 
+            serviceCollection.AddOptions<BreakMusicService.ServiceOptions>()
+                .BindConfiguration(BreakMusicService.ServiceOptions.SectionName);
+
             serviceCollection.AddOptions<HlsMediaStreamService.ServiceOptions>()
                 .BindConfiguration(HlsMediaStreamService.ServiceOptions.SectionName)
                 .PostConfigure<ResolvedHostAddress>((options, resolved) =>

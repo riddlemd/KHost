@@ -73,6 +73,11 @@ public sealed record AppSettings
     /// call, since only it knows which providers are loaded right now.</remarks>
     public string DefaultSearchMode { get; set; } = LocalSearchMode;
 
+    /// <summary>The break music provider every venue plays from, by its <c>SourceName</c>.</summary>
+    /// <remarks>Until saved here it reads as whichever provider is active, so the first save
+    /// keeps what the room already hears.</remarks>
+    public string? BreakMusicProvider { get; set; }
+
     /// <summary>The screen launched at startup is named this, so it reclaims its own window.</summary>
     public const string StartupScreenName = "Screen 1";
 

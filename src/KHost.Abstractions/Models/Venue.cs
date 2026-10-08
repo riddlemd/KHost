@@ -97,7 +97,8 @@ public class Venue : RepositoryModel
         /// <summary>Which pool break music draws from. Null means the venue has not chosen one.</summary>
         public Guid? BreakMusicPoolId { get; set; }
 
-        /// <summary>Provider source name; null falls back to the built-in one.</summary>
+        /// <summary>The provider source name this venue chose before the mode became one for every
+        /// venue; read only while App Settings names none. Null falls back to the built-in one.</summary>
         public string? BreakMusicProvider { get; set; }
 
         /// <summary>Whether a queued alias is shown. Off when unset, so it needs no backfill.</summary>

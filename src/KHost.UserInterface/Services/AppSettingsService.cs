@@ -2,6 +2,7 @@ using System.Text.Json;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.FFmpeg;
 using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Models;
@@ -18,12 +19,15 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     private readonly IConfiguration _configuration;
     private readonly IFFmpegService _ffmpeg;
+    private readonly IBreakMusicService _breakMusic;
     private readonly string _overlayPath;
 
-    public AppSettingsService(IConfiguration configuration, IFFmpegService ffmpeg, string? overlayDirectory = null)
+    public AppSettingsService(
+        IConfiguration configuration, IFFmpegService ffmpeg, IBreakMusicService breakMusic, string? overlayDirectory = null)
     {
         _configuration = configuration;
         _ffmpeg = ffmpeg;
+        _breakMusic = breakMusic;
         _overlayPath = Path.Combine(overlayDirectory ?? Path.Combine(AppContext.BaseDirectory, "cache"), OverlayFileName);
     }
 
@@ -76,7 +80,10 @@ internal sealed class AppSettingsService : IAppSettingsService
             ? style
             : SongControlStyle.Sliders,
         DefaultSearchMode = SearchModeOrDefault(_configuration["Search:DefaultMode"]),
+        BreakMusicProvider = Blank(_configuration[BreakMusicProviderKey]) ?? _breakMusic.ActiveProvider?.SourceName,
     };
+
+    private const string BreakMusicProviderKey = BreakMusicService.ServiceOptions.SectionName + ":Provider";
 
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
         PaginationClamp(_configuration.GetValue<int?>($"Pagination:{key}") ?? fallback);
@@ -163,6 +170,11 @@ internal sealed class AppSettingsService : IAppSettingsService
             ["DefaultMode"] = SearchModeOrDefault(settings.DefaultSearchMode),
         };
 
+        overlay[BreakMusicService.ServiceOptions.SectionName] = new Dictionary<string, object?>
+        {
+            ["Provider"] = Blank(settings.BreakMusicProvider),
+        };
+
         overlay["LocalScreen"] = new Dictionary<string, object?>
         {
             ["LaunchOnStartup"] = settings.LaunchScreenOnStartup,
@@ -198,6 +210,10 @@ internal sealed class AppSettingsService : IAppSettingsService
 
             await _ffmpeg.CheckAsync();
         }
+
+        // Switched now rather than on the next start: the room should hear the change at once.
+        if (Blank(settings.BreakMusicProvider) is { } provider && provider != before.BreakMusicProvider)
+            await _breakMusic.SetActiveProviderAsync(provider);
 
         return new AppSettingsSaveResult(true);
     }

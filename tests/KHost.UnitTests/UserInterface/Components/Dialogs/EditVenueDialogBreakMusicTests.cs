@@ -11,11 +11,11 @@ using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>A failed plugin load drops its provider, leaving a select value no option carries.</summary>
+/// <summary>The mode is App Settings' now; a venue picks only its playlist, and only for the mode
+/// that plays one.</summary>
 public class EditVenueDialogBreakMusicTests : BunitContext
 {
-    private const string ModeSelectSelector = "#venue-break-music-mode";
-    private const string WarningSelector = ".kh-note--warning";
+    private const string SourceNoteSelector = ".kh-venue-break-music__source";
     // The dialog carries three pickers; only the break music one answers to the mode above it.
     private const string PlaylistSelector = ".kh-venue-settings__picker--break-music";
 
@@ -61,104 +61,59 @@ public class EditVenueDialogBreakMusicTests : BunitContext
     }
 
     [Fact]
-    public void VenuesModeIsNotLoaded_StillCarriesAnOptionSoTheSelectIsNotBlank()
-    {
-        var options = Render("SpotifyBreakMusicProvider").FindAll($"{ModeSelectSelector} option");
-
-        Assert.Contains(options, option => option.GetAttribute("value") == "SpotifyBreakMusicProvider");
-    }
+    public void TheSection_OffersNoModeToPick()
+        => Assert.Empty(Render(null).FindAll("#venue-break-music-mode"));
 
     [Fact]
-    public void VenuesModeIsNotLoaded_SaysSoRatherThanLookingUnset()
-        => Assert.Single(Render("SpotifyBreakMusicProvider").FindAll(WarningSelector));
-
-    [Fact]
-    public void VenuesModeIsLoaded_AddsNoExtraOption()
-    {
-        var cut = Render(nameof(LibraryBreakMusicProviderStub));
-
-        Assert.Single(cut.FindAll($"{ModeSelectSelector} option"));
-        Assert.Empty(cut.FindAll(WarningSelector));
-    }
-
-    [Fact]
-    public void VenueHasNoModeSet_FallsBackToTheRunningOne()
+    public void ActiveModeIsTheHostsPlaylists_OffersAPlaylist()
     {
         var cut = Render(null);
 
-        Assert.Single(cut.FindAll($"{ModeSelectSelector} option"));
-        Assert.Empty(cut.FindAll(WarningSelector));
-        Assert.Equal(nameof(LibraryBreakMusicProviderStub), cut.Find(ModeSelectSelector).GetAttribute("value"));
+        Assert.NotEmpty(cut.FindAll(PlaylistSelector));
+        Assert.Empty(cut.FindAll(SourceNoteSelector));
     }
-
-    /// <summary>Source names are a stored key, so they match however they were cased when written.</summary>
-    [Fact]
-    public void VenuesModeDiffersOnlyByCase_IsTreatedAsLoaded()
-    {
-        var cut = Render(nameof(LibraryBreakMusicProviderStub).ToUpperInvariant());
-
-        Assert.Single(cut.FindAll($"{ModeSelectSelector} option"));
-        Assert.Empty(cut.FindAll(WarningSelector));
-    }
-
-    /// <summary>A cleared setting stores "", which no option carries either.</summary>
-    [Fact]
-    public void VenuesModeIsBlank_FallsBackToTheRunningOneRatherThanEmptyingTheSelect()
-    {
-        var cut = Render("");
-
-        Assert.Single(cut.FindAll($"{ModeSelectSelector} option"));
-        Assert.Empty(cut.FindAll(WarningSelector));
-        Assert.Equal(nameof(LibraryBreakMusicProviderStub), cut.Find(ModeSelectSelector).GetAttribute("value"));
-    }
-
-    [Fact]
-    public void ModeIsTheLibraryOne_OffersAPlaylist()
-        => Assert.NotEmpty(Render(nameof(LibraryBreakMusicProviderStub)).FindAll(PlaylistSelector));
 
     /// <summary>A playlist applies to the mode the host's playlists feed, not who renders audio.</summary>
     [Fact]
-    public void ModeBringsItsOwnMusic_OffersNoPlaylistEvenWhenTheHostRendersIt()
+    public void ActiveModeBringsItsOwnMusic_OffersNoPlaylistAndSaysWhereItComesFrom()
     {
         var library = Provider("Library", nameof(LibraryBreakMusicProviderStub), rendersThroughHost: true);
-        var other = Provider("Jukebox", "JukeboxProvider", rendersThroughHost: true);
-
-        _breakMusic.Providers.Returns(new List<IBreakMusicProvider> { library, other });
+        var jukebox = Provider("Jukebox", "JukeboxProvider", rendersThroughHost: true);
+        _breakMusic.Providers.Returns(new List<IBreakMusicProvider> { library, jukebox });
         _breakMusic.LibraryProvider.Returns(library);
+        _breakMusic.ActiveProvider.Returns(jukebox);
 
-        Assert.Empty(Render("JukeboxProvider").FindAll(PlaylistSelector));
+        var cut = Render(null);
+
+        Assert.Empty(cut.FindAll(PlaylistSelector));
+        var note = cut.Find(SourceNoteSelector).TextContent;
+        Assert.Contains("Jukebox", note);
+        Assert.Contains("App Settings", note);
     }
 
-    /// <summary>The placeholder must still carry the venue's own stored name, not a blank
-    /// sentinel, or picking it back up writes nothing back.</summary>
+    /// <summary>Until App Settings names a mode, a venue's old one is still what plays; saving the
+    /// venue must not lose it.</summary>
     [Fact]
-    public void VenuesModeIsNotLoaded_PlaceholderCarriesTheStoredName()
-    {
-        var option = Render("SpotifyBreakMusicProvider").Find($"{ModeSelectSelector} option[value='SpotifyBreakMusicProvider']");
-
-        Assert.Contains("SpotifyBreakMusicProvider", option.TextContent);
-        Assert.Contains("not loaded", option.TextContent);
-    }
-
-    /// <summary>Switching the mode away and back used to lose the unloaded provider's own option,
-    /// so picking it back up saved an empty mode rather than the venue's stored one.</summary>
-    [Fact]
-    public void UnloadedMode_SwitchedAwayAndBack_StillSavesTheStoredName()
+    public void Saving_KeepsTheVenuesOldModeAsItWas()
     {
         Venue? saved = null;
         var cut = Render("SpotifyBreakMusicProvider", v => saved = v);
 
-        cut.Find(ModeSelectSelector).Change(nameof(LibraryBreakMusicProviderStub));
-
-        // The placeholder must still be offered after switching away, or there is no way back.
-        Assert.Contains(cut.FindAll($"{ModeSelectSelector} option"),
-            option => option.GetAttribute("value") == "SpotifyBreakMusicProvider");
-
-        cut.Find(ModeSelectSelector).Change("SpotifyBreakMusicProvider");
         cut.Find("form").Submit();
 
-        Assert.NotNull(saved);
         Assert.Equal("SpotifyBreakMusicProvider", saved!.Settings.BreakMusicProvider);
+    }
+
+    /// <summary>A venue with no old mode keeps none, rather than having the running one written in.</summary>
+    [Fact]
+    public void Saving_AVenueWithNoOldMode_WritesNone()
+    {
+        Venue? saved = null;
+        var cut = Render(null, v => saved = v);
+
+        cut.Find("form").Submit();
+
+        Assert.Null(saved!.Settings.BreakMusicProvider);
     }
 
     private IRenderedComponent<EditVenueDialog> Render(string? providerSource, Action<Venue>? onSave = null)

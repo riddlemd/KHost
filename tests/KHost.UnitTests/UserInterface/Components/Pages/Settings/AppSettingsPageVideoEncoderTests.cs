@@ -25,6 +25,7 @@ public class AppSettingsPageVideoEncoderTests : BunitContext
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
+        Services.AddBreakMusicSection();
         Services.AddSearchSection();
     }
 

@@ -3,6 +3,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services.BreakMusic;
 
@@ -16,6 +17,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     private readonly SubscriptionSet _subscriptions = new();
     private readonly List<IBreakMusicProvider> _providers;
     private readonly IVenuesService _venues;
+    private readonly IOptionsMonitor<ServiceOptions> _options;
 
     private IBreakMusicProvider? _activeProvider;
 
@@ -23,9 +25,11 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         ILogger<BreakMusicService> logger,
         IEnumerable<IBreakMusicProvider> providers,
         IVenuesService venues,
+        IOptionsMonitor<ServiceOptions> options,
         IMessageBroker broker)
         : base(logger)
     {
+        _options = options;
         _broker = broker;
         _providers = [.. providers];
         _venues = venues;
@@ -52,9 +56,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        var venue = await _venues.ReadSelectedVenueAsync();
-
-        _activeProvider = Resolve(venue?.Settings.BreakMusicProvider);
+        _activeProvider = Resolve(AppProvider ?? (await _venues.ReadSelectedVenueAsync())?.Settings.BreakMusicProvider);
 
         Logger.LogInformation("Break music provider: {Provider}", _activeProvider?.SourceName ?? "none");
 
@@ -328,13 +330,20 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         return LibraryProvider ?? _providers.FirstOrDefault();
     }
 
-    // The mode is part of the venue's audio baseline: this message means the console is
-    // running a different venue (or the current one was edited), and its named mode should play.
+    /// <summary>The mode App Settings names for every venue; null until it has been saved there.</summary>
+    private string? AppProvider
+        => string.IsNullOrWhiteSpace(_options.CurrentValue.Provider) ? null : _options.CurrentValue.Provider.Trim();
+
+    // Only while App Settings names no mode: an install from before it moved there keeps following
+    // each venue's own until the host saves one, and from then on a venue switch leaves it alone.
     private void OnVenueChanged(SelectedVenueChanged message)
         => _ = ReapplyVenueAsync(CancellationToken.None);
 
     private async Task ReapplyVenueAsync(CancellationToken cancellationToken)
     {
+        if (AppProvider is not null)
+            return;
+
         var venue = await _venues.ReadSelectedVenueAsync();
 
         if (venue?.Settings.BreakMusicProvider is { } source && !string.IsNullOrWhiteSpace(source))
@@ -359,5 +368,13 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
             _broker.Announce(new BreakMusicChanged());
         });
+    }
+
+    public sealed class ServiceOptions
+    {
+        public const string SectionName = "BreakMusic";
+
+        /// <summary>The <see cref="IBreakMusicProvider.SourceName"/> every venue plays from.</summary>
+        public string? Provider { get; set; }
     }
 }

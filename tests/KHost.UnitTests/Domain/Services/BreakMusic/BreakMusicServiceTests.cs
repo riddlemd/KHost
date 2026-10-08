@@ -5,6 +5,7 @@ using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services.BreakMusic;
 
@@ -15,6 +16,8 @@ public class BreakMusicServiceTests : IDisposable
     private readonly IBreakMusicProvider _provider = Substitute.For<IBreakMusicProvider>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly IOptionsMonitor<BreakMusicService.ServiceOptions> _options = Substitute.For<IOptionsMonitor<BreakMusicService.ServiceOptions>>();
+    private readonly BreakMusicService.ServiceOptions _appSettings = new();
     private readonly BreakMusicService _service;
 
     public BreakMusicServiceTests()
@@ -22,8 +25,9 @@ public class BreakMusicServiceTests : IDisposable
         _provider.SourceName.Returns(nameof(LibraryBreakMusicProvider));
         _provider.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
         _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(null));
+        _options.CurrentValue.Returns(_ => _appSettings);
 
-        _service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider], _venues, _broker);
+        _service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider], _venues, _options, _broker);
     }
 
     public void Dispose()
@@ -153,7 +157,7 @@ public class BreakMusicServiceTests : IDisposable
             _venues, _broker);
 
         using var service = new BreakMusicService(
-            NullLogger<BreakMusicService>.Instance, [plugin, library], _venues, _broker);
+            NullLogger<BreakMusicService>.Instance, [plugin, library], _venues, _options, _broker);
 
         await service.InitializeAsync();
 
@@ -167,7 +171,7 @@ public class BreakMusicServiceTests : IDisposable
         plugin.SourceName.Returns("SpotifyProvider");
 
         using var service = new BreakMusicService(
-            NullLogger<BreakMusicService>.Instance, [_provider, plugin], _venues, _broker);
+            NullLogger<BreakMusicService>.Instance, [_provider, plugin], _venues, _options, _broker);
 
         await service.InitializeAsync();
         await service.SetActiveProviderAsync("SpotifyProvider");
@@ -232,14 +236,14 @@ public class BreakMusicServiceTests : IDisposable
         await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>The mode is part of the venue's audio baseline.</summary>
+    /// <summary>Until App Settings names a mode, each venue's old one still plays.</summary>
     [Fact]
     public async Task AVenueEdit_SwitchesToTheModeTheVenueNames()
     {
         var other = Substitute.For<IBreakMusicProvider>();
         other.SourceName.Returns("JukeboxProvider");
 
-        var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, other], _venues, _broker);
+        var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, other], _venues, _options, _broker);
 
         await service.InitializeAsync();
 
@@ -256,6 +260,63 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Same(other, service.ActiveProvider);
 
         service.Dispose();
+    }
+
+    [Fact]
+    public async Task InitializeAsync_AppSettingsNamesAMode_PlaysItOverTheVenuesOwn()
+    {
+        var jukebox = Substitute.For<IBreakMusicProvider>();
+        jukebox.SourceName.Returns("JukeboxProvider");
+        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { BreakMusicProvider = nameof(LibraryBreakMusicProvider) },
+        }));
+        _appSettings.Provider = "JukeboxProvider";
+        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, jukebox], _venues, _options, _broker);
+
+        await service.InitializeAsync();
+
+        Assert.Same(jukebox, service.ActiveProvider);
+    }
+
+    /// <summary>The venue's old mode decides only until App Settings names one.</summary>
+    [Fact]
+    public async Task InitializeAsync_AppSettingsNamesNone_PlaysTheVenuesOwn()
+    {
+        var jukebox = Substitute.For<IBreakMusicProvider>();
+        jukebox.SourceName.Returns("JukeboxProvider");
+        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { BreakMusicProvider = "JukeboxProvider" },
+        }));
+        _appSettings.Provider = "  ";
+        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, jukebox], _venues, _options, _broker);
+
+        await service.InitializeAsync();
+
+        Assert.Same(jukebox, service.ActiveProvider);
+    }
+
+    [Fact]
+    public async Task AVenueSwitch_OnceAppSettingsNamesAMode_LeavesTheModeAlone()
+    {
+        var jukebox = Substitute.For<IBreakMusicProvider>();
+        jukebox.SourceName.Returns("JukeboxProvider");
+        _appSettings.Provider = nameof(LibraryBreakMusicProvider);
+        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, jukebox], _venues, _options, _broker);
+        await service.InitializeAsync();
+
+        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { BreakMusicProvider = "JukeboxProvider" },
+        }));
+        await _broker.PublishAsync(new SelectedVenueChanged());
+        await Task.Delay(50);
+
+        Assert.Same(_provider, service.ActiveProvider);
     }
 
     // Without a lock guarding every transition (not just StartAsync), a StopAsync racing a
@@ -302,7 +363,7 @@ public class BreakMusicServiceTests : IDisposable
         var other = Substitute.For<IBreakMusicProvider>();
         other.SourceName.Returns("JukeboxProvider");
 
-        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [other], _venues, _broker);
+        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [other], _venues, _options, _broker);
 
         Assert.Null(service.LibraryProvider);
     }

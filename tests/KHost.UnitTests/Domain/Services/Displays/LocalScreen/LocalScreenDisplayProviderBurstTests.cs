@@ -107,7 +107,10 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         provider.SourceName.Returns("Spotify");
         provider.ReadPlaybackAsync(Arg.Any<CancellationToken>()).Returns(BreakMusicPlayback.Paused);
 
-        var breakMusic = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [provider], _venues, _broker);
+        var options = Substitute.For<IOptionsMonitor<BreakMusicService.ServiceOptions>>();
+        options.CurrentValue.Returns(new BreakMusicService.ServiceOptions());
+
+        var breakMusic = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [provider], _venues, options, _broker);
         _built.Add(breakMusic);
         PlaybackOverTheScreen(breakMusic);
 
