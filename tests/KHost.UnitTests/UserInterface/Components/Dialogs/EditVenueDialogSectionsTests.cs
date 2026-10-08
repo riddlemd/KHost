@@ -58,6 +58,54 @@ public class EditVenueDialogSectionsTests : BunitContext
     public void Opening_LaysTheRowsOutInColumns()
         => Assert.Contains("kh-venue-settings--columns", Render().Find("form.kh-venue-settings").ClassList);
 
+    /// <summary>Within a section: what a switch reveals sits right under it, a switch that gates the
+    /// whole section leads it, and otherwise the fields come before the switches.</summary>
+    [Theory]
+    [MemberData(nameof(SectionRowOrders))]
+    public void Opening_LaysEachSectionsRowsOutInOrder(string section, string[] rows)
+    {
+        var cut = Render(new Venue
+        {
+            Name = "The Lounge",
+            Settings = { MarqueeEnabled = true, BreakMusicCardEnabled = true, WarnOnDuplicateSong = true },
+        });
+
+        Assert.Equal(rows, RowLabels(cut, section));
+    }
+
+    public static TheoryData<string, string[]> SectionRowOrders() => new()
+    {
+        {
+            "Screen marquee",
+            [
+                "Show a marquee on the screen",
+                "Message", "Entry format", "Singers to show",
+                "Position", "Text size", "Scroll speed",
+                "Divider", "Background color", "Background opacity",
+                "Text color", "Singer color", "Song color", "Divider color",
+                "Hold “Up next” at the edge instead of scrolling it", "Hide while a song is playing",
+            ]
+        },
+        {
+            "Between singers",
+            [
+                "Break music mode", "Break music playlist", "Ad playlist", "Placeholder image",
+                "Behind the “Up next” card",
+                "Name the break music on screen", "Corner",
+            ]
+        },
+        {
+            "Queue behavior",
+            [
+                "Edit Singer Queue Rotation Strategy", "Songs a singer may have queued",
+                "Show estimated wait time in the singer queue", "Allow Singer Aliases",
+                "Warn when queueing a song already queued or recently sung", "Consider a song recently sung within",
+                "Refuse a song another singer already has queued",
+                "Clear queue when closing",
+            ]
+        },
+    };
+
     /// <summary>The name is what a host opens the dialog for, so it is never behind a fold.</summary>
     [Fact]
     public void Opening_LeavesTheNameOutsideAnyFold()
@@ -121,6 +169,19 @@ public class EditVenueDialogSectionsTests : BunitContext
         cut.WaitForAssertion(() => Assert.NotNull(saved));
         JSInterop.VerifyNotInvoke("openSectionsWithErrors");
     }
+
+    /// <summary>Each row's label as the host reads it, top to bottom, inside one section: the label's
+    /// own words, not the note nested under them.</summary>
+    private static List<string> RowLabels(IRenderedComponent<EditVenueDialog> cut, string section)
+        => cut.FindAll("details.kh-venue-settings__section")
+            .Single(d => d.QuerySelector("summary")!.TextContent.Trim() == section)
+            .QuerySelectorAll(".kh-venue-settings__row, .kh-venue-settings__field, .kh-venue-queue-behaviour__rotation-row")
+            .Select(row => row.QuerySelector(".kh-form-label, .kh-form-check-label, button")!)
+            .Select(label => label.ChildNodes
+                .Where(node => node.NodeType == AngleSharp.Dom.NodeType.Text)
+                .Select(node => node.TextContent.Trim())
+                .FirstOrDefault(text => text.Length > 0) ?? label.TextContent.Trim())
+            .ToList();
 
     private IRenderedComponent<EditVenueDialog> Render(Venue? venue = null, Action<Venue>? onSave = null)
         => Render<EditVenueDialog>(ps =>
