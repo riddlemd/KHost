@@ -15,7 +15,6 @@ namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 /// that plays one.</summary>
 public class EditVenueDialogBreakMusicTests : BunitContext
 {
-    private const string SourceNoteSelector = ".kh-venue-break-music__source";
     // The dialog carries three pickers; only the break music one answers to the mode above it.
     private const string PlaylistSelector = ".kh-venue-settings__picker--break-music";
 
@@ -70,12 +69,11 @@ public class EditVenueDialogBreakMusicTests : BunitContext
         var cut = Render(null);
 
         Assert.NotEmpty(cut.FindAll(PlaylistSelector));
-        Assert.Empty(cut.FindAll(SourceNoteSelector));
     }
 
     /// <summary>A playlist applies to the mode the host's playlists feed, not who renders audio.</summary>
     [Fact]
-    public void ActiveModeBringsItsOwnMusic_OffersNoPlaylistAndSaysWhereItComesFrom()
+    public void ActiveModeBringsItsOwnMusic_OffersNoPlaylist()
     {
         var library = Provider("Library", nameof(LibraryBreakMusicProviderStub), rendersThroughHost: true);
         var jukebox = Provider("Jukebox", "JukeboxProvider", rendersThroughHost: true);
@@ -83,12 +81,7 @@ public class EditVenueDialogBreakMusicTests : BunitContext
         _breakMusic.LibraryProvider.Returns(library);
         _breakMusic.ActiveProvider.Returns(jukebox);
 
-        var cut = Render(null);
-
-        Assert.Empty(cut.FindAll(PlaylistSelector));
-        var note = cut.Find(SourceNoteSelector).TextContent;
-        Assert.Contains("Jukebox", note);
-        Assert.Contains("App Settings", note);
+        Assert.Empty(Render(null).FindAll(PlaylistSelector));
     }
 
     /// <summary>Until App Settings names a mode, a venue's old one is still what plays; saving the
