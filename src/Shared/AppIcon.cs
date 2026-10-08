@@ -14,9 +14,16 @@ namespace KHost.UserInterface;
 internal static class AppIcon
 {
     internal const string DirectoryName = "icons";
-    internal const string WindowsIconFileName = "khost.ico";
-    internal const string LinuxIconFileName = "khost-256.png";
-    internal const string MacIconFileName = "khost.icns";
+    // The console copies the screen's whole output into its own, so the two share this directory and
+    // each needs file names the other does not use.
+#if KHOST_LOCALSCREEN
+    private const string BaseName = "khost-screen";
+#else
+    private const string BaseName = "khost";
+#endif
+    internal const string WindowsIconFileName = BaseName + ".ico";
+    internal const string LinuxIconFileName = BaseName + "-256.png";
+    internal const string MacIconFileName = BaseName + ".icns";
 
     internal static OSPlatform CurrentPlatform =>
         OperatingSystem.IsWindows() ? OSPlatform.Windows

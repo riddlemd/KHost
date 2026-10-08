@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<!-- 16-32px: heavier, simplified kH than the master so it still reads solid at two pixels a stroke. -->
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A86AD4"/><stop offset="1" stop-color="#5D2B90"/></linearGradient></defs>
+<rect id="plate" width="1024" height="1024" rx="160" fill="url(#bg)"/>
+<g transform="rotate(-45 512 512)" fill="#fff">
+<g transform="translate(139.1 0)">
+<rect x="0.0" y="322.0" width="122.0" height="380.0" rx="14.6"/>
+<path d="M61,560 L164,451 L331,451 L94,702 L61,702 Z"/>
+<path d="M141,572 L250,538 L335,702 L205,702 Z"/>
+<rect x="433.8" y="322.0" width="122.0" height="380.0" rx="14.6"/>
+<rect x="623.8" y="322.0" width="122.0" height="380.0" rx="14.6"/>
+<rect x="433.8" y="466.2" width="312.0" height="122.0" rx="7.3"/>
+</g>
+</g>
+<!-- Screen badge at 16-32px: a bigger disc and heavier monitor, so the corner still reads as white at 16px. -->
+<circle cx="818" cy="818" r="168" fill="#fff"/>
+<g transform="translate(693 693) scale(2.5)" fill="#5D2B90"><path fill-rule="evenodd" d="M14,10 h72 a10,10 0 0 1 10,10 v44 a10,10 0 0 1 -10,10 h-72 a10,10 0 0 1 -10,-10 v-44 a10,10 0 0 1 10,-10 Z M24,24 v36 h52 v-36 Z"/><rect x="40" y="72" width="20" height="12"/><rect x="22" y="82" width="56" height="12" rx="6"/></g>
+</svg>
