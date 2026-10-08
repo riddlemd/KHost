@@ -202,6 +202,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IPluginInstallerService, PluginInstallerService>();
             serviceCollection.AddSingleton<MediaAcquisitionService>();
             serviceCollection.AddSingleton<IMediaAcquisitionService>(sp => sp.GetRequiredService<MediaAcquisitionService>());
+            serviceCollection.AddSingleton<IImageUploader, ImageUploader>();
 
             // Queue Rotation (built-in modes register before plugins so their ids win)
             serviceCollection.AddSingleton<IQueueRotationStrategyFactory, QueueRotationStrategyFactory>();
