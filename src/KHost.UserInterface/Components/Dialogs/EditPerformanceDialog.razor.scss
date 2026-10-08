@@ -4,8 +4,16 @@
         color: var(--kh-text-secondary);
     }
 
-    &__alias {
+    &__alias,
+    &__singer-notes {
         margin-bottom: 1rem;
+    }
+
+    &__singer-notes-text {
+        margin: 0.25rem 0 0;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        color: var(--kh-text);
     }
 
     &__locked {

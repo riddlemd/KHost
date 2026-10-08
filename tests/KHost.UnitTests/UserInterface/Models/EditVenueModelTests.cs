@@ -58,6 +58,7 @@ public class EditVenueModelTests
         WarnOnDuplicateSong = true,
         DuplicateSongWindowHours = 8,
         RefuseSongQueuedForAnotherSinger = true,
+        RemoteSongLimit = 3,
         PromptBeforeRemovingSinger = false,
         PromptBeforeRemovingPerformance = false,
         ClearQueueOnClose = false,

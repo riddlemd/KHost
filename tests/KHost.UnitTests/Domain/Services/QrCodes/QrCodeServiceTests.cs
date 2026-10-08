@@ -101,6 +101,26 @@ public class QrCodeServiceTests
         Assert.DoesNotContain(typeof(IPlaybackService), taken);
     }
 
+    /// <summary>What an owner registered is readable whatever the venue shows, so it can be saved
+    /// for print while another source is on screen.</summary>
+    [Fact]
+    public async Task ReadRegisteredAsync_ReadsTheOwnersCodeEvenWhenTheVenueChoseAnother()
+    {
+        Arrange(source: "other");
+        var service = Service();
+        await service.RegisterAsync(Code("example"));
+
+        Assert.Equal("https://example.test/example", (await service.ReadRegisteredAsync("example"))?.Payload);
+    }
+
+    [Fact]
+    public async Task ReadRegisteredAsync_AnOwnerThatRegisteredNothing_ReadsNull()
+    {
+        var service = Service();
+
+        Assert.Null(await service.ReadRegisteredAsync("example"));
+    }
+
     [Fact]
     public async Task ReadOfferAsync_NothingRegistered_OffersNothing()
     {

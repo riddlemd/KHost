@@ -7,6 +7,7 @@ using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Models.Plugins;
+using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
@@ -23,6 +24,8 @@ public class EditVenueDialogQrCodeTests : BunitContext
     private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPluginRegistry _plugins = Substitute.For<IPluginRegistry>();
+    private readonly IQrCodePngExporter _exporter = Substitute.For<IQrCodePngExporter>();
+    private readonly IFlashService _flash = Substitute.For<IFlashService>();
 
     /// <summary>A plugin that declared itself a source, whether or not it has a code right now.</summary>
     private static DiscoveredPlugin Source(Guid id, string name, string? label)
@@ -49,6 +52,8 @@ public class EditVenueDialogQrCodeTests : BunitContext
         _breakMusic.Providers.Returns(new List<IBreakMusicProvider>());
 
         Services.AddSingleton(_breakMusic);
+        Services.AddSingleton(_exporter);
+        Services.AddSingleton(_flash);
         Services.AddSingleton(_mediaPools);
 
         // The dialog reads the visualisation playlists as it opens; none is all these need.
@@ -77,6 +82,62 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Assert.True(string.IsNullOrEmpty(cut.Find(SourceSelector).GetAttribute("value")));
         Assert.Empty(cut.FindAll(CornerSelector));
         Assert.Empty(cut.FindAll(SizeSelector));
+    }
+
+    private const string DownloadSelector = ".kh-venue-qr-codes__download";
+
+    [Fact]
+    public void Download_NoSourceChosen_IsDisabled()
+    {
+        var cut = Render(new Venue.VenueSettings());
+
+        Assert.True(cut.Find(DownloadSelector).HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public async Task Download_ASourceChosen_SavesThatSourcesCodeNamedForTheVenue()
+    {
+        var id = Guid.NewGuid();
+        _plugins.Plugins.Returns([Source(id, "Example", "Guest sign-up")]);
+        _exporter.SaveAsync(id.ToString(), "Test Venue QR code", Arg.Any<CancellationToken>())
+            .Returns("/Users/host/Downloads/Test Venue QR code.png");
+        var cut = Render(new Venue.VenueSettings { QrCodeSource = id.ToString() });
+
+        await cut.Find(DownloadSelector).ClickAsync(new());
+
+        await _exporter.Received(1).SaveAsync(id.ToString(), "Test Venue QR code", Arg.Any<CancellationToken>());
+        _flash.Received(1).Show(
+            Arg.Is<string>(text => text.Contains("Guest sign-up") && text.Contains("/Users/host/Downloads/Test Venue QR code.png")),
+            FlashType.Success);
+    }
+
+    /// <summary>A plugin offers its code only once it is signed in; the host is told, not left
+    /// wondering where the file went.</summary>
+    [Fact]
+    public async Task Download_TheSourceOffersNoCodeYet_SaysSo()
+    {
+        var id = Guid.NewGuid();
+        _plugins.Plugins.Returns([Source(id, "Example", "Guest sign-up")]);
+        _exporter.SaveAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((string?)null);
+        var cut = Render(new Venue.VenueSettings { QrCodeSource = id.ToString() });
+
+        await cut.Find(DownloadSelector).ClickAsync(new());
+
+        _flash.Received(1).Show(Arg.Is<string>(text => text.Contains("no code")), FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task Download_TheFileCannotBeWritten_SaysWhy()
+    {
+        var id = Guid.NewGuid();
+        _plugins.Plugins.Returns([Source(id, "Example", "Guest sign-up")]);
+        _exporter.SaveAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<string?>(_ => throw new IOException("Disk full"));
+        var cut = Render(new Venue.VenueSettings { QrCodeSource = id.ToString() });
+
+        await cut.Find(DownloadSelector).ClickAsync(new());
+
+        _flash.Received(1).Show(Arg.Is<string>(text => text.Contains("Disk full")), FlashType.Warning);
     }
 
     /// <summary>Read from the manifest, not what registered: a provider may have no code until

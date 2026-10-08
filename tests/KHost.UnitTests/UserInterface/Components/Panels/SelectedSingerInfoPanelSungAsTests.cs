@@ -74,6 +74,27 @@ public class SelectedSingerInfoPanelSungAsTests : BunitContext
     }
 
     /// <summary>Every enqueue records a name; keying the mark on it would flag nearly every row.</summary>
+    /// <summary>A marker only: the note itself is read on hover or in Edit, never laid into the row.</summary>
+    [Fact]
+    public void QueuedRow_WithNotes_ShowsAnIconRatherThanTheNote()
+    {
+        _performance.SingerNotes = "For Sam's birthday";
+
+        var marker = Render<SelectedSingerInfoPanel>().Find(".kh-selected-singer-info-panel__singer-notes");
+
+        Assert.Equal("", marker.TextContent.Trim());
+        Assert.NotNull(marker.QuerySelector("i.bi-chat-left-text"));
+        Assert.Equal("For Sam's birthday", marker.GetAttribute("title"));
+    }
+
+    [Fact]
+    public void QueuedRow_WithoutNotes_ShowsNoNotesLine()
+    {
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Empty(panel.FindAll(".kh-selected-singer-info-panel__singer-notes"));
+    }
+
     [Fact]
     public void QueuedRow_IsNotMarked_WhenTheTurnCarriesTheSingersOwnName()
     {

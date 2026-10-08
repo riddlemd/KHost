@@ -160,6 +160,15 @@
                                         singing as @performance.SungAs
                                     </span>
                                 }
+
+                                @if (!string.IsNullOrWhiteSpace(performance.SingerNotes))
+                                {
+                                    @* A marker, not the note: the row has no room for it, and Edit shows it whole. *@
+                                    <span class="kh-selected-singer-info-panel__singer-notes" title="@performance.SingerNotes"
+                                          aria-label="The singer left a note">
+                                        <Icon Name="chat-left-text" />
+                                    </span>
+                                }
                             </td>
                             <td class="kh-table__cell--fill" title="@(rowMedia?.Artist ?? "")">@(rowMedia?.Artist ?? "")</td>
                             <td class="kh-selected-singer-info-panel__duration">

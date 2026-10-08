@@ -69,6 +69,13 @@ public interface IPerformanceService : IRepositoryService<Performance>
     /// wait on a person. Two calls for the same singer and song at once queue it once.</remarks>
     Task<EnqueueResult> TryCreateAndEnqueueAsync(Performance performance);
 
+    /// <summary>As <see cref="TryCreateAndEnqueueAsync(Performance)"/>, saying who asked.</summary>
+    /// <param name="performance">The song to queue and the singer it is for.</param>
+    /// <param name="origin">Who asked. Only <see cref="EnqueueOrigin.Remote"/> is held to the venue's
+    /// <see cref="Venue.VenueSettings.RemoteSongLimit"/>, refused as
+    /// <see cref="EnqueueResultType.SingerAtLimit"/>; the overload without it is the host.</param>
+    Task<EnqueueResult> TryCreateAndEnqueueAsync(Performance performance, EnqueueOrigin origin);
+
     /// <summary>Takes a performance off the queue into the history, as a finished song does.</summary>
     /// <remarks>Leaves the performance alone when it does not belong to <paramref name="singerId"/>. To
     /// drop a song that was never sung, delete it instead.</remarks>

@@ -147,6 +147,8 @@ namespace KHost.Domain
                 provider => provider.GetRequiredService<LocalScreenDisplayProvider>());
             serviceCollection.AddSingleton<INextSingerCardService, NextSingerCardService>();
             serviceCollection.AddSingleton<IQrCodeService, QrCodeService>();
+            serviceCollection.AddSingleton<IQrCodePngExporter>(sp =>
+                new QrCodePngExporter(sp.GetRequiredService<IQrCodeService>(), QrCodePngExporter.DownloadsDirectory));
 
             // The same singleton, so a reader sees what the registry holds; only the read side is public.
             serviceCollection.AddSingleton<IQrCodeOfferService>(sp => sp.GetRequiredService<IQrCodeService>());

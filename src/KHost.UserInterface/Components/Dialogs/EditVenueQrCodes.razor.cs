@@ -1,4 +1,6 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.QrCodes;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
 
@@ -10,6 +12,10 @@ public partial class EditVenueQrCodes
     [Parameter, EditorRequired] public EditVenueModel Model { get; set; } = default!;
 
     [Inject] private IPluginRegistry Plugins { get; set; } = default!;
+    [Inject] private IQrCodePngExporter Exporter { get; set; } = default!;
+    [Inject] private IFlashService Flash { get; set; } = default!;
+
+    private bool _saving;
 
     /// <summary>Read from manifests, not registrations, so a venue can be set up before the show.</summary>
     private IEnumerable<(string Id, string Label)> QrCodeSources
@@ -46,5 +52,32 @@ public partial class EditVenueQrCodes
             && !QrCodeSources.Any(source => string.Equals(source.Id, Model.QrCodeSource, StringComparison.OrdinalIgnoreCase))
                 ? Model.QrCodeSource
                 : null;
+    }
+
+    private async Task SaveCodeAsync()
+    {
+        if (Model.QrCodeSource is not { Length: > 0 } source) return;
+
+        var label = QrCodeSources.FirstOrDefault(s => string.Equals(s.Id, source, StringComparison.OrdinalIgnoreCase)).Label ?? source;
+        var venue = string.IsNullOrWhiteSpace(Model.Name) ? "Venue" : Model.Name.Trim();
+
+        _saving = true;
+        try
+        {
+            // The code the source offers now, not one this venue stored: a plugin mints its own,
+            // and offers nothing until it is signed in.
+            if (await Exporter.SaveAsync(source, $"{venue} QR code") is { } path)
+                Flash.Show($"Saved the {label} code to {path}.", FlashType.Success);
+            else
+                Flash.Show($"{label} has no code to save right now. A plugin offers one once it is signed in.", FlashType.Warning);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Flash.Show($"Could not save the QR code: {ex.Message}", FlashType.Warning);
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 }
