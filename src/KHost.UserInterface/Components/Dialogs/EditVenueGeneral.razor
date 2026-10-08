@@ -4,27 +4,12 @@
 
     <div class="kh-venue-settings__row">
         <label class="kh-form-label">Placeholder image</label>
-        <div class="kh-venue-general__image">
-            <ComboBox TItem="Media"
-                      Class="kh-venue-settings__picker"
-                      Value="_brandingImage"
-                      ValueChanged="OnBrandingImageChanged"
-                      @bind-Text="_brandingImageText"
-                      Search="SearchImagesAsync"
-                      DisplayName="@(image => image.Title)"
-                      MinimumSearchLength="0"
-                      OpenWhenEmpty="true"
-                      Placeholder="None: leave the screen blank" />
-            <label class="kh-button kh-button--secondary kh-venue-general__browse@(_uploading ? " kh-venue-general__browse--busy" : "")"
-                   title="Browse for a picture to add to the library" aria-label="Browse for a picture">
-                <Icon Name="folder2-open" />
-                <InputFile id="venue-branding-browse" class="kh-hidden" accept="@ImageAccept"
-                           OnChange="UploadAsync" disabled="@_uploading" />
-            </label>
-        </div>
+        <MediaPicker Types="[MediaType.Image]" @bind-MediaId="Model.BrandingImageMediaId"
+                     Placeholder="None: leave the screen blank" BrowseId="venue-branding-browse"
+                     BrowseTitle="Browse for a picture to add to the library" />
     </div>
 
-    @if (_brandingImage is not null)
+    @if (Model.BrandingImageMediaId is not null)
     {
         <div class="kh-venue-settings__row">
             <label for="venue-branding-scaling" class="kh-form-label">How it fills the screen</label>
