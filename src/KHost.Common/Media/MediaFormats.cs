@@ -65,10 +65,8 @@ public static class MediaFormats
 
     /// <summary>The audio that belongs to a <c>.cdg</c>, or null when it is not beside it.</summary>
     /// <remarks>The graphics carry the words and nothing else, so a <c>.cdg</c> without this is half
-    /// a song. One helper because four places used to ask this question and two of them disagreed:
-    /// <see cref="IsKaraokeTrack"/> counted any audio file beside a <c>.cdg</c> as the pair's other
-    /// half, while the players only ever looked for <c>.mp3</c> — so a <c>.cdg</c> next to a
-    /// <c>.wav</c> was excluded from import as "part of a pair" and then played silent.
+    /// a song. Any audio extension counts, and
+    /// import and playback must agree on the pair or a <c>.cdg</c> is hidden from import yet plays silent.
     ///
     /// <para>Matched without regard to case, and by directory listing rather than by
     /// <c>File.Exists</c> on a built name: a case-sensitive filesystem has <c>SONG.CDG</c> and

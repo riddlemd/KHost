@@ -17,8 +17,8 @@ and macOS.
 - **Ads.** A venue can choose an ad playlist; ads play in the gap after a performance, never over one.
 - **Tips.** Tips are recorded against the singer and the venue they were taken at.
 
-The library, singers and groups live in SQLite; the queue and venue state live in a JSON cache
-under `./cache/`.
+The library, singers, groups and venues live in SQLite; the queue and the selected venue id live in
+a JSON cache under `./cache/`.
 
 ## How a song reaches the room
 
@@ -86,8 +86,9 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo>
 
 ### Hardware
 
-KHost encodes video on the CPU, with no hardware acceleration, so the processor decides whether it
-keeps up.
+KHost encodes video with a hardware encoder when the machine has one and falls back to the CPU
+(libx264) otherwise. App Settings' "Video encoder" can force either, so the CPU is what decides
+whether it keeps up when no hardware encoder is available.
 
 | | Minimum | Recommended |
 |---|---|---|
