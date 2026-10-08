@@ -20,7 +20,7 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
     private const string MenuSelector = ".kh-split-btn__menu button";
 
     private const string LocalSource = nameof(LocalMediaProvider);
-    private const string KaraFunSource = "KaraFunMediaProvider";
+    private const string ExampleSource = "ExampleMediaProvider";
     private const string CacheKey = "search-mode-last-used";
 
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
@@ -37,11 +37,11 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
         local.SourceName.Returns(LocalSource);
         local.DisplayName.Returns("Local");
 
-        var karaFun = Substitute.For<IMediaProvider>();
-        karaFun.SourceName.Returns(KaraFunSource);
-        karaFun.DisplayName.Returns("KaraFun");
+        var example = Substitute.For<IMediaProvider>();
+        example.SourceName.Returns(ExampleSource);
+        example.DisplayName.Returns("Example");
 
-        _search.Providers.Returns([local, karaFun]);
+        _search.Providers.Returns([local, example]);
         _search.SearchAsync(Arg.Any<string>()).Returns([]);
         _search.SearchAsync(Arg.Any<string>(), Arg.Any<string>()).Returns([]);
 
@@ -69,11 +69,11 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
     [Fact]
     public void FixedDefault_StartsThePanelInTheConfiguredMode()
     {
-        _appSettings.Current.Returns(new AppSettings { DefaultSearchMode = KaraFunSource });
+        _appSettings.Current.Returns(new AppSettings { DefaultSearchMode = ExampleSource });
 
         var panel = Render<MediaSearchPanel>();
 
-        Assert.Equal("KaraFun", panel.Find(PrimarySelector).TextContent.Trim());
+        Assert.Equal("Example", panel.Find(PrimarySelector).TextContent.Trim());
     }
 
     /// <summary>A plugin that was uninstalled since the mode was configured must not leave a dead
@@ -107,11 +107,11 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
     public void Remember_WithAPreviousPickCached_StartsThere()
     {
         _appSettings.Current.Returns(new AppSettings { DefaultSearchMode = AppSettings.RememberLastSearchMode });
-        _cache.LoadAsync<string>(CacheKey).Returns(KaraFunSource);
+        _cache.LoadAsync<string>(CacheKey).Returns(ExampleSource);
 
         var panel = Render<MediaSearchPanel>();
 
-        Assert.Equal("KaraFun", panel.Find(PrimarySelector).TextContent.Trim());
+        Assert.Equal("Example", panel.Find(PrimarySelector).TextContent.Trim());
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
         panel.Find(ToggleSelector).Click();
         panel.Find(MenuSelector).Click();
 
-        _cache.Received(1).SaveAsync(CacheKey, KaraFunSource);
+        _cache.Received(1).SaveAsync(CacheKey, ExampleSource);
     }
 
     /// <summary>The whole point of "Remember": the next render starts where the last pick left off.
@@ -139,15 +139,15 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
         first.Find(ToggleSelector).Click();
         first.Find(MenuSelector).Click();
 
-        _cache.Received(1).SaveAsync(CacheKey, KaraFunSource);
+        _cache.Received(1).SaveAsync(CacheKey, ExampleSource);
 
         // What a fresh circuit's ControlState starts as; the save above is what it reads back.
         _controlState.MediaSearchSource = null;
-        _cache.LoadAsync<string>(CacheKey).Returns(KaraFunSource);
+        _cache.LoadAsync<string>(CacheKey).Returns(ExampleSource);
 
         var rebuilt = Render<MediaSearchPanel>();
 
-        Assert.Equal("KaraFun", rebuilt.Find(PrimarySelector).TextContent.Trim());
+        Assert.Equal("Example", rebuilt.Find(PrimarySelector).TextContent.Trim());
     }
 
     /// <summary>With a fixed default, a pick is for this session only — never written to the cache.</summary>
