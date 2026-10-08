@@ -90,7 +90,7 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
 
         lock (_lock)
         {
-            // Every refusal below says why, and is now sent to the screen as well as logged: a
+            // Every refusal below says why, and is sent to the screen as well as logged: a
             // screen told nothing reads an abort as a lost connection rather than a refusal.
             if (!_sessions.TryGetValue(connectionId, out var session))
             {

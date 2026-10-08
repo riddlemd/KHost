@@ -44,9 +44,8 @@ public partial class PlaylistManager : IDisposable
     {
         _subscriptions.Add(Broker.Subscribe<MediaPoolsChanged>(_ => OnChanged()));
 
-        // A pool renamed or deleted elsewhere, or a different one picked for this venue, both
-        // change what this page shows; neither used to be heard, so the "In use" badge went
-        // stale after an edit made anywhere but here.
+        // A pool renamed or deleted elsewhere, or a different one picked for this venue, changes
+        // what this page shows; without these the "In use" badge goes stale.
         _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnChanged()));
         _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => OnChanged()));
 

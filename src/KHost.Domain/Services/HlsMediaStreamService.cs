@@ -192,7 +192,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         // the session closes and nothing has to remember it exists.
         var source = await _playableSources.ResolvePlayableAsync(filePath, directory, cancellationToken);
 
-        // Everything below reads the resolved path: a companion .mp3 sits beside the original, but
+        // Everything below reads the resolved path: a companion audio file sits beside the original, but
         // what ffmpeg opens, and what decides the graphics-only frame rate, is what it will read.
         var companionAudio = ResolveCompanionAudio(source);
         if (companionAudio is null && IsGraphicsOnly(source))
@@ -862,7 +862,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         // CDG decoding is stateful, so an input seek lands mid-packet and the graphics decode to
         // garbage. Such a source seeks on the output instead and eats the frames.
         //
-        // Asked of the graphics, not of the companion audio: a .cdg with no .mp3 beside it is still
+        // Asked of the graphics, not of the companion audio: a .cdg with no audio beside it is still
         // a stateful decode, and keying this off the pairing seeked it on the input and drew
         // garbage for the one case that already had no sound. Reused below for the frame-rate
         // decision, which asks the same question of the same file.
@@ -1053,7 +1053,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <summary>A loose .cdg: this is asked of what ffmpeg opens, after a zipped pair is written out.</summary>
     internal static bool IsGraphicsOnly(string filePath) => MediaFormats.IsGraphicsOnlyKaraoke(filePath);
 
-    /// <summary>A .cdg holds only graphics; its audio is the same-named .mp3 beside it.</summary>
+    /// <summary>A .cdg holds only graphics; its audio is the same-named audio file beside it.</summary>
     /// <remarks>Through <see cref="MediaFormats.FindKaraokeAudio"/>, so the importer, the probe and
     /// the renderer all decide a pair the same way.</remarks>
     internal static string? ResolveCompanionAudio(string filePath)

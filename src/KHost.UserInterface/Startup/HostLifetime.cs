@@ -51,10 +51,8 @@ internal static class HostLifetime
         });
 
         // One registration, its steps run in this explicit order: ApplicationStopping fires
-        // registrations LIFO, and these four used to be registered MediaStream, Downloads,
-        // PluginInstaller, Queue — so today's effective order is the reverse, Queue first and
-        // MediaStream last. Each step is independent and guarded, so one failing does not skip
-        // the rest.
+        // registrations LIFO, so separate registrations would run reversed. Each step is guarded,
+        // so one failing does not skip the rest.
         app.Lifetime.ApplicationStopping.Register(() =>
         {
             // Every graceful exit lands here: Exit menu, close button, or Ctrl+C when headless.
