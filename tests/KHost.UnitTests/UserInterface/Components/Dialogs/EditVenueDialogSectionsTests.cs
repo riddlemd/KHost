@@ -39,7 +39,7 @@ public class EditVenueDialogSectionsTests : BunitContext
         Services.AddSingleton(visualisations);
         Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
-        Services.AddSingleton(Substitute.For<IImageUploader>());
+        Services.AddSingleton(Substitute.For<IMediaUploader>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(plugins);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));

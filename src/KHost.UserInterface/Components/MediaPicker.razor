@@ -1,0 +1,23 @@
+@using KHost.Abstractions.Models
+
+<div class="kh-media-picker @Class">
+    <ComboBox TItem="Media"
+              Class="kh-media-picker__search"
+              Value="_selected"
+              ValueChanged="SelectAsync"
+              @bind-Text="_text"
+              Search="SearchAsync"
+              DisplayName="Describe"
+              MinimumSearchLength="0"
+              OpenWhenEmpty="true"
+              Placeholder="@Placeholder" />
+    @if (CanBrowse)
+    {
+        <label class="kh-button kh-button--secondary kh-media-picker__browse@(_uploading ? " kh-media-picker__browse--busy" : "")"
+               title="@BrowseTitle" aria-label="@BrowseTitle">
+            <Icon Name="folder2-open" />
+            <InputFile id="@BrowseId" class="kh-hidden" accept="@string.Join(",", _accept)"
+                       OnChange="UploadAsync" disabled="@_uploading" />
+        </label>
+    }
+</div>

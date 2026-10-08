@@ -1,0 +1,23 @@
+// The search keeps the row's width; the button beside it takes only what its glyph needs.
+.kh-media-picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+
+    ::deep .kh-media-picker__search {
+        flex: 1;
+        min-width: 0;
+    }
+
+    &__browse {
+        flex-shrink: 0;
+        cursor: pointer;
+
+        &--busy {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    }
+}
