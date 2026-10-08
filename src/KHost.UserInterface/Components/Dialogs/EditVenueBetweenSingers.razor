@@ -58,29 +58,6 @@
                   Placeholder="None: this venue runs no ads" />
     </div>
 
-    <label class="kh-venue-settings__row kh-form-check">
-        <span class="kh-form-check-label">
-            Name the break music on screen
-            <span class="kh-note">
-                Only while it is actually playing: it comes down for a singer,
-                and for a pause.
-            </span>
-        </span>
-        <input id="venue-break-music-card" type="checkbox" class="kh-form-check-input"
-               @bind="Model.BreakMusicCardEnabled" />
-    </label>
-
-    @if (Model.BreakMusicCardEnabled)
-    {
-        <div class="kh-venue-settings__row">
-            <label for="venue-break-music-card-corner" class="kh-form-label">Corner</label>
-            <InputSelect id="venue-break-music-card-corner" class="kh-form-select"
-                         @bind-Value="Model.BreakMusicCardCorner">
-                <OverlayCornerOptions />
-            </InputSelect>
-        </div>
-    }
-
     <div class="kh-venue-settings__row">
         <label class="kh-form-label">Placeholder image</label>
         <ComboBox TItem="Media"
@@ -121,4 +98,28 @@
             <option value="@NextSingerBackground.Visualisation">A visualisation</option>
         </InputSelect>
     </div>
+
+    @* Last, with the corner it reveals right under it: the only switch in the section. *@
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">
+            Name the break music on screen
+            <span class="kh-note">
+                Only while it is actually playing: it comes down for a singer,
+                and for a pause.
+            </span>
+        </span>
+        <input id="venue-break-music-card" type="checkbox" class="kh-form-check-input"
+               @bind="Model.BreakMusicCardEnabled" />
+    </label>
+
+    @if (Model.BreakMusicCardEnabled)
+    {
+        <div class="kh-venue-settings__row">
+            <label for="venue-break-music-card-corner" class="kh-form-label">Corner</label>
+            <InputSelect id="venue-break-music-card-corner" class="kh-form-select"
+                         @bind-Value="Model.BreakMusicCardCorner">
+                <OverlayCornerOptions />
+            </InputSelect>
+        </div>
+    }
 </VenueSettingsSection>
