@@ -24,9 +24,9 @@ public sealed class SortableBinding(
         {
             _dotNetRef ??= DotNetObjectReference.Create(target);
 
-            // The row itself drags; SortableJS takes no handle selector of its own here.
+            // The row itself drags, so no handle selector.
             await js.InvokeVoidAsync(
-                "khSortable.init", key, selector, null, filter, _dotNetRef, callbackName, itemIdAttribute);
+                "khSortable.init", key, selector, filter, _dotNetRef, callbackName, itemIdAttribute);
         }
         else
         {

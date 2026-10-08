@@ -250,8 +250,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     }
 
     /// <summary>Whether the song has anywhere to come out — a screen, a television, anything.</summary>
-    /// <remarks>One question now the screens are a display like the rest. Refusing to play with only
-    /// a television attached would refuse the setup casting exists for.</remarks>
+    /// <remarks>Any connected display counts, not only a local screen: refusing to play with only a
+    /// television attached would refuse the setup casting exists for.</remarks>
     public Task<bool> HasConnectedScreenAsync()
     {
         try

@@ -388,3 +388,7 @@ FodyWeavers.xsd
 
 # Working notes, not a shipped artefact: the roadmap lives with whoever is at the console.
 /TODO.md
+
+# Staged from node_modules and screen-ui by `npm run copy:vendors` on every build.
+/src/KHost.UserInterface/wwwroot/js/Sortable.min.js
+/src/KHost.UserInterface/wwwroot/js/visualiser/

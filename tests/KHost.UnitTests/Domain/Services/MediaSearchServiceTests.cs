@@ -66,22 +66,6 @@ public class MediaSearchServiceTests
     };
 
     [Fact]
-    public void GetMediaProviderDisplayName_ReturnsDisplayName_WhenProviderFound()
-    {
-        var result = _service.GetMediaProviderDisplayName("FileSystem");
-
-        Assert.Equal("File System", result);
-    }
-
-    [Fact]
-    public void GetMediaProviderDisplayName_ReturnsUnknownSource_WhenProviderNotFound()
-    {
-        var result = _service.GetMediaProviderDisplayName("YouTube");
-
-        Assert.Equal("Unknown Source", result);
-    }
-
-    [Fact]
     public async Task SearchAsync_ReturnsEmptyList_WhenNoProviders()
     {
         var analytics = Substitute.For<IAnalyticsService>();

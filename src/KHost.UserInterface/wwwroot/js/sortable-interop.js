@@ -1,7 +1,7 @@
 window.khSortable = {
     instances: {},
 
-    init(key, containerSelector, handleSelector, filterSelector, dotNetRef, sortEndMethod, itemIdAttribute) {
+    init(key, containerSelector, filterSelector, dotNetRef, sortEndMethod, itemIdAttribute) {
         const el = document.querySelector(containerSelector);
         if (!el) return;
 
@@ -9,7 +9,6 @@ window.khSortable = {
 
         this.instances[key] = Sortable.create(el, {
             animation: 150,
-            handle: handleSelector || undefined,
             filter: filterSelector || undefined,
             preventOnFilter: false,
             onEnd(evt) {

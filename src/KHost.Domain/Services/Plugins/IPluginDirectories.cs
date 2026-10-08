@@ -5,8 +5,4 @@ namespace KHost.Domain.Services.Plugins;
 public interface IPluginDirectories
 {
     string PluginsDirectory { get; }
-
-    string StagingDirectory { get; }
-
-    string CacheDirectory { get; }
 }
