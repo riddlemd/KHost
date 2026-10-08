@@ -12,9 +12,10 @@ public class AppSettingsServiceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"khost-settings-{Guid.NewGuid():n}");
     private readonly IFFmpegService _ffmpeg = Substitute.For<IFFmpegService>();
+    private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
 
     private AppSettingsService Service(params KeyValuePair<string, string?>[] config)
-        => new(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), _ffmpeg, _directory);
+        => new(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), _ffmpeg, _breakMusic, _directory);
 
     [Fact]
     public async Task SaveAsync_WritesAConfigShapedOverlay()
@@ -32,6 +33,54 @@ public class AppSettingsServiceTests : IDisposable
         Assert.Equal("00:00:05", overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString());
     }
 
+    /// <summary>Before it is saved, the setting reads as what the room already hears, so the
+    /// first save keeps it.</summary>
+    [Fact]
+    public void Current_NoBreakMusicModeSaved_ReadsTheActiveOne()
+    {
+        var active = Substitute.For<IBreakMusicProvider>();
+        active.SourceName.Returns("JukeboxProvider");
+        _breakMusic.ActiveProvider.Returns(active);
+
+        Assert.Equal("JukeboxProvider", Service().Current.BreakMusicProvider);
+    }
+
+    [Fact]
+    public void Current_ABreakMusicModeSaved_ReadsIt()
+    {
+        var active = Substitute.For<IBreakMusicProvider>();
+        active.SourceName.Returns("LibraryBreakMusicProvider");
+        _breakMusic.ActiveProvider.Returns(active);
+
+        var service = Service(new KeyValuePair<string, string?>("BreakMusic:Provider", "JukeboxProvider"));
+
+        Assert.Equal("JukeboxProvider", service.Current.BreakMusicProvider);
+    }
+
+    [Fact]
+    public async Task SaveAsync_ANewBreakMusicMode_WritesItAndSwitchesToItNow()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { BreakMusicProvider = "JukeboxProvider" });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal("JukeboxProvider", overlay.RootElement.GetProperty("BreakMusic").GetProperty("Provider").GetString());
+        await _breakMusic.Received(1).SetActiveProviderAsync("JukeboxProvider", Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Saving some other setting must not stop and restart what is already playing.</summary>
+    [Fact]
+    public async Task SaveAsync_TheSameBreakMusicMode_LeavesItPlaying()
+    {
+        var service = Service(new KeyValuePair<string, string?>("BreakMusic:Provider", "JukeboxProvider"));
+
+        await service.SaveAsync(new AppSettings { BreakMusicProvider = "JukeboxProvider", SegmentSeconds = 3 });
+
+        await _breakMusic.DidNotReceiveWithAnyArgs().SetActiveProviderAsync(default!, default);
+    }
+
     /// <summary>The setup redirect reads Current on the very next request, before any file watcher
     /// could have fired — and on some filesystems none ever does.</summary>
     [Fact]
@@ -41,7 +90,7 @@ public class AppSettingsServiceTests : IDisposable
         var configuration = new ConfigurationBuilder()
             .AddJsonFile(Path.Combine(_directory, AppSettingsService.OverlayFileName), optional: true, reloadOnChange: false)
             .Build();
-        var service = new AppSettingsService(configuration, _ffmpeg, _directory);
+        var service = new AppSettingsService(configuration, _ffmpeg, _breakMusic, _directory);
 
         await service.SaveAsync(new AppSettings { LaunchScreenOnStartup = true });
 
@@ -266,7 +315,7 @@ public class AppSettingsServiceTests : IDisposable
         var saved = new ConfigurationBuilder()
             .AddJsonFile(Path.Combine(_directory, AppSettingsService.OverlayFileName))
             .Build();
-        Assert.Equal(chosen, new AppSettingsService(saved, _ffmpeg, _directory).Current.VideoEncoder);
+        Assert.Equal(chosen, new AppSettingsService(saved, _ffmpeg, _breakMusic, _directory).Current.VideoEncoder);
         Assert.Equal(
             chosen,
             saved.GetSection(HlsMediaStreamService.ServiceOptions.SectionName).Get<HlsMediaStreamService.ServiceOptions>()!.Encoder);

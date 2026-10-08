@@ -24,6 +24,7 @@ public class AppSettingsPageFFmpegTests : BunitContext
         Services.AddSingleton(_flash);
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSearchSection();
+        Services.AddBreakMusicSection();
     }
 
     [Fact]

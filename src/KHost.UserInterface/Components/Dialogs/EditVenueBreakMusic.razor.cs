@@ -18,44 +18,14 @@ public partial class EditVenueBreakMusic
     private MediaPool? _breakMusicPool;
     private string _breakMusicPoolText = "";
 
-    /// <summary>The venue's stored mode, captured once at open, when it names no loaded provider.
-    /// Reading <see cref="Model"/>'s live value here instead loses the option the moment the host
-    /// picks something else — the placeholder would vanish from the select along with it, so
-    /// switching back to it saved an empty value rather than the mode the venue actually had.</summary>
-    private string? _unavailableProviderSource;
-
-    /// <summary>Kept selected for an unloaded provider: an unmatched select value renders blank.</summary>
-    private string? UnavailableProviderSource => _unavailableProviderSource;
-
-    /// <summary>Whether the select is currently sitting on that unloaded mode.</summary>
-    private bool IsOnUnavailableProvider
-        => _unavailableProviderSource is not null
-           && string.Equals(Model.BreakMusicProvider, _unavailableProviderSource, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>Whether the mode is fed by this host's own playlists, loaded or not.</summary>
+    /// <summary>Whether break music comes from this host's own playlists, the one mode a venue
+    /// still picks something for.</summary>
     private bool UsesLocalPlaylists
-        => IsOnUnavailableProvider
-           || (BreakMusic.LibraryProvider is { } library
-               && string.Equals(Model.BreakMusicProvider, library.SourceName, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>The mode fed by this host's playlists reads "my own music"; others name themselves.</summary>
-    private string DescribeProvider(IBreakMusicProvider provider)
-        => ReferenceEquals(provider, BreakMusic.LibraryProvider)
-            ? $"{provider.DisplayName} playlist"
-            : provider.DisplayName;
+        => BreakMusic.ActiveProvider is { } active && ReferenceEquals(active, BreakMusic.LibraryProvider);
 
     /// <summary>Read when the dialog opens, not held, since a new playlist would be missing.</summary>
     protected override async Task OnInitializedAsync()
     {
-        // Snapshot before anything can change it: whether this mode is unloaded is a fact about
-        // what the venue had on open, not about whatever the select currently shows.
-        _unavailableProviderSource =
-            !string.IsNullOrWhiteSpace(Model.BreakMusicProvider)
-            && !BreakMusic.Providers.Any(p =>
-                string.Equals(p.SourceName, Model.BreakMusicProvider, StringComparison.OrdinalIgnoreCase))
-                ? Model.BreakMusicProvider
-                : null;
-
         // Null venue id: a playlist belongs to every venue unless it was scoped to one, and this
         // dialog may be editing a venue that is not the one currently selected.
         _breakMusicPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, venueId: null);

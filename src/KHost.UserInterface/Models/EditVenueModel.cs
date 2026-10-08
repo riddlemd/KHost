@@ -62,6 +62,9 @@ public class EditVenueModel
     public Guid? BreakMusicPoolId { get; set; }
     public Guid? AdPoolId { get; set; }
     public Guid? BrandingImageMediaId { get; set; }
+
+    /// <summary>Carried through unedited: App Settings now picks the mode for every venue, and this
+    /// venue's old choice is still what plays until it does.</summary>
     public string? BreakMusicProvider { get; set; }
 
     public bool MarqueeEnabled { get; set; }
@@ -132,16 +135,11 @@ public class EditVenueModel
     public double QrCodeOffset { get; set; }
 
     /// <summary>What the dialog opens on. Null <paramref name="venue"/> is Add, which starts from
-    /// every default above plus <paramref name="activeBreakMusicProviderSource"/> — the one field
-    /// a fresh venue still needs a fallback for.</summary>
-    public static EditVenueModel From(Venue? venue, string? activeBreakMusicProviderSource)
+    /// every default above.</summary>
+    public static EditVenueModel From(Venue? venue)
     {
         if (venue is null)
-            return new EditVenueModel
-            {
-                BreakMusicProvider = activeBreakMusicProviderSource,
-                VisualisationPlaylistId = VisualisationPlaylist.DefaultId,
-            };
+            return new EditVenueModel { VisualisationPlaylistId = VisualisationPlaylist.DefaultId };
 
         var settings = venue.Settings;
 
@@ -172,11 +170,7 @@ public class EditVenueModel
             BreakMusicPoolId = settings.BreakMusicPoolId,
             AdPoolId = settings.AdPoolId,
             BrandingImageMediaId = settings.BrandingImageMediaId,
-            // Blank, not null: a cleared setting holds "", which no option carries either. This is
-            // the same empty-select trap as a missing provider.
-            BreakMusicProvider = string.IsNullOrWhiteSpace(settings.BreakMusicProvider)
-                ? activeBreakMusicProviderSource
-                : settings.BreakMusicProvider,
+            BreakMusicProvider = settings.BreakMusicProvider,
 
             MarqueeEnabled = settings.MarqueeEnabled,
             // Zero is ambiguous (never set vs. a deliberate message-only band) except while the

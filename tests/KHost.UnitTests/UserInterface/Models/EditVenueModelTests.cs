@@ -18,7 +18,7 @@ public class EditVenueModelTests
         var source = new Venue { Name = "Round Trip Room", Settings = DistinctSettings() };
         var target = new Venue { Name = "Target Room" };
 
-        var model = EditVenueModel.From(source, activeBreakMusicProviderSource: null);
+        var model = EditVenueModel.From(source);
         model.ApplyTo(target);
 
         foreach (var property in typeof(Venue.VenueSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance))
@@ -43,7 +43,7 @@ public class EditVenueModelTests
     [Fact]
     public void From_ANewVenue_StartsOnTheDefaultVisualisationPlaylist()
     {
-        var model = EditVenueModel.From(null, activeBreakMusicProviderSource: null);
+        var model = EditVenueModel.From(null);
 
         Assert.Equal(VisualisationPlaylist.DefaultId, model.VisualisationPlaylistId);
     }

@@ -28,7 +28,11 @@ public class EditVenueDialogSectionsTests : BunitContext
         var mediaPools = Substitute.For<IMediaPoolService>();
         mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>()).Returns(new List<MediaPool>());
         var breakMusic = Substitute.For<IBreakMusicService>();
-        breakMusic.Providers.Returns(new List<IBreakMusicProvider>());
+        // The host's own playlists active, so the section shows the playlist row it orders.
+        var library = Substitute.For<IBreakMusicProvider>();
+        breakMusic.Providers.Returns(new List<IBreakMusicProvider> { library });
+        breakMusic.LibraryProvider.Returns(library);
+        breakMusic.ActiveProvider.Returns(library);
         var visualisations = Substitute.For<IVisualisationPlaylistService>();
         visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
         var plugins = Substitute.For<IPluginRegistry>();
@@ -89,7 +93,7 @@ public class EditVenueDialogSectionsTests : BunitContext
             ]
         },
         { "General", ["Placeholder image", "Behind the “Up next” card"] },
-        { "Break music", ["Break music mode", "Break music playlist", "Break music label", "Label corner"] },
+        { "Break music", ["Break music playlist", "Break music label", "Label corner"] },
         { "Ads", ["Ad playlist"] },
         {
             "Queue behavior",

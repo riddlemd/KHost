@@ -49,7 +49,8 @@ public interface IBreakMusicService
     /// <summary>The active provider's current track, or null.</summary>
     BreakMusicTrack? CurrentTrack { get; }
 
-    /// <summary>Restores the venue's chosen provider. Call once at startup.</summary>
+    /// <summary>Restores the chosen provider: the one App Settings names for every venue, or the
+    /// selected venue's own until one is saved there. Call once at startup.</summary>
     /// <remarks>Host-called; a plugin should not call it.</remarks>
     Task InitializeAsync(CancellationToken cancellationToken = default);
 
