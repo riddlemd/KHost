@@ -51,13 +51,21 @@ public class Venue : RepositoryModel
         /// <summary>Whether tipping is offered at this venue at all.</summary>
         public bool TippingEnabled { get; set; } = true;
         // Off by default: it adds a prompt, so venues opt in rather than inherit one.
-        /// <summary>Warns a host when a singer requests a song they already sang recently, within
-        /// <see cref="DuplicateSongWindowHours"/>. Off by default.</summary>
+        /// <summary>Asks the host to confirm a song that any singer already has queued, or that anyone
+        /// sang within <see cref="DuplicateSongWindowHours"/>. Off by default.</summary>
+        /// <remarks>A singer asking again for a song they already have queued is refused outright,
+        /// whatever this says.</remarks>
         public bool WarnOnDuplicateSong { get; set; }
 
-        /// <summary>How far back, in hours, a repeat request counts as a duplicate. Only read when
+        /// <summary>How far back, in hours, a song sung earlier counts as a duplicate. Only read when
         /// <see cref="WarnOnDuplicateSong"/> is on.</summary>
         public int DuplicateSongWindowHours { get; set; } = 4;
+
+        /// <summary>Refuses a song another singer already has queued, without asking the host. Off by
+        /// default.</summary>
+        /// <remarks>Checked before <see cref="WarnOnDuplicateSong"/>, so while it is on that warning
+        /// is only ever about a song sung recently.</remarks>
+        public bool RefuseSongQueuedForAnotherSinger { get; set; }
 
         /// <summary>Asks for confirmation before a singer is removed from the queue.</summary>
         public bool PromptBeforeRemovingSinger { get; set; } = true;

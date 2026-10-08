@@ -12,7 +12,8 @@ namespace KHost.Abstractions.Services;
 /// <see cref="CreateAndEnqueueAsync"/>. A host singleton, callable from any thread. Every create,
 /// update, delete, move and dequeue announces
 /// <see cref="KHost.Abstractions.Messaging.Messages.PerformancesChanged"/>. Deleting a performance
-/// also cancels its media's download if one is still in flight.</para></remarks>
+/// also cancels its media's download if one is still in flight and no other queued performance uses
+/// that media.</para></remarks>
 public interface IPerformanceService : IRepositoryService<Performance>
 {
     /// <summary>Every performance matching <paramref name="filter"/>; queued ones by default.</summary>
@@ -49,13 +50,24 @@ public interface IPerformanceService : IRepositoryService<Performance>
     Task<List<Performance>> ReadQueuedAsync();
 
     /// <summary>Puts a song at the end of a singer's list, applying the rules that guard it.</summary>
-    /// <returns>The saved performance, or null when it was refused: the venue's duplicate-song
-    /// warning was shown and declined, or the gate that owns the media refused it for
-    /// <see cref="MediaAction.Queue"/>, in which case the reason is flashed to the host.</returns>
+    /// <returns>The saved performance, or null when any rule refused it. To learn which, call
+    /// <see cref="TryCreateAndEnqueueAsync"/> instead.</returns>
+    /// <remarks>The same call as <see cref="TryCreateAndEnqueueAsync"/>, with the same rules and the
+    /// same defaults filled in.</remarks>
+    Task<Performance?> CreateAndEnqueueAsync(Performance performance);
+
+    /// <summary>Puts a song at the end of a singer's list, applying the rules that guard it, and says
+    /// which rule refused it when one did.</summary>
+    /// <returns>The outcome. Refused when the singer already has this song queued, or another singer
+    /// does and the venue refuses that (both silently, before any warning, with the queued turn in
+    /// <see cref="EnqueueResult.Conflict"/>); when the venue's duplicate-song warning was shown and
+    /// declined; or when the gate that owns the media refused it for <see cref="MediaAction.Queue"/>,
+    /// in which case the reason is flashed to the host and carried in
+    /// <see cref="EnqueueResult.Reason"/>.</returns>
     /// <remarks>Fills what the caller left unset: the name sung under (the singer's own), the venue
     /// (the selected one) and the creation time. May show the host a confirmation first, so it can
-    /// wait on a person.</remarks>
-    Task<Performance?> CreateAndEnqueueAsync(Performance performance);
+    /// wait on a person. Two calls for the same singer and song at once queue it once.</remarks>
+    Task<EnqueueResult> TryCreateAndEnqueueAsync(Performance performance);
 
     /// <summary>Takes a performance off the queue into the history, as a finished song does.</summary>
     /// <remarks>Leaves the performance alone when it does not belong to <paramref name="singerId"/>. To
