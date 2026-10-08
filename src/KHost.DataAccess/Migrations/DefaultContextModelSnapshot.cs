@@ -613,8 +613,6 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<Guid?>("BreakMusicPoolId");
 
-                            b1.Property<string>("BreakMusicProvider");
-
                             b1.Property<bool>("ClearQueueOnClose");
 
                             b1.Property<int>("DuplicateSongWindowHours");

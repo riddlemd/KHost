@@ -16,7 +16,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     private readonly IMessageBroker _broker;
     private readonly SubscriptionSet _subscriptions = new();
     private readonly List<IBreakMusicProvider> _providers;
-    private readonly IVenuesService _venues;
     private readonly IOptionsMonitor<ServiceOptions> _options;
 
     private IBreakMusicProvider? _activeProvider;
@@ -24,7 +23,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     public BreakMusicService(
         ILogger<BreakMusicService> logger,
         IEnumerable<IBreakMusicProvider> providers,
-        IVenuesService venues,
         IOptionsMonitor<ServiceOptions> options,
         IMessageBroker broker)
         : base(logger)
@@ -32,18 +30,15 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         _options = options;
         _broker = broker;
         _providers = [.. providers];
-        _venues = venues;
 
         _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(OnProviderTrackChanged));
-
-        _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(OnVenueChanged));
     }
 
     public IReadOnlyList<IBreakMusicProvider> Providers => _providers;
     public IBreakMusicProvider? ActiveProvider => _activeProvider;
 
-    // Matched on source name, like every lookup here, not the concrete type: that is the key venues
-    // already store (unrenameable without a migration), and resolvable without constructing the provider.
+    // Matched on source name, like every lookup here, not the concrete type: that is the key App Settings
+    // stores (unrenameable without a migration), and resolvable without constructing the provider.
     public IBreakMusicProvider? LibraryProvider => _providers.FirstOrDefault(p =>
         string.Equals(p.SourceName, nameof(LibraryBreakMusicProvider), StringComparison.OrdinalIgnoreCase));
 
@@ -56,7 +51,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        _activeProvider = Resolve(AppProvider ?? (await _venues.ReadSelectedVenueAsync())?.Settings.BreakMusicProvider);
+        _activeProvider = Resolve(AppProvider);
 
         Logger.LogInformation("Break music provider: {Provider}", _activeProvider?.SourceName ?? "none");
 
@@ -326,7 +321,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         }
 
         // Named rather than "whichever registered first": plugins register after the domain
-        // today, but that ordering is not something a venue's default should rest on.
+        // today, but that ordering is not something the default should rest on.
         return LibraryProvider ?? _providers.FirstOrDefault();
     }
 
@@ -334,25 +329,9 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     private string? AppProvider
         => string.IsNullOrWhiteSpace(_options.CurrentValue.Provider) ? null : _options.CurrentValue.Provider.Trim();
 
-    // Only while App Settings names no mode: an install from before it moved there keeps following
-    // each venue's own until the host saves one, and from then on a venue switch leaves it alone.
-    private void OnVenueChanged(SelectedVenueChanged message)
-        => _ = ReapplyVenueAsync(CancellationToken.None);
-
-    private async Task ReapplyVenueAsync(CancellationToken cancellationToken)
-    {
-        if (AppProvider is not null)
-            return;
-
-        var venue = await _venues.ReadSelectedVenueAsync();
-
-        if (venue?.Settings.BreakMusicProvider is { } source && !string.IsNullOrWhiteSpace(source))
-            await SetActiveProviderAsync(source, cancellationToken);
-    }
-
     private void OnProviderTrackChanged(BreakMusicTrackChanged message)
     {
-        // Only the provider the venue chose speaks for the console; another one still winding
+        // Only the active provider speaks for the console; another one still winding
         // down would otherwise redraw the panel with its own track.
         if (message.ProviderSourceName != _activeProvider?.SourceName)
             return;

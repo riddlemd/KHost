@@ -66,7 +66,6 @@ public class EditVenueModelTests
         BrandingImageMediaId = Guid.NewGuid(),
         AdPoolId = Guid.NewGuid(),
         BreakMusicPoolId = Guid.NewGuid(),
-        BreakMusicProvider = "KHost.Plugins.Spotify",
         AllowAliases = true,
         AllowGuestRemote = false,
         ShowQueueToGuests = false,

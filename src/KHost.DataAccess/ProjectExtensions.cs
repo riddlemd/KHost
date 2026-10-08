@@ -31,6 +31,7 @@ namespace KHost.DataAccess
             serviceCollection.AddSingleton<IPerformancesRepository, PerformancesRepository>();
             serviceCollection.AddSingleton<ITipsRepository, TipsRepository>();
             serviceCollection.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();
+            serviceCollection.AddSingleton<IRetiredVenueSettingsReader, RetiredVenueSettingsReader>();
 
             return serviceCollection;
         }
