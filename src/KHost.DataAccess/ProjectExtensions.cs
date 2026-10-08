@@ -16,9 +16,6 @@ namespace KHost.DataAccess
                 options.UseSqlite($"Data Source={DatabaseLocation.FilePath}")
                        .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
-            serviceCollection.AddOptions<DatabaseInitializer.ServiceOptions>()
-                .BindConfiguration(DatabaseInitializer.ServiceOptions.SectionName);
-
             // Offered to plugins as well as used internally: see ITextFolding.
             serviceCollection.AddSingleton<ITextFolding, TextFolding>();
 
