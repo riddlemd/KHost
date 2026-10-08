@@ -10,7 +10,7 @@ using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>What the "Up next" card is drawn over, chosen under Between singers.</summary>
+/// <summary>What the "Up next" card is drawn over, chosen under General.</summary>
 public class EditVenueDialogNextSingerTests : BunitContext
 {
     private const string BackgroundSelector = "#venue-next-singer-background";
