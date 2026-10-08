@@ -1,0 +1,18 @@
+@using KHost.Abstractions.Models
+
+<VenueSettingsSection Title="Ads">
+
+    <div class="kh-venue-settings__row">
+        <label class="kh-form-label">Ad playlist</label>
+        <ComboBox TItem="MediaPool"
+                  Class="kh-venue-settings__picker"
+                  Value="_adPool"
+                  ValueChanged="OnAdPoolChanged"
+                  @bind-Text="_adPoolText"
+                  Search="SearchAdPoolsAsync"
+                  DisplayName="@(pool => pool.Name)"
+                  MinimumSearchLength="0"
+                  OpenWhenEmpty="true"
+                  Placeholder="None: this venue runs no ads" />
+    </div>
+</VenueSettingsSection>
