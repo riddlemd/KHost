@@ -63,10 +63,6 @@ public class EditVenueModel
     public Guid? AdPoolId { get; set; }
     public Guid? BrandingImageMediaId { get; set; }
 
-    /// <summary>Carried through unedited: App Settings now picks the mode for every venue, and this
-    /// venue's old choice is still what plays until it does.</summary>
-    public string? BreakMusicProvider { get; set; }
-
     public bool MarqueeEnabled { get; set; }
 
     // Three is only the dialog's starting point. A venue saved before the marquee existed has no
@@ -170,7 +166,6 @@ public class EditVenueModel
             BreakMusicPoolId = settings.BreakMusicPoolId,
             AdPoolId = settings.AdPoolId,
             BrandingImageMediaId = settings.BrandingImageMediaId,
-            BreakMusicProvider = settings.BreakMusicProvider,
 
             MarqueeEnabled = settings.MarqueeEnabled,
             // Zero is ambiguous (never set vs. a deliberate message-only band) except while the
@@ -238,7 +233,6 @@ public class EditVenueModel
         venue.Settings.BreakMusicPoolId = BreakMusicPoolId;
         venue.Settings.AdPoolId = AdPoolId;
         venue.Settings.BrandingImageMediaId = BrandingImageMediaId;
-        venue.Settings.BreakMusicProvider = BreakMusicProvider;
         venue.Settings.MarqueeEnabled = MarqueeEnabled;
         venue.Settings.MarqueeSingerCount = Math.Clamp(MarqueeSingerCount, 0, 20);
         venue.Settings.MarqueeMessage = MarqueeMessage;

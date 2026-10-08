@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
@@ -16,6 +17,8 @@ namespace KHost.UserInterface.Services;
 internal sealed class AppSettingsService : IAppSettingsService
 {
     internal const string OverlayFileName = "settings.json";
+
+    private static readonly JsonSerializerOptions OverlayJson = new() { WriteIndented = true };
 
     private readonly IConfiguration _configuration;
     private readonly IFFmpegService _ffmpeg;
@@ -84,6 +87,10 @@ internal sealed class AppSettingsService : IAppSettingsService
     };
 
     private const string BreakMusicProviderKey = BreakMusicService.ServiceOptions.SectionName + ":Provider";
+
+    /// <summary>Whether the overlay names a break music mode; <see cref="Current"/> cannot say, since it
+    /// falls back to whichever provider is active.</summary>
+    internal bool BreakMusicProviderSaved => Blank(_configuration[BreakMusicProviderKey]) is not null;
 
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
         PaginationClamp(_configuration.GetValue<int?>($"Pagination:{key}") ?? fallback);
@@ -187,14 +194,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         if (mediaDirectory is not null)
             overlay["Plugins"] = new Dictionary<string, object?> { ["MediaDirectory"] = mediaDirectory };
 
-        Directory.CreateDirectory(Path.GetDirectoryName(_overlayPath)!);
-        await File.WriteAllTextAsync(
-            _overlayPath,
-            JsonSerializer.Serialize(overlay, new JsonSerializerOptions { WriteIndented = true }));
-
-        // Not left to reloadOnChange: its watcher never fires on some filesystems (WSL's /mnt/c,
-        // network shares), and Current would read the old file until a restart.
-        (_configuration as IConfigurationRoot)?.Reload();
+        await WriteOverlayAsync(JsonSerializer.Serialize(overlay, OverlayJson));
 
         // Read once, on the way up: turning it on now would not open a screen, and turning it
         // off would not close the one already running.
@@ -216,5 +216,33 @@ internal sealed class AppSettingsService : IAppSettingsService
             await _breakMusic.SetActiveProviderAsync(provider);
 
         return new AppSettingsSaveResult(true);
+    }
+
+    /// <summary>Saves the break music mode alone, keeping every other key in the overlay as it is.</summary>
+    /// <remarks>Not through <see cref="SaveAsync"/>: that writes every setting, which would pin today's
+    /// defaults into the overlay of a host who never opened the page.</remarks>
+    internal async Task SaveBreakMusicProviderAsync(string provider)
+    {
+        var overlay = File.Exists(_overlayPath)
+            ? JsonNode.Parse(await File.ReadAllTextAsync(_overlayPath)) as JsonObject ?? new JsonObject()
+            : new JsonObject();
+
+        if (overlay[BreakMusicService.ServiceOptions.SectionName] is not JsonObject section)
+            overlay[BreakMusicService.ServiceOptions.SectionName] = section = new JsonObject();
+
+        section["Provider"] = provider.Trim();
+
+        await WriteOverlayAsync(overlay.ToJsonString(OverlayJson));
+    }
+
+
+    private async Task WriteOverlayAsync(string json)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_overlayPath)!);
+        await File.WriteAllTextAsync(_overlayPath, json);
+
+        // Not left to reloadOnChange: its watcher never fires on some filesystems (WSL's /mnt/c,
+        // network shares), and Current would read the old file until a restart.
+        (_configuration as IConfigurationRoot)?.Reload();
     }
 }
