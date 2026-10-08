@@ -110,7 +110,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         var options = Substitute.For<IOptionsMonitor<BreakMusicService.ServiceOptions>>();
         options.CurrentValue.Returns(new BreakMusicService.ServiceOptions());
 
-        var breakMusic = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [provider], _venues, options, _broker);
+        var breakMusic = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [provider], options, _broker);
         _built.Add(breakMusic);
         PlaybackOverTheScreen(breakMusic);
 
