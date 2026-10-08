@@ -30,11 +30,5 @@ public static class ProjectExtensions
         string pattern = "/ipc/screen")
         => endpoints.MapHub<ScreenHub>(pattern);
 
-    public static IServiceCollection AddSignalRIPCClient(this IServiceCollection services)
-    {
-        services.AddSingleton<IScreenClient, ScreenClient>();
-        return services;
-    }
-
     public static IScreenClient CreateScreenClient(ILoggerFactory? loggerFactory) => new ScreenClient(loggerFactory);
 }

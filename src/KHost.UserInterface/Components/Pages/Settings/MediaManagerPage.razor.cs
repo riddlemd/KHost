@@ -176,12 +176,6 @@ public partial class MediaManagerPage : IAsyncDisposable
         _selectedIds.Clear();
     }
 
-    private async Task ClearSelectionAsync()
-    {
-        _selectedIds.Clear();
-        await Task.CompletedTask;
-    }
-
     // Every member spelled out rather than a catch-all: under a column headed Type, a row has to
     // say which type it is, and a new member must not quietly inherit another one's label.
     private static string DescribeType(MediaType type) => type switch

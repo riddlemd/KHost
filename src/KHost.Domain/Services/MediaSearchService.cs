@@ -83,9 +83,6 @@ public class MediaSearchService : BaseService, IMediaSearchService
         return flatResults;
     }
 
-    public string GetMediaProviderDisplayName(string source)
-        => _providers.FirstOrDefault(x => x.SourceName == source)?.DisplayName ?? "Unknown Source";
-
     private static class AnalyticActivities
     {
         public const string Search = "media.search";

@@ -2,6 +2,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Display;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -93,7 +94,7 @@ public sealed class UpNextService : BaseService, IUpNextService, IStartsWithTheH
             entries.Add(new UpNextEntry
             {
                 Position = index + 1,
-                Singer = NameFor(next, singer, aliasesAllowed),
+                Singer = SingerNames.DisplayedFor(next, singer, aliasesAllowed),
 
                 // A row with no title is no song worth promising; its artist goes with it.
                 Title = title,
@@ -105,16 +106,6 @@ public sealed class UpNextService : BaseService, IUpNextService, IStartsWithTheH
     }
 
     public void Dispose() => _subscriptions.Dispose();
-
-    /// <summary>The name recorded at queue time, unless the venue prefers the singer it knows.</summary>
-    /// <remarks>Off the performance, not the account: a song-first remote lets a guest type a name
-    /// per pick. Every name here belongs to a turn not yet started.</remarks>
-    private static string NameFor(Performance? next, KHostUser singer, bool aliasesAllowed)
-    {
-        var recorded = next?.SungAs?.Trim();
-
-        return string.IsNullOrEmpty(recorded) || !aliasesAllowed ? singer.Name : recorded;
-    }
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

@@ -12,11 +12,6 @@
     opacity: 1;
     transition: opacity 0.5s ease-out;
 
-    &--hidden {
-        opacity: 0;
-        pointer-events: none;
-    }
-
     &__content {
         text-align: center;
         display: flex;

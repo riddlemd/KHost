@@ -57,12 +57,6 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
         return await ReadAsync(id);
     }
 
-    public async Task<Venue?> ReadByNameAsync(string name)
-    {
-        var result = await ReadAllAsync(pageNumber: 1, pageSize: 1000);
-        return result.Items.FirstOrDefault(v => v.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-    }
-
     public async Task SelectVenueAsync(Guid? venueId)
     {
         SelectedVenueId = venueId;

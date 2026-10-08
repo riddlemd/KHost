@@ -200,12 +200,6 @@
             color: var(--kh-danger);
             border-left-color: var(--kh-danger);
         }
-
-        &--success {
-            background-color: var(--kh-success-subtle);
-            color: var(--kh-success);
-            border-left-color: var(--kh-success);
-        }
     }
 
     .validation-message {
