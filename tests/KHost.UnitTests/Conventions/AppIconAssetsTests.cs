@@ -14,14 +14,17 @@ public class AppIconAssetsTests
     public static TheoryData<string, int[]> IcoFiles => new()
     {
         { "assets/icon/khost.ico", [16, 24, 32, 48, 64, 128, 256] },
+        { "assets/icon/khost-screen.ico", [16, 24, 32, 48, 64, 128, 256] },
         { "src/KHost.UserInterface/wwwroot/favicon.ico", [16, 32, 48] },
     };
 
-    public static TheoryData<string> Executables => new()
-    {
+    private static readonly string[] ExecutableProjects =
+    [
         "src/KHost.UserInterface/KHost.UserInterface.csproj",
         "src/KHost.LocalScreen/KHost.LocalScreen.csproj",
-    };
+    ];
+
+    public static TheoryData<string> Executables => new(ExecutableProjects);
 
     [Theory]
     [MemberData(nameof(IcoFiles))]
@@ -57,11 +60,13 @@ public class AppIconAssetsTests
         Assert.Equal(expectedSizes, sizes);
     }
 
-    [Fact]
-    public void AppIco_StoresTheLargeLayersAsPng()
+    [Theory]
+    [InlineData("khost.ico")]
+    [InlineData("khost-screen.ico")]
+    public void AppIco_StoresTheLargeLayersAsPng(string fileName)
     {
         // BMP at 256 is a quarter of a megabyte per exe for nothing; the small ones stay BMP for old shells.
-        var bytes = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "assets", "icon", "khost.ico"));
+        var bytes = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "assets", "icon", fileName));
         var count = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(4));
 
         for (var i = 0; i < count; i++)
@@ -86,6 +91,57 @@ public class AppIconAssetsTests
         Assert.True(File.Exists(resolved), $"{relativeProject} names {icon}, which does not exist");
         Assert.Equal(".ico", Path.GetExtension(resolved));
     }
+
+    [Fact]
+    public void Executables_DoNotShareAnApplicationIcon()
+    {
+        // With one icon, the console and a launched screen are two identical tiles in the Dock and taskbar.
+        var icons = ExecutableProjects.Select(ResolvedApplicationIcon).ToArray();
+
+        Assert.Equal(icons.Length, icons.Distinct().Count());
+    }
+
+    [Fact]
+    public void AppIconCopies_NameDifferentFiles()
+    {
+        // The console copies the screen's output into its own, so a shared name is the screen's icon
+        // silently replacing the console's.
+        Assert.NotEqual(KHost.UserInterface.AppIcon.WindowsIconFileName, KHost.LocalScreen.AppIcon.WindowsIconFileName);
+        Assert.NotEqual(KHost.UserInterface.AppIcon.MacIconFileName, KHost.LocalScreen.AppIcon.MacIconFileName);
+        Assert.NotEqual(KHost.UserInterface.AppIcon.LinuxIconFileName, KHost.LocalScreen.AppIcon.LinuxIconFileName);
+    }
+
+    [Theory]
+    [InlineData(KHost.LocalScreen.AppIcon.WindowsIconFileName)]
+    [InlineData(KHost.LocalScreen.AppIcon.MacIconFileName)]
+    [InlineData(KHost.LocalScreen.AppIcon.LinuxIconFileName)]
+    public void LocalScreen_CopiesTheScreenIconUnderTheNameAppIconReads(string runtimeName)
+    {
+        const string relativeProject = "src/KHost.LocalScreen/KHost.LocalScreen.csproj";
+        var project = Path.Combine(RepositoryRoot(), relativeProject);
+        var link = Path.Combine(KHost.LocalScreen.AppIcon.DirectoryName, runtimeName);
+
+        var source = XDocument.Load(project).Descendants("None")
+            .Where(e => NormalisePath((string?)e.Attribute("Link")) == link)
+            .Select(e => ResolveFromProject(project, (string)e.Attribute("Include")!))
+            .SingleOrDefault();
+
+        Assert.True(source is not null, $"{relativeProject} copies nothing to {link}, so the window or Dock has no icon");
+        Assert.True(File.Exists(source), $"{relativeProject} copies {source} to {link}, which does not exist");
+        Assert.StartsWith("khost-screen", Path.GetFileName(source));
+    }
+
+    private static string ResolvedApplicationIcon(string relativeProject)
+    {
+        var project = Path.Combine(RepositoryRoot(), relativeProject);
+        var icon = XDocument.Load(project).Descendants("ApplicationIcon").Single().Value.Trim();
+        return ResolveFromProject(project, icon);
+    }
+
+    private static string ResolveFromProject(string project, string relative)
+        => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(project)!, NormalisePath(relative)!));
+
+    private static string? NormalisePath(string? path) => path?.Replace('\\', Path.DirectorySeparatorChar);
 
     private static void AssertPngDecodes(byte[] png, int size)
     {
