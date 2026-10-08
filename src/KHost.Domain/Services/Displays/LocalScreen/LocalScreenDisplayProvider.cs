@@ -407,9 +407,6 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     public Task StopBackgroundAsync(TimeSpan? fade = null, CancellationToken cancellationToken = default)
         => SendAsync(new StopBackgroundCommand { FadeDuration = fade });
 
-    public Task SetBackgroundVolumeAsync(float volume, CancellationToken cancellationToken = default)
-        => SendAsync(new SetBackgroundVolumeCommand { Volume = volume });
-
     // --- plumbing ---
 
     internal static LoadMediaCommand ToCommand(DisplayLoad load, bool isGraphicsOnly = false) => new()

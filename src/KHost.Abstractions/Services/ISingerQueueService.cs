@@ -47,13 +47,6 @@ public interface ISingerQueueService
     /// <summary>Takes a singer out of the queue. Their queued songs stay queued.</summary>
     Task RemoveUserAsync(Guid userId);
 
-    /// <summary>Queues a library search result for a singer in the queue.</summary>
-    /// <remarks>Does nothing for a singer not in the queue, or for a result that is not already a
-    /// library row: a remote provider's result must be imported first, which is the provider's job.
-    /// Goes through <see cref="IPerformanceService.CreateAndEnqueueAsync"/>, so its checks
-    /// apply.</remarks>
-    Task AddMediaAsync(Guid userId, MediaSearchEntity media);
-
     /// <summary>Moves a singer one place earlier and selects them; never above a locked top slot.
     /// </summary>
     Task MoveUserUpAsync(Guid userId);
@@ -65,9 +58,6 @@ public interface ISingerQueueService
     /// <summary>Moves a singer to the front. Does nothing while the top slot is locked.</summary>
     Task MoveUserToStartAsync(Guid userId);
 
-    /// <summary>Moves a singer to the back.</summary>
-    Task MoveUserToEndAsync(Guid userId);
-
     /// <summary>Moves a singer to <paramref name="newIndex"/>, 0-based and clamped to the queue.</summary>
     /// <remarks>Refused for index 0 while the top slot is locked.</remarks>
     Task MoveUserToIndexAsync(Guid userId, int newIndex);
@@ -76,9 +66,6 @@ public interface ISingerQueueService
     /// <remarks>Then selects whoever is first. A rotation rule that fails leaves the order as it was
     /// rather than breaking the queue.</remarks>
     Task RotateQueueAsync(Guid finishedSingerId);
-
-    /// <summary>Selects whoever is first, or no one when the queue is empty.</summary>
-    Task SelectFirstUserInQueueAsync();
 
     /// <summary>Re-reads every singer's details and announces, for after a singer was edited.</summary>
     Task RefreshAsync();

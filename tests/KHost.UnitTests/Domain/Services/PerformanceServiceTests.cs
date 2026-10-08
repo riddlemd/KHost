@@ -544,22 +544,6 @@ public class PerformanceServiceTests
     }
 
     [Fact]
-    public async Task MoveToEndOfQueueAsync_MovesToEnd()
-    {
-        var singerId = Guid.NewGuid();
-        var perf1 = await EnqueueForAsync(singerId);
-        var perf2 = await EnqueueForAsync(singerId);
-        var perf3 = await EnqueueForAsync(singerId);
-
-        await _service.MoveToEndOfQueueAsync(singerId, perf1.Id);
-
-        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
-        Assert.Equal(perf2.Id, queued.Items[0].Id);
-        Assert.Equal(perf3.Id, queued.Items[1].Id);
-        Assert.Equal(perf1.Id, queued.Items[2].Id);
-    }
-
-    [Fact]
     public async Task DeleteAllQueuedAsync_DelegatesToRepository()
     {
         _repository.DeleteAllQueuedAsync().Returns(Task.CompletedTask);

@@ -87,9 +87,6 @@ public interface IPerformanceService : IRepositoryService<Performance>
     /// <summary>Moves a song one place later in its singer's list. Does nothing at the bottom.</summary>
     Task MoveDownInQueueAsync(Guid singerId, Guid performanceId);
 
-    /// <summary>Moves a song to the end of its singer's list.</summary>
-    Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId);
-
     /// <summary>Moves a song to <paramref name="newIndex"/>, 0-based, in its singer's list.</summary>
     /// <remarks>An index past either end is clamped. A performance not in that singer's list is left
     /// alone.</remarks>

@@ -272,29 +272,6 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         PublishChanged();
     }
 
-    public async Task AddMediaAsync(Guid userId, MediaSearchEntity media)
-    {
-        if (!_userIds.Contains(userId)) return;
-
-        // ForeignKey is a library id only for a local result; a remote provider's video id/URL must be
-        // imported first, which is the provider's job, not the queue's.
-        if (!Guid.TryParse(media.ForeignKey, out var mediaId))
-        {
-            _logger.LogWarning(
-                "Not enqueuing {Source} result '{ForeignKey}': it is not a library media id",
-                media.Source, media.ForeignKey);
-
-            return;
-        }
-
-        await _performanceService.CreateAndEnqueueAsync(new Performance
-        {
-            SingerId = userId,
-            MediaId = mediaId,
-            CreatedDate = DateTime.UtcNow,
-        });
-    }
-
     public async Task MoveUserUpAsync(Guid userId)
     {
         await _lock.WaitAsync();
@@ -378,31 +355,6 @@ public class SingerQueueService : ISingerQueueService, IDisposable
 
     public void UnlockTopSlot() => IsTopSlotLocked = false;
 
-    public async Task MoveUserToEndAsync(Guid userId)
-    {
-        await _lock.WaitAsync();
-        try
-        {
-            var idx = _userIds.IndexOf(userId);
-
-            if (idx < 0 || idx >= _userIds.Count - 1) return;
-
-            _userIds.RemoveAt(idx);
-
-            _userIds.Add(userId);
-
-            _logger.LogDebug("User {UserId} moved to end of queue", userId);
-
-            await NotifyLockedAsync();
-        }
-        finally
-        {
-            _lock.Release();
-        }
-
-        PublishChanged();
-    }
-
     public async Task MoveUserToIndexAsync(Guid userId, int newIndex)
     {
         await _lock.WaitAsync();
@@ -423,21 +375,6 @@ public class SingerQueueService : ISingerQueueService, IDisposable
             _logger.LogDebug("User {UserId} moved to index {NewIndex}", userId, clampedIndex);
 
             await NotifyLockedAsync();
-        }
-        finally
-        {
-            _lock.Release();
-        }
-
-        PublishChanged();
-    }
-
-    public async Task SelectFirstUserInQueueAsync()
-    {
-        await _lock.WaitAsync();
-        try
-        {
-            await SelectFirstUserInQueueLockedAsync();
         }
         finally
         {

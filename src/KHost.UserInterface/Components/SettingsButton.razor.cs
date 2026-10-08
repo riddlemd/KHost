@@ -152,7 +152,7 @@ public partial class SettingsButton : IDisposable
     /// <summary>No venue at all counts as not taking tips: nothing yet for a tip to belong to.</summary>
     private bool VenueTakesTips => _selectedVenue?.Settings.TippingEnabled ?? false;
 
-    /// <summary>Checked against the running provider, not RendersThroughHost, which it may bypass.</summary>
+    /// <summary>Checked against the running provider, not the chosen one, which may not be loaded.</summary>
     private bool VenuePlaysLocalBreakMusic
         => BreakMusic.LibraryProvider is { } library
            && BreakMusic.ActiveProvider is { } active
