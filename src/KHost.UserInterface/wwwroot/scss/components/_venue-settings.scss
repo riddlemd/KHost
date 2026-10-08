@@ -108,8 +108,11 @@
         }
         margin-bottom: 1em;
 
-        // A refusal goes under the field it is about, on its own line, not squeezed in beside it.
-        flex-wrap: wrap;
+        // A refusal goes under the field it is about, on its own line, not squeezed in beside it. Only
+        // a row holding one wraps: wrapping every row drops a full-width select under its label.
+        &:has(> .validation-message) {
+            flex-wrap: wrap;
+        }
 
         > .validation-message {
             flex-basis: 100%;
@@ -148,6 +151,39 @@
         .kh-form-check-input {
             margin: 0;
             flex-shrink: 0;
+        }
+    }
+
+    // The venue dialog's rows as two columns: every control in one fixed column down the right, so
+    // a long description never squeezes one, and each note on one line, cut short rather than wrapping.
+    &--columns {
+        --kh-venue-control-width: 18rem;
+
+        .kh-venue-settings__row {
+            > :first-child {
+                flex: 1 1 0;
+                min-width: 0;
+            }
+
+            > .kh-form-control,
+            > .kh-form-select,
+            > .kh-venue-settings__picker,
+            > .kh-venue-qr-codes__source {
+                flex: 0 0 var(--kh-venue-control-width);
+                width: var(--kh-venue-control-width);
+            }
+
+            > .kh-venue-settings__color {
+                flex: 0 0 3rem;
+                width: 3rem;
+            }
+
+            .kh-note {
+                display: block;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
         }
     }
 

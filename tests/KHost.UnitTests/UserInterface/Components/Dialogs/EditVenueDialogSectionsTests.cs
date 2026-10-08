@@ -52,6 +52,12 @@ public class EditVenueDialogSectionsTests : BunitContext
         Assert.All(sections, section => Assert.False(section.HasAttribute("open"), section.TextContent));
     }
 
+    /// <summary>The fixed control column and one-line notes hang off this modifier, which the
+    /// shared row styles of the wizard and the other dialogs do not carry.</summary>
+    [Fact]
+    public void Opening_LaysTheRowsOutInColumns()
+        => Assert.Contains("kh-venue-settings--columns", Render().Find("form.kh-venue-settings").ClassList);
+
     /// <summary>The name is what a host opens the dialog for, so it is never behind a fold.</summary>
     [Fact]
     public void Opening_LeavesTheNameOutsideAnyFold()
