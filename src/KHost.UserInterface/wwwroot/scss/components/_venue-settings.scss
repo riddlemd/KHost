@@ -11,6 +11,50 @@
         &--head {
             border-top: none;
         }
+
+        // The title is the whole click target, chevron included; the browser's own marker differs
+        // per engine, so it is hidden and drawn here.
+        &--collapsible {
+            > summary {
+                display: flex;
+                align-items: center;
+                gap: 0.5em;
+                margin-bottom: 0;
+                cursor: pointer;
+                list-style: none;
+
+                &::-webkit-details-marker {
+                    display: none;
+                }
+
+                &::before {
+                    content: "";
+                    width: 0.4em;
+                    height: 0.4em;
+                    border-right: 1.5px solid currentColor;
+                    border-bottom: 1.5px solid currentColor;
+                    transform: rotate(-45deg);
+                    transition: transform var(--kh-transition);
+                }
+
+                &:hover {
+                    opacity: 0.8;
+                }
+
+                &:focus-visible {
+                    outline: 2px solid var(--kh-success);
+                    outline-offset: 2px;
+                }
+            }
+
+            &[open] > summary {
+                margin-bottom: 0.75rem;
+
+                &::before {
+                    transform: rotate(45deg);
+                }
+            }
+        }
     }
 
     // Label stacked above a full-width input, unlike __row's label-beside-control.
@@ -63,6 +107,15 @@
             cursor: pointer;
         }
         margin-bottom: 1em;
+
+        // A refusal goes under the field it is about, on its own line, not squeezed in beside it.
+        flex-wrap: wrap;
+
+        > .validation-message {
+            flex-basis: 100%;
+            text-align: right;
+            font-size: 0.75rem;
+        }
 
         // A note explains the row above it; without this its top margin collapses against the row's
         // own bottom one, leaving it as far from the field it describes as from the next one down.

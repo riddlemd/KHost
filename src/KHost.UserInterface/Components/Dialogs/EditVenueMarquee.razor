@@ -2,8 +2,7 @@
 @using KHost.Abstractions.Models
 @using KHost.UserInterface.Models
 
-<div class="kh-venue-settings__section">
-    <span class="kh-venue-settings__section-title">Screen marquee</span>
+<VenueSettingsSection Title="Screen marquee">
 
     <label class="kh-venue-settings__row kh-form-check">
         <span class="kh-form-check-label">Show a marquee on the screen</span>
@@ -26,6 +25,7 @@
             <label for="marquee-singer-count" class="kh-form-label">Singers to show</label>
             <InputNumber id="marquee-singer-count" class="kh-form-control"
                          @bind-Value="Model.MarqueeSingerCount" min="0" max="20" />
+            <ValidationMessage For="() => Model.MarqueeSingerCount" />
         </div>
 
         <div class="kh-venue-settings__field">
@@ -33,6 +33,7 @@
             <InputText id="marquee-message" class="kh-form-control"
                        @bind-Value="Model.MarqueeMessage"
                        placeholder="Happy hour until 8. Ask your host about specials" />
+            <ValidationMessage For="() => Model.MarqueeMessage" />
         </div>
 
         <div class="kh-venue-settings__field">
@@ -40,6 +41,7 @@
             <InputText id="marquee-entry-format" class="kh-form-control"
                        @bind-Value="Model.MarqueeEntryFormat"
                        placeholder="{song} - {singer}" />
+            <ValidationMessage For="() => Model.MarqueeEntryFormat" />
             <p class="kh-note">
                 Tags: <code>{song}</code>, <code>{artist}</code>, <code>{singer}</code>, <code>{position}</code>.
                 Left blank, entries read <code>{song} - {singer}</code>.
@@ -50,12 +52,14 @@
             <label for="marquee-font-size" class="kh-form-label">Text size</label>
             <InputNumber id="marquee-font-size" class="kh-form-control"
                          @bind-Value="Model.MarqueeFontSizePixels" min="12" max="96" />
+            <ValidationMessage For="() => Model.MarqueeFontSizePixels" />
         </div>
 
         <div class="kh-venue-settings__row">
             <label for="marquee-speed" class="kh-form-label">Scroll speed</label>
             <InputNumber id="marquee-speed" class="kh-form-control"
                          @bind-Value="Model.MarqueeScrollSpeed" min="15" max="400" />
+            <ValidationMessage For="() => Model.MarqueeScrollSpeed" />
         </div>
 
         <div class="kh-venue-settings__row">
@@ -107,6 +111,7 @@
             </span>
             <InputNumber id="marquee-background-opacity" class="kh-form-control" min="0" max="100" step="5"
                          @bind-Value="Model.MarqueeBackgroundOpacity" />
+            <ValidationMessage For="() => Model.MarqueeBackgroundOpacity" />
         </div>
 
         @ColorRow("marquee-text", "Text color", () => Model.MarqueeTextColor, v => Model.MarqueeTextColor = v)
@@ -114,4 +119,4 @@
         @ColorRow("marquee-song-color", "Song color", () => Model.MarqueeSongColor, v => Model.MarqueeSongColor = v)
         @ColorRow("marquee-divider-color", "Divider color", () => Model.MarqueeDividerColor, v => Model.MarqueeDividerColor = v)
     }
-</div>
+</VenueSettingsSection>

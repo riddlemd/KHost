@@ -3,6 +3,7 @@ using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.JSInterop;
 
 namespace KHost.UserInterface.Components.Dialogs;
 
@@ -20,10 +21,15 @@ public partial class EditVenueDialog
     // marquee and queue-rotation concern lives on the section component that draws it.
     [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
     [Inject] private IVisualisationPlaylistService VisualisationPlaylists { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool _isNew;
     private EditVenueModel _model = new();
     private EditContext _editContext = default!;
+
+    // Set by a refused save and acted on once the messages are on the page: they are not until the
+    // render that follows it.
+    private bool _revealErrors;
 
     private IReadOnlyList<VisualisationPlaylist> _visualisationPlaylists = [];
     private VisualisationPlaylist? _visualisationPlaylist;
@@ -31,6 +37,15 @@ public partial class EditVenueDialog
 
     // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
     // runs exactly once with Venue already bound.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_revealErrors)
+            return;
+
+        _revealErrors = false;
+        await JS.InvokeVoidAsync("openSectionsWithErrors", ".kh-venue-settings");
+    }
+
     protected override async Task OnInitializedAsync()
     {
         _isNew = Venue is null;
@@ -58,7 +73,12 @@ public partial class EditVenueDialog
     {
         if (_editContext.Validate())
             await SaveAsync();
+        else
+            _revealErrors = true;
     }
+
+    private void RevealErrors() => _revealErrors = true;
+
 
     private async Task SaveAsync()
     {
