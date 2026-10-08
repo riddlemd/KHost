@@ -377,7 +377,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - A flex item needs `min-width: 0` as well as `white-space: nowrap` to truncate.
 - An outline modifier on a filled control must clear the fill too: `.kh-button` sets a `--kh-primary` gradient (overriding only border and text left `--outline-danger` with a primary background under red text).
 - `--kh-primary` is not a safe "active" signal — a theme may make it neutral (famicom's is grey). Hence every toggle is a checkbox (`.kh-form-check-input` shows "on" with a check glyph).
-- Danger text: `--kh-danger-bright`, not `--kh-danger-text-subtle`.
+- Danger text: `--kh-danger-bright`.
 - A `.kh-note` explains **one control and sits directly under it** — never after a run of rows.
   - In a label-beside-control row it goes **inside the label's column** (`<span class="kh-venue-settings__labelled">`, or inside the `.kh-form-check-label` for a checkbox), not as the row's next sibling.
   - With no label column (under a stacked `&__field`, or about a whole section) it is a sibling `<p>`, and the row above drops its bottom margin (`&__row:has(+ .kh-note)`).

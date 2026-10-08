@@ -90,7 +90,7 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
         try
         {
             // Scratch a killed run left behind would collide with this extraction.
-            TryDeleteDirectory(work);
+            ScratchDirectory.TryDelete(work);
             Directory.CreateDirectory(work);
 
             var zipPath = Path.Combine(work, "payload.zip");
@@ -126,7 +126,7 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
         }
         finally
         {
-            TryDeleteDirectory(work);
+            ScratchDirectory.TryDelete(work);
         }
     }
 
@@ -271,19 +271,6 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
 
             if (_recent.Count > RecentCap)
                 _recent.RemoveRange(RecentCap, _recent.Count - RecentCap);
-        }
-    }
-
-    private static void TryDeleteDirectory(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (Exception)
-        {
-            // Scratch and superseded staging folders; a locked one is cleared on the next attempt.
         }
     }
 

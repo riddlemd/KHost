@@ -101,8 +101,8 @@ public class PluginStagingArea(string pluginsDirectory, string stagingDirectory)
         var target = StagedPath(pluginId);
 
         Directory.CreateDirectory(stagingDirectory);
-        TryDeleteDirectory(target);
-        TryDeleteDirectory(target + PluginPaths.FailureSuffix);
+        ScratchDirectory.TryDelete(target);
+        ScratchDirectory.TryDelete(target + PluginPaths.FailureSuffix);
 
         Directory.Move(payloadRoot, target);
 
@@ -119,15 +119,15 @@ public class PluginStagingArea(string pluginsDirectory, string stagingDirectory)
 
         // Removing a copy while an install of the same id is staged would put it straight back.
         if (IdOf(directory) is { } id)
-            TryDeleteDirectory(StagedPath(id));
+            ScratchDirectory.TryDelete(StagedPath(id));
 
         File.WriteAllText(RemovalMarkerPath(pluginFolderName)!, string.Empty);
     }
 
     public void Clear(Guid pluginId)
     {
-        TryDeleteDirectory(StagedPath(pluginId));
-        TryDeleteDirectory(StagedPath(pluginId) + PluginPaths.FailureSuffix);
+        ScratchDirectory.TryDelete(StagedPath(pluginId));
+        ScratchDirectory.TryDelete(StagedPath(pluginId) + PluginPaths.FailureSuffix);
 
         ClearRemovalsFor(pluginId);
     }
@@ -256,19 +256,6 @@ public class PluginStagingArea(string pluginsDirectory, string stagingDirectory)
         catch (Exception)
         {
             return "Install failed.";
-        }
-    }
-
-    private static void TryDeleteDirectory(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (Exception)
-        {
-            // Superseded staging folders; a locked one is cleared on the next attempt.
         }
     }
 }

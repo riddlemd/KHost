@@ -17,7 +17,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     private TimeSpan _position;
     private TimeSpan _duration;
     private bool _isPlaying;
-    private bool _isPaused;
     private bool _isHolding;
     private float _volume = 1.0f;
 
@@ -38,7 +37,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     private string? _backgroundUrl;
     private bool _backgroundPlaying;
     private float _backgroundVolume = 1f;
-    private string? _stillUrl;
 
     /// <summary>Host-clock instant <see cref="_position"/> was sampled at, per the page's stamp.</summary>
     private DateTime? _sampledAtUtc;
@@ -60,7 +58,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public IMediaPlayer.MediaInfo? Info { get { lock (_lock) return _info; } }
     public bool IsLoaded { get { lock (_lock) return _info is not null; } }
     public bool IsPlaying { get { lock (_lock) return _isPlaying; } }
-    public bool IsPaused { get { lock (_lock) return _isPaused; } }
     public TimeSpan Position { get { lock (_lock) return _position; } }
     public TimeSpan Duration { get { lock (_lock) return _duration; } }
 
@@ -102,7 +99,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             _position = streamStartOffset;
             _duration = TimeSpan.Zero;
             _isPlaying = false;
-            _isPaused = false;
             _isHolding = false;
         }
 
@@ -198,8 +194,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     /// <summary>Puts a still up: nothing opens or plays, so only the host clock takes it down.</summary>
     public void ShowImage(string url, ImageScaling scaling)
     {
-        lock (_lock) _stillUrl = url;
-
         _logger.LogInformation("Showing still {Url} scaled {Scaling}", url, scaling);
 
         // Lowercased here rather than in the page: the page should not have to know the enum's
@@ -209,8 +203,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     public void HideImage()
     {
-        lock (_lock) _stillUrl = null;
-
         Send(new { type = "hide-image" });
     }
 
@@ -341,8 +333,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
-    public string? StillUrl { get { lock (_lock) return _stillUrl; } }
-
     /// <summary>Blanks the picture. Playback continues, so the picture is still on the song when it returns.</summary>
     public void SetVideoEnabled(bool enabled)
     {
@@ -418,7 +408,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                     var reported = TimeSpan.FromSeconds(root.GetProperty("position").GetDouble());
                     _position = ToSongTime(reported);
                     _isPlaying = root.GetProperty("playing").GetBoolean();
-                    _isPaused = !_isPlaying && reported > TimeSpan.Zero;
 
                     // The page stamps in its own clock; the offset makes it host-comparable.
                     _sampledAtUtc = root.TryGetProperty("sampledAtEpochMs", out var stamp)
@@ -437,7 +426,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                 lock (_lock)
                 {
                     _isPlaying = false;
-                    _isPaused = false;
                     _isHolding = false;
 
                     // Stamped at the end itself, not at the last periodic report: the host drops an

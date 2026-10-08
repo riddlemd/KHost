@@ -2,6 +2,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Display;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Displays;
@@ -37,7 +38,7 @@ public sealed class NextSingerCardService(
 
         return new NextSingerCard
         {
-            Singer = NameFor(performance, next, aliasesAllowed),
+            Singer = SingerNames.DisplayedFor(performance, next, aliasesAllowed),
 
             // A singer on the list with nothing queued is named alone. The card must not promise a
             // song that does not exist.
@@ -55,15 +56,5 @@ public sealed class NextSingerCardService(
         // that fails to draw it logs and is skipped by the broker, never taking the show down.
         await broker.PublishAsync(new NextSingerAnnounced(card), cancellationToken);
         return true;
-    }
-
-    /// <summary>The name recorded at queue time, unless the venue prefers the singer it knows. Off
-    /// the performance rather than the account, since a remote lets a guest type a name per pick.
-    /// </summary>
-    private static string NameFor(Performance? performance, KHostUser singer, bool aliasesAllowed)
-    {
-        var recorded = performance?.SungAs?.Trim();
-
-        return string.IsNullOrEmpty(recorded) || !aliasesAllowed ? singer.Name : recorded;
     }
 }

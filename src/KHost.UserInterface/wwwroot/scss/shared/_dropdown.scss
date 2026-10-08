@@ -81,8 +81,7 @@
     // scrolls: without this the rows squash to nothing instead of the container scrolling.
     &__item,
     &__heading,
-    &__divider,
-    &__empty {
+    &__divider {
         flex-shrink: 0;
     }
 
@@ -125,11 +124,5 @@
         justify-content: center;
         min-width: 1em;
         color: var(--kh-primary-bright);
-    }
-
-    &__empty {
-        padding: 0.5em 1em;
-        color: var(--kh-text-muted);
-        white-space: nowrap;
     }
 }
