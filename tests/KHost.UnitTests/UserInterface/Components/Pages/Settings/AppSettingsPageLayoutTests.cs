@@ -44,6 +44,23 @@ public class AppSettingsPageLayoutTests : BunitContext
         Services.AddBreakMusicSection();
     }
 
+    /// <summary>Framed like every other settings page: one card titled with its glyph, the
+    /// section panels and the Save button inside it.</summary>
+    [Fact]
+    public void Render_ThePage_IsOneTitledCardHoldingThePanelsAndSave()
+    {
+        var page = Render<AppSettingsPage>();
+
+        var card = page.Find(".kh-settings-page > .kh-card.kh-app-settings");
+        var title = card.QuerySelector(":scope > .kh-card__header .kh-card__title")!;
+        Assert.Equal("App Settings", title.TextContent.Trim());
+        Assert.NotNull(title.QuerySelector(".bi-gear-fill"));
+
+        var body = card.QuerySelector(":scope > .kh-card__body")!;
+        Assert.NotNull(body.QuerySelector(":scope > .kh-app-settings__grid"));
+        Assert.NotNull(body.QuerySelector(":scope > .kh-app-settings__actions button"));
+    }
+
     [Fact]
     public void Render_EachSection_IsItsOwnPanelInsideOneGridContainer()
     {

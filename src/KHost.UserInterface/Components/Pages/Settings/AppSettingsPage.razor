@@ -7,279 +7,279 @@
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
-        <div class="kh-app-settings">
-            <div class="kh-app-settings__header">
-                <Icon Name="gear-fill" />
-                <span class="kh-app-settings__title">App Settings</span>
+        <div class="kh-card kh-app-settings">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="gear-fill" /> App Settings</span>
             </div>
+            <div class="kh-card__body kh-app-settings__body">
+                @if (_restartRequired)
+                {
+                    <div class="kh-alert--warning">Changes take effect after restarting KHost.</div>
+                }
 
-            @if (_restartRequired)
-            {
-                <div class="kh-alert--warning">Changes take effect after restarting KHost.</div>
-            }
-
-            <div class="kh-app-settings__grid">
-                <section class="kh-app-settings__panel kh-card">
-                    <div class="kh-card__header">
-                        <Icon Name="tv-fill" />
-                        <span class="kh-card__title">Screens</span>
-                    </div>
-                    <div class="kh-card__body">
-                        <SettingRow Label="Open a screen when KHost starts" Applies="applies at next start" IsCheckbox="true">
-                            <InputCheckbox id="launch-screen-on-startup" class="kh-form-check-input"
-                                           @bind-Value="_model.LaunchScreenOnStartup" />
-                        </SettingRow>
-                    </div>
-                </section>
-
-                <section class="kh-app-settings__panel kh-card">
-                    <div class="kh-card__header">
-                        <Icon Name="play-circle-fill" />
-                        <span class="kh-card__title">Playback</span>
-                    </div>
-                    <div class="kh-card__body">
-                        <SettingRow Label="Stop fade (seconds)" Applies="applies immediately">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.StopFadeSeconds"
-                                         min="@MinStopFadeSeconds" max="@MaxStopFadeSeconds" step="0.5" />
-                        </SettingRow>
-                        <SettingRow Label="HLS segment length (seconds)" Applies="applies immediately">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds"
-                                         min="@MinSegmentSeconds" max="@MaxSegmentSeconds" step="1" />
-                        </SettingRow>
-                        <SettingRow Label="CD+G scaling" Applies="applies from the next song">
-                            <Note>
-                                <span class="kh-note">
-                                    Sharpens CD+G graphics by scaling them up before they're sent to the
-                                    display. Higher sizes cost more processing.
-                                </span>
-                            </Note>
-                            <ChildContent>
-                                <ChoiceSelect TValue="int" Id="graphics-scale" Choices="GraphicsScaleChoices"
-                                              Value="_model.GraphicsScaleHeight" ValueChanged="v => _model.GraphicsScaleHeight = v"
-                                              Label="GraphicsScaleLabel" />
-                            </ChildContent>
-                        </SettingRow>
-
-                        <SettingRow Label="Video encoder" Applies="applies from the next song">
-                            <Note>
-                                <span class="kh-note">
-                                    Hardware encoding uses the graphics chip and frees the processor. Auto
-                                    uses it when this machine has one that works.
-                                </span>
-                            </Note>
-                            <ChildContent>
-                                <ChoiceSelect TValue="VideoEncoderPreference" Id="video-encoder" Choices="VideoEncoderChoices"
-                                              Value="_model.VideoEncoder" ValueChanged="v => _model.VideoEncoder = v"
-                                              Label="VideoEncoderLabel" />
-                            </ChildContent>
-                        </SettingRow>
-                        <SettingRow Label="Song controls" Applies="applies immediately">
-                            <select class="kh-form-select kh-app-settings__number" @bind="_model.SongControlStyle">
-                                <option value="@SongControlStyle.Sliders">Sliders</option>
-                                <option value="@SongControlStyle.Dials">Dials</option>
-                            </select>
-                        </SettingRow>
-                        <SettingRow Label="Default backing vocals volume (%)" Applies="applies immediately">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.BackingVocalVolume" min="0" max="100" step="5" />
-                        </SettingRow>
-                        <SettingRow Label="Lead-in grace" Applies="applies from the next song">
-                            <Note>
-                                <span class="kh-note">
-                                    Holds the start of a song whose words begin almost at once, so the singer
-                                    is led in. Songs with their own intro are not delayed beyond it.
-                                    Only affects lyrics the screen draws itself; CD+G and video files
-                                    carry their words in the picture and are never held.
-                                </span>
-                            </Note>
-                            <ChildContent>
-                                <ChoiceSelect TValue="int" Id="lead-in-grace" Choices="LeadInGraceChoices"
-                                              Value="_model.LeadInGraceSeconds" ValueChanged="v => _model.LeadInGraceSeconds = v"
-                                              Label="LeadInGraceLabel" />
-                            </ChildContent>
-                        </SettingRow>
-                        <SettingRow Label="Enable dynamic lead-ins" Applies="applies immediately" IsCheckbox="true">
-                            <Note>
-                                <span class="kh-note">
-                                    Runs a marker into the first line of a page and into a line after a long
-                                    pause, where the song's timing gives none. Only for words the screen draws
-                                    or burns in from timed lyrics, not CD+G or video.
-                                </span>
-                            </Note>
-                            <ChildContent>
-                                <InputCheckbox id="dynamic-lead-ins" class="kh-form-check-input" @bind-Value="_model.DynamicLeadIns" />
-                            </ChildContent>
-                        </SettingRow>
-                        <SettingRow Label="Lead-in after a pause of" Applies="applies immediately">
-                            <Note>
-                                <span class="kh-note">
-                                    How long the singing has to stop before the next line gets a lead-in.
-                                </span>
-                            </Note>
-                            <ChildContent>
-                                <ChoiceSelect TValue="int" Id="dynamic-lead-in-pause" Choices="DynamicLeadInPauseChoices"
-                                              Value="_model.DynamicLeadInPauseSeconds" ValueChanged="v => _model.DynamicLeadInPauseSeconds = v"
-                                              Label="DynamicLeadInPauseLabel" />
-                            </ChildContent>
-                        </SettingRow>
-                        <SettingRow Label="Colour-blind friendly lyrics" Applies="applies immediately" IsCheckbox="true">
-                            <Note>
-                                <span class="kh-note">
-                                    Makes duet singers and sung and unsung words easier to tell apart for
-                                    colour-blind viewers, by separating colours that would look alike. Only
-                                    for timed lyrics, not CD+G or video.
-                                </span>
-                            </Note>
-                            <ChildContent>
-                                <InputCheckbox id="colour-blind-lyrics" class="kh-form-check-input" @bind-Value="_model.ColorBlindFriendlyLyrics" />
-                            </ChildContent>
-                        </SettingRow>
-                    </div>
-                </section>
-
-                <section class="kh-app-settings__panel kh-card">
-                    <div class="kh-card__header">
-                        <Icon Name="music-note-list" />
-                        <span class="kh-card__title">Break music</span>
-                    </div>
-                    <div class="kh-card__body">
-                        <SettingRow Label="Plays from" Applies="applies immediately">
-                            <Note>
-                                <span class="kh-note">
-                                    What fills the room between singers, at every venue. With this
-                                    host's playlists, each venue picks its playlist in its own settings.
-                                </span>
-                            </Note>
-                            <ChildContent>
-                                <ChoiceSelect TValue="string" Id="break-music-provider" Choices="BreakMusicChoices"
-                                              Value="_model.BreakMusicProvider!" ValueChanged="v => _model.BreakMusicProvider = v"
-                                              Label="BreakMusicLabel" />
-                            </ChildContent>
-                        </SettingRow>
-                    </div>
-                </section>
-
-                <section class="kh-app-settings__panel kh-card">
-                    <div class="kh-card__header">
-                        <Icon Name="megaphone-fill" />
-                        <span class="kh-card__title">Ads</span>
-                    </div>
-                    <div class="kh-card__body">
-                        <SettingRow Label="Default ad duration (seconds)" Applies="applies immediately">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.AdDefaultDurationSeconds"
-                                         min="@MinAdDurationSeconds" max="@MaxAdDurationSeconds" step="1" />
-                        </SettingRow>
-                    </div>
-                </section>
-
-                <section class="kh-app-settings__panel kh-card">
-                    <div class="kh-card__header">
-                        <Icon Name="list-ol" />
-                        <span class="kh-card__title">Pagination</span>
-                    </div>
-                    <div class="kh-card__body">
-                        <SettingRow Label="Media library rows per page" Applies="applies when the list next loads">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.MediaPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
-                        </SettingRow>
-                        <SettingRow Label="Users rows per page" Applies="applies when the list next loads">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UsersPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
-                        </SettingRow>
-                        <SettingRow Label="User groups rows per page" Applies="applies when the list next loads">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UserGroupsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
-                        </SettingRow>
-                        <SettingRow Label="Tips rows per page" Applies="applies when the list next loads">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.TipsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
-                        </SettingRow>
-                        <SettingRow Label="Venues rows per page" Applies="applies when the list next loads">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.VenuesPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
-                        </SettingRow>
-                        <SettingRow Label="Performance history rows per page" Applies="applies when the dialog next opens">
-                            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.PerformanceHistoryPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
-                        </SettingRow>
-                    </div>
-                </section>
-
-                <section class="kh-app-settings__panel kh-card">
-                    <div class="kh-card__header">
-                        <Icon Name="cpu-fill" />
-                        <span class="kh-card__title">FFmpeg</span>
-                    </div>
-                    <div class="kh-card__body">
-                        <div class="kh-app-settings__ffmpeg">
-                            <FFmpegStatusView Status="_ffmpegStatus" />
-                            <div class="kh-app-settings__ffmpeg-actions">
-                                @if (FFmpeg.CanInstall)
-                                {
-                                    <button type="button" class="kh-button kh-button--primary kh-app-settings__install"
-                                            disabled="@_ffmpegStatus.Install.IsRunning" @onclick="InstallFFmpegAsync">
-                                        @(_ffmpegStatus.IsReady ? "Reinstall FFmpeg" : "Install FFmpeg")
-                                    </button>
-                                }
-                                <button type="button" class="kh-button kh-app-settings__recheck"
-                                        disabled="@_ffmpegStatus.Install.IsRunning" @onclick="CheckFFmpegAsync">
-                                    Check again
-                                </button>
-                            </div>
+                <div class="kh-app-settings__grid">
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="tv-fill" />
+                            <span class="kh-card__title">Screens</span>
                         </div>
-                        @if (FFmpeg.CanInstall)
-                        {
-                            <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
-                                <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                        <div class="kh-card__body">
+                            <SettingRow Label="Open a screen when KHost starts" Applies="applies at next start" IsCheckbox="true">
+                                <InputCheckbox id="launch-screen-on-startup" class="kh-form-check-input"
+                                               @bind-Value="_model.LaunchScreenOnStartup" />
                             </SettingRow>
-                        }
-                        else
-                        {
-                            <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
+                        </div>
+                    </section>
+
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="play-circle-fill" />
+                            <span class="kh-card__title">Playback</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="Stop fade (seconds)" Applies="applies immediately">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.StopFadeSeconds"
+                                             min="@MinStopFadeSeconds" max="@MaxStopFadeSeconds" step="0.5" />
+                            </SettingRow>
+                            <SettingRow Label="HLS segment length (seconds)" Applies="applies immediately">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds"
+                                             min="@MinSegmentSeconds" max="@MaxSegmentSeconds" step="1" />
+                            </SettingRow>
+                            <SettingRow Label="CD+G scaling" Applies="applies from the next song">
                                 <Note>
-                                    <span class="kh-note">KHost has no download for this computer: install FFmpeg yourself and set this to its folder.</span>
+                                    <span class="kh-note">
+                                        Sharpens CD+G graphics by scaling them up before they're sent to the
+                                        display. Higher sizes cost more processing.
+                                    </span>
                                 </Note>
                                 <ChildContent>
-                                    <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                                    <ChoiceSelect TValue="int" Id="graphics-scale" Choices="GraphicsScaleChoices"
+                                                  Value="_model.GraphicsScaleHeight" ValueChanged="v => _model.GraphicsScaleHeight = v"
+                                                  Label="GraphicsScaleLabel" />
                                 </ChildContent>
                             </SettingRow>
-                        }
-                    </div>
-                </section>
 
-                <section class="kh-app-settings__panel kh-card">
-                    <div class="kh-card__header">
-                        <Icon Name="folder-fill" />
-                        <span class="kh-card__title">Media</span>
-                    </div>
-                    <div class="kh-card__body">
-                        <SettingRow Label="@($"Media directory (blank = {_defaultMediaDirectory})")" Applies="applies to plugin downloads immediately">
-                            <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
-                        </SettingRow>
-                    </div>
-                </section>
+                            <SettingRow Label="Video encoder" Applies="applies from the next song">
+                                <Note>
+                                    <span class="kh-note">
+                                        Hardware encoding uses the graphics chip and frees the processor. Auto
+                                        uses it when this machine has one that works.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="VideoEncoderPreference" Id="video-encoder" Choices="VideoEncoderChoices"
+                                                  Value="_model.VideoEncoder" ValueChanged="v => _model.VideoEncoder = v"
+                                                  Label="VideoEncoderLabel" />
+                                </ChildContent>
+                            </SettingRow>
+                            <SettingRow Label="Song controls" Applies="applies immediately">
+                                <select class="kh-form-select kh-app-settings__number" @bind="_model.SongControlStyle">
+                                    <option value="@SongControlStyle.Sliders">Sliders</option>
+                                    <option value="@SongControlStyle.Dials">Dials</option>
+                                </select>
+                            </SettingRow>
+                            <SettingRow Label="Default backing vocals volume (%)" Applies="applies immediately">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.BackingVocalVolume" min="0" max="100" step="5" />
+                            </SettingRow>
+                            <SettingRow Label="Lead-in grace" Applies="applies from the next song">
+                                <Note>
+                                    <span class="kh-note">
+                                        Holds the start of a song whose words begin almost at once, so the singer
+                                        is led in. Songs with their own intro are not delayed beyond it.
+                                        Only affects lyrics the screen draws itself; CD+G and video files
+                                        carry their words in the picture and are never held.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="int" Id="lead-in-grace" Choices="LeadInGraceChoices"
+                                                  Value="_model.LeadInGraceSeconds" ValueChanged="v => _model.LeadInGraceSeconds = v"
+                                                  Label="LeadInGraceLabel" />
+                                </ChildContent>
+                            </SettingRow>
+                            <SettingRow Label="Enable dynamic lead-ins" Applies="applies immediately" IsCheckbox="true">
+                                <Note>
+                                    <span class="kh-note">
+                                        Runs a marker into the first line of a page and into a line after a long
+                                        pause, where the song's timing gives none. Only for words the screen draws
+                                        or burns in from timed lyrics, not CD+G or video.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <InputCheckbox id="dynamic-lead-ins" class="kh-form-check-input" @bind-Value="_model.DynamicLeadIns" />
+                                </ChildContent>
+                            </SettingRow>
+                            <SettingRow Label="Lead-in after a pause of" Applies="applies immediately">
+                                <Note>
+                                    <span class="kh-note">
+                                        How long the singing has to stop before the next line gets a lead-in.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="int" Id="dynamic-lead-in-pause" Choices="DynamicLeadInPauseChoices"
+                                                  Value="_model.DynamicLeadInPauseSeconds" ValueChanged="v => _model.DynamicLeadInPauseSeconds = v"
+                                                  Label="DynamicLeadInPauseLabel" />
+                                </ChildContent>
+                            </SettingRow>
+                            <SettingRow Label="Colour-blind friendly lyrics" Applies="applies immediately" IsCheckbox="true">
+                                <Note>
+                                    <span class="kh-note">
+                                        Makes duet singers and sung and unsung words easier to tell apart for
+                                        colour-blind viewers, by separating colours that would look alike. Only
+                                        for timed lyrics, not CD+G or video.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <InputCheckbox id="colour-blind-lyrics" class="kh-form-check-input" @bind-Value="_model.ColorBlindFriendlyLyrics" />
+                                </ChildContent>
+                            </SettingRow>
+                        </div>
+                    </section>
 
-                <section class="kh-app-settings__panel kh-card">
-                    <div class="kh-card__header">
-                        <Icon Name="search" />
-                        <span class="kh-card__title">Search</span>
-                    </div>
-                    <div class="kh-card__body">
-                        <SettingRow Label="Default search mode" Applies="applies the next time the panel starts">
-                            <Note>
-                                <span class="kh-note">
-                                    What Song Search starts in. "Remember the last one used" keeps whatever
-                                    was picked last on this machine; a provider no longer loaded falls back
-                                    to Local.
-                                </span>
-                            </Note>
-                            <ChildContent>
-                                <ChoiceSelect TValue="string" Id="default-search-mode" Choices="SearchModeChoices"
-                                              Value="_model.DefaultSearchMode" ValueChanged="v => _model.DefaultSearchMode = v"
-                                              Label="SearchModeLabel" />
-                            </ChildContent>
-                        </SettingRow>
-                    </div>
-                </section>
-            </div>
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="music-note-list" />
+                            <span class="kh-card__title">Break music</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="Plays from" Applies="applies immediately">
+                                <Note>
+                                    <span class="kh-note">
+                                        What fills the room between singers, at every venue. With this
+                                        host's playlists, each venue picks its playlist in its own settings.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="string" Id="break-music-provider" Choices="BreakMusicChoices"
+                                                  Value="_model.BreakMusicProvider!" ValueChanged="v => _model.BreakMusicProvider = v"
+                                                  Label="BreakMusicLabel" />
+                                </ChildContent>
+                            </SettingRow>
+                        </div>
+                    </section>
 
-            <div class="kh-app-settings__actions">
-                <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">
-                    @(_saving ? "Saving…" : "Save")
-                </button>
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="megaphone-fill" />
+                            <span class="kh-card__title">Ads</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="Default ad duration (seconds)" Applies="applies immediately">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.AdDefaultDurationSeconds"
+                                             min="@MinAdDurationSeconds" max="@MaxAdDurationSeconds" step="1" />
+                            </SettingRow>
+                        </div>
+                    </section>
+
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="list-ol" />
+                            <span class="kh-card__title">Pagination</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="Media library rows per page" Applies="applies when the list next loads">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.MediaPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
+                            </SettingRow>
+                            <SettingRow Label="Users rows per page" Applies="applies when the list next loads">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UsersPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
+                            </SettingRow>
+                            <SettingRow Label="User groups rows per page" Applies="applies when the list next loads">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UserGroupsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
+                            </SettingRow>
+                            <SettingRow Label="Tips rows per page" Applies="applies when the list next loads">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.TipsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
+                            </SettingRow>
+                            <SettingRow Label="Venues rows per page" Applies="applies when the list next loads">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.VenuesPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
+                            </SettingRow>
+                            <SettingRow Label="Performance history rows per page" Applies="applies when the dialog next opens">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.PerformanceHistoryPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
+                            </SettingRow>
+                        </div>
+                    </section>
+
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="cpu-fill" />
+                            <span class="kh-card__title">FFmpeg</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <div class="kh-app-settings__ffmpeg">
+                                <FFmpegStatusView Status="_ffmpegStatus" />
+                                <div class="kh-app-settings__ffmpeg-actions">
+                                    @if (FFmpeg.CanInstall)
+                                    {
+                                        <button type="button" class="kh-button kh-button--primary kh-app-settings__install"
+                                                disabled="@_ffmpegStatus.Install.IsRunning" @onclick="InstallFFmpegAsync">
+                                            @(_ffmpegStatus.IsReady ? "Reinstall FFmpeg" : "Install FFmpeg")
+                                        </button>
+                                    }
+                                    <button type="button" class="kh-button kh-app-settings__recheck"
+                                            disabled="@_ffmpegStatus.Install.IsRunning" @onclick="CheckFFmpegAsync">
+                                        Check again
+                                    </button>
+                                </div>
+                            </div>
+                            @if (FFmpeg.CanInstall)
+                            {
+                                <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
+                                    <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                                </SettingRow>
+                            }
+                            else
+                            {
+                                <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
+                                    <Note>
+                                        <span class="kh-note">KHost has no download for this computer: install FFmpeg yourself and set this to its folder.</span>
+                                    </Note>
+                                    <ChildContent>
+                                        <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                                    </ChildContent>
+                                </SettingRow>
+                            }
+                        </div>
+                    </section>
+
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="folder-fill" />
+                            <span class="kh-card__title">Media</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="@($"Media directory (blank = {_defaultMediaDirectory})")" Applies="applies to plugin downloads immediately">
+                                <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
+                            </SettingRow>
+                        </div>
+                    </section>
+
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="search" />
+                            <span class="kh-card__title">Search</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="Default search mode" Applies="applies the next time the panel starts">
+                                <Note>
+                                    <span class="kh-note">
+                                        What Song Search starts in. "Remember the last one used" keeps whatever
+                                        was picked last on this machine; a provider no longer loaded falls back
+                                        to Local.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="string" Id="default-search-mode" Choices="SearchModeChoices"
+                                                  Value="_model.DefaultSearchMode" ValueChanged="v => _model.DefaultSearchMode = v"
+                                                  Label="SearchModeLabel" />
+                                </ChildContent>
+                            </SettingRow>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="kh-app-settings__actions">
+                    <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">
+                        @(_saving ? "Saving…" : "Save")
+                    </button>
+                </div>
             </div>
         </div>
     </div>
