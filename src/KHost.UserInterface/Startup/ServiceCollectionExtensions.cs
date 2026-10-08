@@ -48,7 +48,9 @@ internal static class ServiceCollectionExtensions
         // Scoped, not singleton: a control's pick belongs to the circuit that made it, and a
         // reconnecting browser is a new session rather than one resuming yesterday's choices.
         services.AddScoped<IControlState, ControlState>();
-        services.AddSingleton<IAppSettingsService, AppSettingsService>();
+        // Also by its own type: VenueBreakMusicModeMigration needs members kept off the interface.
+        services.AddSingleton<AppSettingsService>();
+        services.AddSingleton<IAppSettingsService>(sp => sp.GetRequiredService<AppSettingsService>());
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IAppInfoService, AppInfoService>();
         services.AddSingleton<IExternalLinkService, ExternalLinkService>();

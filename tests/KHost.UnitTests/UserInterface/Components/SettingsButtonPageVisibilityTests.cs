@@ -78,7 +78,7 @@ public class SettingsButtonPageVisibilityTests : BunitContext
         Assert.DoesNotContain(MenuItems(), i => i.TextContent.Contains("Tips Manager"));
     }
 
-    /// <summary>Nothing for a tip to belong to yet, and no venue naming a break music mode.</summary>
+    /// <summary>Nothing for a tip to belong to yet.</summary>
     [Fact]
     public void NoVenueSelected_DropsBoth()
     {

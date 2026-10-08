@@ -27,7 +27,7 @@ public class BreakMusicServiceTests : IDisposable
         _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(null));
         _options.CurrentValue.Returns(_ => _appSettings);
 
-        _service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider], _venues, _options, _broker);
+        _service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider], _options, _broker);
     }
 
     public void Dispose()
@@ -157,7 +157,7 @@ public class BreakMusicServiceTests : IDisposable
             _venues, _broker);
 
         using var service = new BreakMusicService(
-            NullLogger<BreakMusicService>.Instance, [plugin, library], _venues, _options, _broker);
+            NullLogger<BreakMusicService>.Instance, [plugin, library], _options, _broker);
 
         await service.InitializeAsync();
 
@@ -171,7 +171,7 @@ public class BreakMusicServiceTests : IDisposable
         plugin.SourceName.Returns("SpotifyProvider");
 
         using var service = new BreakMusicService(
-            NullLogger<BreakMusicService>.Instance, [_provider, plugin], _venues, _options, _broker);
+            NullLogger<BreakMusicService>.Instance, [_provider, plugin], _options, _broker);
 
         await service.InitializeAsync();
         await service.SetActiveProviderAsync("SpotifyProvider");
@@ -182,11 +182,7 @@ public class BreakMusicServiceTests : IDisposable
     [Fact]
     public async Task InitializeAsync_WithAnUnknownStoredProvider_FallsBackRatherThanLeavingNone()
     {
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
-        {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { BreakMusicProvider = "SomePluginThatIsGone" },
-        }));
+        _appSettings.Provider = "SomePluginThatIsGone";
 
         await _service.InitializeAsync();
 
@@ -210,7 +206,6 @@ public class BreakMusicServiceTests : IDisposable
         foreach (var throughHost in new[] { false, true })
         {
             _provider.RendersThroughHost.Returns(throughHost);
-            _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue { Name = "The Bar" }));
 
             await _service.InitializeAsync();
             _provider.ClearReceivedCalls();
@@ -222,101 +217,16 @@ public class BreakMusicServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AVenueEdit_NeverSetsAVolumeOnAnExternalProvider()
-    {
-        _provider.RendersThroughHost.Returns(false);
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue { Name = "The Bar" }));
-
-        await _service.InitializeAsync();
-        await _service.StartAsync();
-        _provider.ClearReceivedCalls();
-
-        await _broker.PublishAsync(new SelectedVenueChanged());
-
-        await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>Until App Settings names a mode, each venue's old one still plays.</summary>
-    [Fact]
-    public async Task AVenueEdit_SwitchesToTheModeTheVenueNames()
-    {
-        var other = Substitute.For<IBreakMusicProvider>();
-        other.SourceName.Returns("JukeboxProvider");
-
-        var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, other], _venues, _options, _broker);
-
-        await service.InitializeAsync();
-
-        Assert.Same(_provider, service.ActiveProvider);
-
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
-        {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { BreakMusicProvider = "JukeboxProvider" },
-        }));
-
-        await _broker.PublishAsync(new SelectedVenueChanged());
-
-        Assert.Same(other, service.ActiveProvider);
-
-        service.Dispose();
-    }
-
-    [Fact]
-    public async Task InitializeAsync_AppSettingsNamesAMode_PlaysItOverTheVenuesOwn()
+    public async Task InitializeAsync_AppSettingsNamesAMode_PlaysIt()
     {
         var jukebox = Substitute.For<IBreakMusicProvider>();
         jukebox.SourceName.Returns("JukeboxProvider");
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
-        {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { BreakMusicProvider = nameof(LibraryBreakMusicProvider) },
-        }));
         _appSettings.Provider = "JukeboxProvider";
-        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, jukebox], _venues, _options, _broker);
+        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, jukebox], _options, _broker);
 
         await service.InitializeAsync();
 
         Assert.Same(jukebox, service.ActiveProvider);
-    }
-
-    /// <summary>The venue's old mode decides only until App Settings names one.</summary>
-    [Fact]
-    public async Task InitializeAsync_AppSettingsNamesNone_PlaysTheVenuesOwn()
-    {
-        var jukebox = Substitute.For<IBreakMusicProvider>();
-        jukebox.SourceName.Returns("JukeboxProvider");
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
-        {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { BreakMusicProvider = "JukeboxProvider" },
-        }));
-        _appSettings.Provider = "  ";
-        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, jukebox], _venues, _options, _broker);
-
-        await service.InitializeAsync();
-
-        Assert.Same(jukebox, service.ActiveProvider);
-    }
-
-    [Fact]
-    public async Task AVenueSwitch_OnceAppSettingsNamesAMode_LeavesTheModeAlone()
-    {
-        var jukebox = Substitute.For<IBreakMusicProvider>();
-        jukebox.SourceName.Returns("JukeboxProvider");
-        _appSettings.Provider = nameof(LibraryBreakMusicProvider);
-        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, jukebox], _venues, _options, _broker);
-        await service.InitializeAsync();
-
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
-        {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { BreakMusicProvider = "JukeboxProvider" },
-        }));
-        await _broker.PublishAsync(new SelectedVenueChanged());
-        await Task.Delay(50);
-
-        Assert.Same(_provider, service.ActiveProvider);
     }
 
     // Without a lock guarding every transition (not just StartAsync), a StopAsync racing a
@@ -363,7 +273,7 @@ public class BreakMusicServiceTests : IDisposable
         var other = Substitute.For<IBreakMusicProvider>();
         other.SourceName.Returns("JukeboxProvider");
 
-        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [other], _venues, _options, _broker);
+        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [other], _options, _broker);
 
         Assert.Null(service.LibraryProvider);
     }

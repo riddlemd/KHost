@@ -17,9 +17,6 @@ public partial class EditVenueDialog
     [Parameter] public EventCallback<Venue> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    // Only for the fallback on a new venue's break music mode; every other break-music, QR,
-    // marquee and queue-rotation concern lives on the section component that draws it.
-    [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
     [Inject] private IVisualisationPlaylistService VisualisationPlaylists { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 

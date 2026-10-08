@@ -95,7 +95,11 @@ internal static class HostInitialization
         CheckForFFmpeg(app.Services);
         WarmVideoEncoderProbe(app.Services);
 
-        // After the plugins, so a provider one of them registered can be the venue's chosen one.
+        // Before break music resolves its provider, which reads only App Settings.
+        InitializeOrWarn("Break music mode migration",
+            () => ActivatorUtilities.CreateInstance<VenueBreakMusicModeMigration>(app.Services).RunAsync());
+
+        // After the plugins, so a provider one of them registered can be the one App Settings names.
         // Not fatal: a venue with no break music set up is a venue that runs without it.
         InitializeOrWarn("Break music initialization",
             () => app.Services.GetRequiredService<IBreakMusicService>().InitializeAsync());
