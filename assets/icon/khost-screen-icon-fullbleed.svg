@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<!-- Windows, Linux and web: the plate reaches the canvas edge, since those shells add no margin of their own. -->
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A86AD4"/><stop offset="1" stop-color="#5D2B90"/></linearGradient></defs>
+<rect id="plate" width="1024" height="1024" rx="180" fill="url(#bg)"/>
+<g transform="translate(512 512) scale(1.1) translate(-512 -512)">
+<g transform="rotate(-45 512 512)" fill="#fff">
+<g transform="translate(173.8 0)">
+<rect x="0.0" y="302.0" width="91.0" height="420.0" rx="18.2"/>
+<path d="M45,583.5 L200,420 L325,420 L45,713 Z"/>
+<path d="M158,585 L224,523 L322,722 L225,722 Z"/>
+<rect x="383.7" y="302.0" width="91.0" height="420.0" rx="18.2"/>
+<rect x="585.3" y="302.0" width="91.0" height="420.0" rx="18.2"/>
+<rect x="383.7" y="483.3" width="292.6" height="91.0" rx="9.1"/>
+</g>
+</g>
+</g>
+<!-- Screen badge: the kH is drawn 1.1x here, so the disc sits further out than on the macOS master. -->
+<circle cx="800" cy="800" r="150" fill="#fff"/>
+<g transform="translate(700 702) scale(2)" fill="#5D2B90"><path fill-rule="evenodd" d="M16,12 h68 a10,10 0 0 1 10,10 v42 a10,10 0 0 1 -10,10 h-68 a10,10 0 0 1 -10,-10 v-42 a10,10 0 0 1 10,-10 Z M19,25 v36 h62 v-36 Z"/><rect x="43" y="73" width="14" height="11"/><rect x="27" y="83" width="46" height="9" rx="4.5"/></g>
+</svg>
