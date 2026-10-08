@@ -51,7 +51,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - Member order: fields → events → properties → public → protected → private → nested types.
 - Every `Task`/`ValueTask`-returning method ends in `Async` — enforced by `AsyncNamingConventionTests`; a new project must be a `ProjectReference` of `KHost.UnitTests` to be covered.
 - Names crossing a string boundary (`[JSInvokable]` called from JS, SignalR hub methods invoked by name) break silently on rename: pass `nameof(...)` from C# and take it as a parameter in JS (`SingerQueuePanel` / `sortable-interop.js`, `ScreenClient` / `ScreenHub`).
-- Library/users/groups persist in SQL; queue and venue state in the JSON cache (`ICacheService`, `./cache/`).
+- Library/users/groups/venues persist in SQL; the queue and the selected venue id are in the JSON cache (`ICacheService`, `./cache/`).
 - Dialogs go through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Startup/ServiceCollectionExtensions.cs`.
 - Licences: `KHost.Abstractions` and `KHost.Common` are MIT; everything else PolyForm Shield (`LICENSE`, plus each MIT project's own `LICENSE`).
   - `LicenceBoundaryTests` enforces: an MIT project references only MIT projects, declares `PackageLicenseExpression`, ships a `LICENSE`.

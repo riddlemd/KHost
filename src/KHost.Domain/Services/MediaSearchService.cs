@@ -47,7 +47,6 @@ public class MediaSearchService : BaseService, IMediaSearchService
     }
 
     /// <summary>Still plural: two providers may share a SourceName and both answer.</summary>
-    /// <remarks>No longer a way to ask everything at once.</remarks>
     private async Task<List<MediaSearchEntity>> SearchProvidersAsync(
         List<IMediaProvider> providers, string query, string source, int pageNumber, int pageSize)
     {

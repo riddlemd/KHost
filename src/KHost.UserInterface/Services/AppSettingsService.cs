@@ -38,8 +38,8 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     public AppSettings Current => new()
     {
-        // RequireLogin is config-only now: no App Settings checkbox writes it, so this is the
-        // one place it is ever read from the layered configuration (appsettings.json/env/overlay).
+        // RequireLogin is config-only: no App Settings checkbox writes it, so it is read here
+        // from the layered configuration (appsettings.json/env/overlay).
         RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? false,
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
         FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
