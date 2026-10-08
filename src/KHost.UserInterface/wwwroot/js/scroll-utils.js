@@ -5,6 +5,13 @@ window.scrollIntoViewSmooth = function(selector) {
     }
 };
 
+// A field that failed validation inside a collapsed section would leave Save looking dead.
+window.openSectionsWithErrors = function(selector) {
+    document.querySelectorAll(selector + ' details').forEach(function(section) {
+        if (section.querySelector('.validation-message')) section.open = true;
+    });
+};
+
 window.focusFirstInput = function(container) {
     const el = container.querySelector('[autofocus]')
         ?? container.querySelector('input:not([type=hidden]):not([readonly]), textarea, select');

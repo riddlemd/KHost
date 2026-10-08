@@ -4,9 +4,9 @@
     position: fixed;
     inset-block-start: 0.5em;
     inset-inline: 0;
-    // Above ordinary content, below the dialog scrim (1000): a notice under an open dialog is
-    // still there once it closes, rather than fighting the scrim for the same layer.
-    z-index: 900;
+    // Above the dialog scrim (1000): a flash is often the answer to something done inside a dialog,
+    // such as saving a QR code, and under the scrim it reads as nothing having happened.
+    z-index: 1001;
     display: flex;
     flex-direction: column;
     align-items: center;
