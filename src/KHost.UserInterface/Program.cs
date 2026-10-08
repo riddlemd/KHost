@@ -30,6 +30,10 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // First: the already-running and reset paths below write to a console that, on Windows,
+        // exists only once attached.
+        ParentConsole.TryAttach();
+
         var headless = args.Contains(HeadlessFlag);
         var resetIndex = Array.IndexOf(args, PasswordResetCommand.Flag);
 
