@@ -168,7 +168,8 @@
             > .kh-form-control,
             > .kh-form-select,
             > .kh-venue-settings__picker,
-            > .kh-venue-qr-codes__source {
+            > .kh-venue-qr-codes__source,
+            > .kh-venue-general__image {
                 flex: 0 0 var(--kh-venue-control-width);
                 width: var(--kh-venue-control-width);
             }

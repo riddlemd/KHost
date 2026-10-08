@@ -3,6 +3,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,6 +39,7 @@ public class EditVenueDialogSectionsTests : BunitContext
         Services.AddSingleton(visualisations);
         Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
+        Services.AddSingleton(Substitute.For<IImageUploader>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(plugins);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
