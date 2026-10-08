@@ -16,7 +16,7 @@ public class EditVenueDialogSectionsTests : BunitContext
 {
     private static readonly string[] SectionTitles =
     [
-        "Screen marquee", "Screen QR codes", "Visualisations", "Between singers", "Queue behavior",
+        "General", "Screen marquee", "Screen QR codes", "Visualisations", "Break music", "Ads", "Queue behavior",
         "Guests on their phones", "Tipping", "Require confirmation when removing", "Notes",
     ];
 
@@ -86,14 +86,9 @@ public class EditVenueDialogSectionsTests : BunitContext
                 "Hold “Up next” at the edge instead of scrolling it", "Hide while a song is playing",
             ]
         },
-        {
-            "Between singers",
-            [
-                "Break music mode", "Break music playlist", "Ad playlist", "Placeholder image",
-                "Behind the “Up next” card",
-                "Name the break music on screen", "Corner",
-            ]
-        },
+        { "General", ["Placeholder image", "Behind the “Up next” card"] },
+        { "Break music", ["Break music mode", "Break music playlist", "Break music label", "Label corner"] },
+        { "Ads", ["Ad playlist"] },
         {
             "Queue behavior",
             [

@@ -1,0 +1,45 @@
+@using KHost.Abstractions.Models
+
+<VenueSettingsSection Title="General">
+
+    <div class="kh-venue-settings__row">
+        <label class="kh-form-label">Placeholder image</label>
+        <ComboBox TItem="Media"
+                  Class="kh-venue-settings__picker"
+                  Value="_brandingImage"
+                  ValueChanged="OnBrandingImageChanged"
+                  @bind-Text="_brandingImageText"
+                  Search="SearchImagesAsync"
+                  DisplayName="@(image => image.Title)"
+                  MinimumSearchLength="0"
+                  OpenWhenEmpty="true"
+                  Placeholder="None: leave the screen blank" />
+    </div>
+
+    @if (_brandingImage is not null)
+    {
+        <div class="kh-venue-settings__row">
+            <label for="venue-branding-scaling" class="kh-form-label">How it fills the screen</label>
+            <InputSelect id="venue-branding-scaling" class="kh-form-select"
+                         @bind-Value="Model.BrandingImageScaling">
+                <ImageScalingOptions IncludeUseOwn="true" />
+            </InputSelect>
+        </div>
+    }
+
+    <div class="kh-venue-settings__row">
+        <span class="kh-venue-settings__labelled">
+            <label for="venue-next-singer-background" class="kh-form-label">Behind the &ldquo;Up next&rdquo; card</label>
+            <span class="kh-note">
+                A visualisation comes from this venue's visualisation playlist; with none, the card
+                sits over the placeholder image.
+            </span>
+        </span>
+        <InputSelect id="venue-next-singer-background" class="kh-form-select"
+                     @bind-Value="Model.NextSingerBackground">
+            <option value="@NextSingerBackground.Over">Placeholder image</option>
+            <option value="@NextSingerBackground.Blackout">Black</option>
+            <option value="@NextSingerBackground.Visualisation">A visualisation</option>
+        </InputSelect>
+    </div>
+</VenueSettingsSection>
