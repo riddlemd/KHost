@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Regenerates every KHost icon asset from the three SVGs beside this script.
+"""Regenerates every KHost icon asset from the SVGs beside this script: three for the console, three
+for the screen app (the same tile with a monitor badge, so the two can be told apart in the Dock).
 
 Needs rsvg-convert, and iconutil for the .icns (macOS only; skipped with a warning elsewhere).
 Standard library only otherwise. The outputs are committed, so a build never needs these tools.
@@ -21,6 +22,10 @@ MASTER = os.path.join(HERE, "khost-icon.svg")
 FULLBLEED = os.path.join(HERE, "khost-icon-fullbleed.svg")
 SMALL = os.path.join(HERE, "khost-icon-small.svg")
 
+SCREEN_MASTER = os.path.join(HERE, "khost-screen-icon.svg")
+SCREEN_FULLBLEED = os.path.join(HERE, "khost-screen-icon-fullbleed.svg")
+SCREEN_SMALL = os.path.join(HERE, "khost-screen-icon-small.svg")
+
 # Below this the grille and the thin strokes turn to mush, so the simplified glyph is drawn instead.
 SMALL_MAX = 32
 
@@ -31,8 +36,8 @@ def render(svg, size, out):
         return f.read()
 
 
-def render_for(size, tmp):
-    svg = SMALL if size <= SMALL_MAX else FULLBLEED
+def render_for(size, tmp, small=SMALL, fullbleed=FULLBLEED):
+    svg = small if size <= SMALL_MAX else fullbleed
     return render(svg, size, os.path.join(tmp, f"layer-{size}.png"))
 
 
@@ -100,20 +105,20 @@ def write_ico(path, layers):
         f.write(out + b"".join(blob for _, blob in blobs))
 
 
-def build_ico(path, sizes, png_from, tmp):
-    write_ico(path, [(s, render_for(s, tmp), s >= png_from) for s in sizes])
+def build_ico(path, sizes, png_from, tmp, small=SMALL, fullbleed=FULLBLEED):
+    write_ico(path, [(s, render_for(s, tmp, small, fullbleed), s >= png_from) for s in sizes])
 
 
-def build_icns(tmp):
+def build_icns(tmp, name="khost", master=MASTER):
     if shutil.which("iconutil") is None:
-        print("iconutil not found; khost.icns left as it was", file=sys.stderr)
+        print(f"iconutil not found; {name}.icns left as it was", file=sys.stderr)
         return
-    iconset = os.path.join(tmp, "khost.iconset")
+    iconset = os.path.join(tmp, f"{name}.iconset")
     os.makedirs(iconset)
     for size in (16, 32, 128, 256, 512):
-        render(MASTER, size, os.path.join(iconset, f"icon_{size}x{size}.png"))
-        render(MASTER, size * 2, os.path.join(iconset, f"icon_{size}x{size}@2x.png"))
-    subprocess.run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(HERE, "khost.icns")], check=True)
+        render(master, size, os.path.join(iconset, f"icon_{size}x{size}.png"))
+        render(master, size * 2, os.path.join(iconset, f"icon_{size}x{size}@2x.png"))
+    subprocess.run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(HERE, f"{name}.icns")], check=True)
 
 
 def main():
@@ -121,11 +126,17 @@ def main():
         build_ico(os.path.join(HERE, "khost.ico"), (16, 24, 32, 48, 64, 128, 256), 64, tmp)
         build_icns(tmp)
 
+        # The screen app ships only what KHost.LocalScreen links: its exe icon, Dock icon and window icon.
+        build_ico(os.path.join(HERE, "khost-screen.ico"), (16, 24, 32, 48, 64, 128, 256), 64, tmp,
+                  SCREEN_SMALL, SCREEN_FULLBLEED)
+        build_icns(tmp, "khost-screen", SCREEN_MASTER)
+
         linux = os.path.join(HERE, "linux")
         os.makedirs(linux, exist_ok=True)
         for size in (16, 32, 48, 64, 128, 256, 512):
             svg = SMALL if size <= SMALL_MAX else FULLBLEED
             render(svg, size, os.path.join(linux, f"khost-{size}.png"))
+        render(SCREEN_FULLBLEED, 256, os.path.join(linux, "khost-screen-256.png"))
 
         build_ico(os.path.join(WWWROOT, "favicon.ico"), (16, 32, 48), 64, tmp)
         shutil.copyfile(SMALL, os.path.join(WWWROOT, "favicon.svg"))
