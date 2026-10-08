@@ -163,20 +163,6 @@ public class PluginContext : IPluginContext
             _broker.Announce(new PluginsChanged());
     }
 
-    public void ClearWarnings()
-    {
-        var changed = false;
-
-        lock (_plugin.Warnings)
-        {
-            foreach (var id in _added.Keys.ToList())
-                changed |= Remove(id);
-        }
-
-        if (changed)
-            _broker.Announce(new PluginsChanged());
-    }
-
     // Caller holds the lock. True when a line left the list.
     private bool Remove(int id)
     {

@@ -287,14 +287,6 @@ public class LibraryBreakMusicProviderTests : IDisposable
     }
 
     [Fact]
-    public void RendersThroughHost_IsTrue()
-    {
-        // The library provider's audio rides the screen, which is what lets it reach a Cast device
-        // and what makes a connected screen a requirement.
-        Assert.True(_provider.RendersThroughHost);
-    }
-
-    [Fact]
     public async Task PauseAsync_SendsPauseOnTheBackgroundChannelOnly()
     {
         await _provider.PauseAsync();

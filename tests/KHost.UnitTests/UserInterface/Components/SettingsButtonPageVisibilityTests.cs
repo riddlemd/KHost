@@ -116,8 +116,6 @@ public class SettingsButtonPageVisibilityTests : BunitContext
 
         provider.DisplayName.Returns(displayName);
         provider.SourceName.Returns(sourceName);
-        // True for both: the page follows the playlists, so this must not be what decides it.
-        provider.RendersThroughHost.Returns(true);
 
         return provider;
     }

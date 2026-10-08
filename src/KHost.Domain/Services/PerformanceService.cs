@@ -374,15 +374,6 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         AnnounceChange();
     }
 
-    public async Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId)
-    {
-        var queue = await ReadSingerQueueAsync(singerId);
-        var idx = queue.FindIndex(p => p.Id == performanceId);
-
-        if (idx >= 0)
-            await MoveToIndexAsync(singerId, performanceId, queue.Count - 1);
-    }
-
     /// <summary>The performances a singer has waiting, in queue order.</summary>
     private async Task<List<Performance>> ReadSingerQueueAsync(Guid singerId)
         => (await Repository.ReadQueuedAsync())

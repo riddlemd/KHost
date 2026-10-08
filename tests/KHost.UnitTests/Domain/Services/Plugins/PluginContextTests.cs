@@ -213,20 +213,6 @@ public class PluginContextTests
     }
 
     [Fact]
-    public void ClearWarnings_RemovesEveryPluginLineAndNoHostLine()
-    {
-        var (context, plugin, _) = WarningFixture();
-        plugin.Warnings.Add("Icon could not be read.");
-        plugin.Warnings.Add("shared");
-        context.AddWarning("a");
-        context.AddWarning("shared");
-
-        context.ClearWarnings();
-
-        Assert.Equal(["Icon could not be read.", "shared"], plugin.Warnings);
-    }
-
-    [Fact]
     public void AddWarning_AfterClear_ShowsItAgain()
     {
         var (context, plugin, _) = WarningFixture();
@@ -237,9 +223,6 @@ public class PluginContextTests
 
         Assert.Equal(["a"], plugin.Warnings);
         Assert.NotEqual(0, second);
-        context.ClearWarnings();
-        context.AddWarning("a");
-        Assert.Equal(["a"], plugin.Warnings);
     }
 
     [Fact]
@@ -255,8 +238,6 @@ public class PluginContextTests
         Assert.Equal(2, announced);
         context.AddWarning("a");
         Assert.Equal(3, announced);
-        context.ClearWarnings();
-        Assert.Equal(4, announced);
     }
 
     [Fact]
@@ -269,13 +250,11 @@ public class PluginContextTests
         using var subscription = broker.Subscribe<PluginsChanged>(_ => announced++);
 
         context.AddWarning("a");
-        context.AddWarning("shared");
+        var shared = context.AddWarning("shared");
         context.ClearWarning(12345);
-        context.ClearWarnings();
-        Assert.Equal(1, announced);
+        context.ClearWarning(shared);
 
-        context.ClearWarnings();
-        Assert.Equal(1, announced);
+        Assert.Equal(0, announced);
     }
 
     private static (PluginContext Context, DiscoveredPlugin Plugin, IMessageBroker Broker) WarningFixture()

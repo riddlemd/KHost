@@ -56,7 +56,6 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
     public string DisplayName => "Library";
     public string SourceName => nameof(LibraryBreakMusicProvider);
-    public bool RendersThroughHost => true;
 
     public BreakMusicTrack? CurrentTrack
     {

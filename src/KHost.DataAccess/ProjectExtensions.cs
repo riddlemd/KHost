@@ -19,9 +19,6 @@ namespace KHost.DataAccess
             serviceCollection.AddOptions<DatabaseInitializer.ServiceOptions>()
                 .BindConfiguration(DatabaseInitializer.ServiceOptions.SectionName);
 
-            // Offered to plugins as well as used internally: see ITextFolding.
-            serviceCollection.AddSingleton<ITextFolding, TextFolding>();
-
             serviceCollection.AddSingleton<IMediaRepository, MediaRepository>();
             serviceCollection.AddSingleton<IMediaPoolRepository, MediaPoolRepository>();
             serviceCollection.AddSingleton<IVisualisationPlaylistRepository, VisualisationPlaylistRepository>();

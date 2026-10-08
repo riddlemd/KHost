@@ -178,12 +178,6 @@ public interface IDisplayProvider
     /// default body that does nothing.</summary>
     Task StopBackgroundAsync(TimeSpan? fade = null, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
-
-    /// <summary>Sets the second channel's level, 0 to 1.</summary>
-    /// <remarks>The host does not call this: like <see cref="SetVolumeAsync"/>, a provider
-    /// plays at the level it chooses. Has a default body that does nothing.</remarks>
-    Task SetBackgroundVolumeAsync(float volume, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
 }
 
 
