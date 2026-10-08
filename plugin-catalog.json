@@ -12,11 +12,11 @@
       ],
       "releases": [
         {
-          "version": "1.0.2",
-          "apiVersion": 6,
-          "url": "https://github.com/riddlemd/KHost.Plugins.Chromecast/releases/download/v1.0.2/KHost.Plugins.Chromecast-1.0.2.zip",
-          "sha256": "6321b04fdd259e6a6c691d43180004f0cc9db9c192cb274b13ff02af3ca981ab",
-          "sizeBytes": 1196371
+          "version": "1.0.4",
+          "apiVersion": 8,
+          "url": "https://github.com/riddlemd/KHost.Plugins.Chromecast/releases/download/v1.0.4/KHost.Plugins.Chromecast-1.0.4.zip",
+          "sha256": "3ebc2eb9f74bcad2ebe80d6297866c054432c553c3934199bd22d32b08bb2300",
+          "sizeBytes": 1197569
         }
       ]
     },
@@ -31,19 +31,11 @@
       ],
       "releases": [
         {
-          "version": "1.0.5",
-          "apiVersion": 6,
-          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.5/KHost.Plugins.Spotify-1.0.5.zip",
-          "sha256": "46fa8ae01049401b382373bb2354b69c46e413902101b6b7c1f7a951658d3b51",
-          "sizeBytes": 45850
-        },
-        {
-          "version": "1.0.5",
-          "apiVersion": 6,
-          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.5/KHost.Plugins.Spotify-1.0.5-win.zip",
-          "sha256": "e06eb96ac3afe0847a8e1b711919a1f301dfc9534f9767747779d88b01a194fd",
-          "sizeBytes": 6454283,
-          "rid": "win"
+          "version": "1.0.7",
+          "apiVersion": 8,
+          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.7/KHost.Plugins.Spotify-1.0.7.zip",
+          "sha256": "e826185bb44bb12fd19e6da6441ad410dc3b8a5d686b4886fdae7c36d870113e",
+          "sizeBytes": 45799
         }
       ]
     },
@@ -58,11 +50,11 @@
       ],
       "releases": [
         {
-          "version": "0.1.1",
-          "apiVersion": 6,
-          "url": "https://github.com/riddlemd/KHost.Plugins.YouTubeMusic/releases/download/v0.1.1/KHost.Plugins.YouTubeMusic-0.1.1.zip",
-          "sha256": "c7b2ad785474bfef9b9cb8e19a89e40073c01ba23339371441c8cfb7b4a3a216",
-          "sizeBytes": 210707,
+          "version": "0.1.3",
+          "apiVersion": 8,
+          "url": "https://github.com/riddlemd/KHost.Plugins.YouTubeMusic/releases/download/v0.1.3/KHost.Plugins.YouTubeMusic-0.1.3-macos.zip",
+          "sha256": "44f168265039bbb7851ca1578a36aeaf322d76eb999e612ae2ae86882787346d",
+          "sizeBytes": 210683,
           "rid": "macos"
         }
       ]
@@ -78,11 +70,11 @@
       ],
       "releases": [
         {
-          "version": "1.0.4",
-          "apiVersion": 6,
-          "url": "https://github.com/riddlemd/KHost.Plugins.YouTube/releases/download/v1.0.4/KHost.Plugins.YouTube-1.0.4.zip",
-          "sha256": "b83114d5235f8b9bded6044531d186a950fb11390c1f3667d99f3714152e5268",
-          "sizeBytes": 28314
+          "version": "1.0.6",
+          "apiVersion": 8,
+          "url": "https://github.com/riddlemd/KHost.Plugins.YouTube/releases/download/v1.0.6/KHost.Plugins.YouTube-1.0.6.zip",
+          "sha256": "232622c91d2b4194a07df0d616ec32afc9bd2bcbf303337475e105c286a29d13",
+          "sizeBytes": 32611
         }
       ]
     }
