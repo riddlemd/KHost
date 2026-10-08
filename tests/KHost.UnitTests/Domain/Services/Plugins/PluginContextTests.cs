@@ -383,6 +383,32 @@ public class PluginContextTests
     }
 
     [Fact]
+    public async Task RegisterQrCodeAsync_WithFeatures_PassesThemOn()
+    {
+        var qrCodes = Substitute.For<IQrCodeService>();
+        var context = ContextFor(Guid.NewGuid(), new PluginSecretStore(new InMemorySecretStore()), qrCodes);
+
+        await context.RegisterQrCodeAsync("https://example.test/join", "Scan to join", QrCodeFeatures.SongEnqueue | QrCodeFeatures.Tipping);
+
+        await qrCodes.Received(1).RegisterAsync(Arg.Is<QrCodeRegistration>(code =>
+            code.Payload == "https://example.test/join"
+            && code.Caption == "Scan to join"
+            && code.Features == (QrCodeFeatures.SongEnqueue | QrCodeFeatures.Tipping)));
+    }
+
+    /// <summary>The overload without features declares none, so the code is drawn as it always was.</summary>
+    [Fact]
+    public async Task RegisterQrCodeAsync_WithoutFeatures_DeclaresNone()
+    {
+        var qrCodes = Substitute.For<IQrCodeService>();
+        var context = ContextFor(Guid.NewGuid(), new PluginSecretStore(new InMemorySecretStore()), qrCodes);
+
+        await context.RegisterQrCodeAsync("https://example.test/join", "Scan to join");
+
+        await qrCodes.Received(1).RegisterAsync(Arg.Is<QrCodeRegistration>(code => code.Features == QrCodeFeatures.None));
+    }
+
+    [Fact]
     public async Task UnregisterQrCodeAsync_WithdrawsUnderTheManifestsId()
     {
         var id = Guid.NewGuid();

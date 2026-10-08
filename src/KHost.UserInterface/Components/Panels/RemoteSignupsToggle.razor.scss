@@ -1,0 +1,35 @@
+// Sized and coloured as the colour-blind toggle and the key-and-tempo trigger it sits between. On is
+// carried by the glyph and a drawn border and fill, never by hue alone: a theme may make any accent
+// a neutral.
+.kh-remote-signups-toggle {
+    display: flex;
+    align-items: center;
+    // Apart from the colour-blind toggle before it: each draws its own border when on, and touching
+    // they read as one control.
+    margin-left: 6px;
+    padding: 1px 3px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--kh-radius);
+    color: var(--kh-text-secondary);
+    cursor: pointer;
+    transition: color var(--kh-transition), background var(--kh-transition), border-color var(--kh-transition);
+
+    &:hover:not(:disabled) { color: var(--kh-text); }
+    &:focus-visible { outline: 2px solid var(--kh-success); outline-offset: 1px; }
+
+    &:disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+
+    &--on {
+        color: var(--kh-text);
+        background: var(--kh-bg-elevated);
+        border-color: var(--kh-border-bright);
+    }
+
+    ::deep .kh-remote-signups-toggle__icon {
+        font-size: 0.9em;
+    }
+}

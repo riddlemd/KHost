@@ -117,6 +117,11 @@ public sealed class QrCodeService : BaseService, IQrCodeService
         if (chosen is null)
             return null;
 
+        // A code that says what it is for comes down once the venue offers none of it; one that
+        // says nothing is shown as it always was.
+        if (chosen.Features != QrCodeFeatures.None && (chosen.Features & OpenFeatures(settings)) == QrCodeFeatures.None)
+            return null;
+
         return new QrCodeOffer
         {
             Payload = chosen.Payload,
@@ -130,5 +135,23 @@ public sealed class QrCodeService : BaseService, IQrCodeService
             SafeZone = settings.QrCodeSafeZone > 0 ? settings.QrCodeSafeZone : null,
             Offset = settings.QrCodeOffset > 0 ? settings.QrCodeOffset : null,
         };
+    }
+
+    /// <summary>What the venue lets a guest do from their phone right now.</summary>
+    private static QrCodeFeatures OpenFeatures(Venue.VenueSettings settings)
+    {
+        // No venue setting closes editing a guest's own songs yet, so it is open whatever the rest say.
+        var open = QrCodeFeatures.QueueEdit;
+
+        if (settings.AllowGuestRemote)
+            open |= QrCodeFeatures.SongEnqueue;
+
+        if (settings.ShowQueueToGuests)
+            open |= QrCodeFeatures.QueueView;
+
+        if (settings.TippingEnabled)
+            open |= QrCodeFeatures.Tipping;
+
+        return open;
     }
 }

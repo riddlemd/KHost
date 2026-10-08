@@ -93,7 +93,7 @@ public class Venue : RepositoryModel
         // default and ignores these initializers, which would switch the feature off for every
         // venue that predates it with nothing on screen to say why.
 
-        /// <summary>Whether guests may join from their phones and request songs at all.</summary>
+        /// <summary>Whether guests may sign up for songs from their phones.</summary>
         /// <remarks>Separate from <see cref="QrCodeSource"/>, which only decides whose code the
         /// screen draws: a guest who kept the link from last night does not need the code again,
         /// so taking the code down is not the same as closing the room.</remarks>
@@ -101,9 +101,9 @@ public class Venue : RepositoryModel
 
         /// <summary>Whether a guest who has joined sees the queue, or only their own picks going
         /// in.</summary>
-        /// <remarks>Read only wherever it is shown; a guest can never reorder from it. Means
-        /// nothing when <see cref="AllowGuestRemote"/> is off, there being no guest to show.
-        /// </remarks>
+        /// <remarks>Read only wherever it is shown; a guest can never reorder from it. Independent of
+        /// <see cref="AllowGuestRemote"/>: a QR code offering <see cref="QrCodeFeatures.QueueView"/>
+        /// stays up while sign-ups are closed.</remarks>
         public bool ShowQueueToGuests { get; set; } = true;
 
         // Every marquee setting reads "off" when its key is missing, so it needs no backfill.
