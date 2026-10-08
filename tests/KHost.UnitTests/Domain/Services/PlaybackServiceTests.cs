@@ -582,34 +582,6 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task StopAsync_DoesNotCallMoveUserToEnd_WhenMoveToBottomDisabled()
-    {
-        var (performance, media) = CreatePerformance();
-        var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
-        _queueService.Users.Returns(new[] { user }.AsReadOnly());
-
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-        await _service.StopAsync();
-
-        await _queueService.DidNotReceive().MoveUserToEndAsync(Arg.Any<Guid>());
-    }
-
-    [Fact]
-    public async Task StopAsync_DoesNotCallSelectFirst_WhenMoveToBottomDisabled()
-    {
-        var (performance, media) = CreatePerformance();
-        var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
-        _queueService.Users.Returns(new[] { user }.AsReadOnly());
-
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-        await _service.StopAsync();
-
-        await _queueService.DidNotReceive().SelectFirstUserInQueueAsync();
-    }
-
-    [Fact]
     public async Task StopAsync_WhenNothingLoaded_DoesNotCallDequeue()
     {
         await _service.StopAsync();

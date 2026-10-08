@@ -31,7 +31,7 @@ public class EditVenueDialogBreakMusicTests : BunitContext
             .Returns(new List<MediaPool>());
 
         // Built before the Returns call: NSubstitute rejects a substitute created inside one.
-        var library = Provider("Library", nameof(LibraryBreakMusicProviderStub), rendersThroughHost: true);
+        var library = Provider("Library", nameof(LibraryBreakMusicProviderStub));
 
         _breakMusic.Providers.Returns(new List<IBreakMusicProvider> { library });
         _breakMusic.ActiveProvider.Returns(library);
@@ -75,8 +75,8 @@ public class EditVenueDialogBreakMusicTests : BunitContext
     [Fact]
     public void ActiveModeBringsItsOwnMusic_OffersNoPlaylist()
     {
-        var library = Provider("Library", nameof(LibraryBreakMusicProviderStub), rendersThroughHost: true);
-        var jukebox = Provider("Jukebox", "JukeboxProvider", rendersThroughHost: true);
+        var library = Provider("Library", nameof(LibraryBreakMusicProviderStub));
+        var jukebox = Provider("Jukebox", "JukeboxProvider");
         _breakMusic.Providers.Returns(new List<IBreakMusicProvider> { library, jukebox });
         _breakMusic.LibraryProvider.Returns(library);
         _breakMusic.ActiveProvider.Returns(jukebox);
@@ -120,13 +120,12 @@ public class EditVenueDialogBreakMusicTests : BunitContext
             .Add(p => p.OnSave, (Venue v) => onSave?.Invoke(v)));
     }
 
-    private static IBreakMusicProvider Provider(string displayName, string sourceName, bool rendersThroughHost)
+    private static IBreakMusicProvider Provider(string displayName, string sourceName)
     {
         var provider = Substitute.For<IBreakMusicProvider>();
 
         provider.DisplayName.Returns(displayName);
         provider.SourceName.Returns(sourceName);
-        provider.RendersThroughHost.Returns(rendersThroughHost);
 
         return provider;
     }

@@ -6,8 +6,8 @@ namespace KHost.Abstractions.Services;
 /// <summary>Music between singers; asked to play, not searched, with no files or stream.</summary>
 /// <remarks>An extension point: a plugin IMPLEMENTS it and the host discovers it, listing it as
 /// "Break music" on the Plugins page. The host ships one itself, fed from the library's playlists.
-/// A venue picks one provider by <see cref="SourceName"/>; <see cref="IBreakMusicService"/> alone
-/// decides when it plays, and calls these members one at a time, never concurrently.
+/// The host plays one provider at a time, chosen by <see cref="SourceName"/> in one app-wide
+/// setting; <see cref="IBreakMusicService"/> alone decides when it plays, and calls these members one at a time, never concurrently.
 ///
 /// <para>The plugin's object is one singleton shared across every extension interface it
 /// implements, and is called from any thread. A provider driving another app may be changed behind
@@ -17,22 +17,17 @@ public interface IBreakMusicProvider
     /// <summary>What the console calls this provider.</summary>
     string DisplayName { get; }
 
-    /// <summary>Stable key the host stores to remember which provider a venue chose.</summary>
-    /// <remarks>Matched case-insensitively. Renaming it orphans every venue that chose it, which
-    /// then falls back to the library provider.</remarks>
+    /// <summary>Stable key the host stores to remember which provider was chosen.</summary>
+    /// <remarks>Matched case-insensitively. Renaming it orphans a saved choice, which then falls
+    /// back to the library provider.</remarks>
     string SourceName { get; }
-
-    /// <summary>True when the host carries the sound (needs a screen); false for another app.</summary>
-    /// <remarks>The host sets no level either way: a provider plays at its own level, and the room's
-    /// mixer does the rest.</remarks>
-    bool RendersThroughHost { get; }
 
     /// <summary>What is playing now, or null when nothing is. Named on the console and, when the
     /// venue turns it on, in a corner of the screen.</summary>
     /// <remarks>Publish <see cref="KHost.Abstractions.Messaging.Messages.BreakMusicTrackChanged"/>
     /// carrying this provider's own <see cref="SourceName"/> whenever it moves, or the console will
     /// not notice. A message naming any other source, or sent while this provider is not the
-    /// venue's active one, is ignored. Hearing it, the host also re-reads
+    /// active one, is ignored. Hearing it, the host also re-reads
     /// <see cref="ReadPlaybackAsync"/>.</remarks>
     BreakMusicTrack? CurrentTrack { get; }
 
