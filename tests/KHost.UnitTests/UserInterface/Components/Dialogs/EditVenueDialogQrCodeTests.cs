@@ -54,7 +54,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
 
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_exporter);
-        Services.AddSingleton(Substitute.For<IImageUploader>());
+        Services.AddSingleton(Substitute.For<IMediaUploader>());
         Services.AddSingleton(_flash);
         Services.AddSingleton(_mediaPools);
 

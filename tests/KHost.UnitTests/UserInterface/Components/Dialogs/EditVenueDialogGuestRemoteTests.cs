@@ -33,7 +33,7 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
 
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
-        Services.AddSingleton(Substitute.For<IImageUploader>());
+        Services.AddSingleton(Substitute.For<IMediaUploader>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
 
