@@ -34,6 +34,17 @@
         </span>
         <InputCheckbox id="venue-refuse-song-queued-for-another-singer" class="kh-form-check-input" @bind-Value="Model.RefuseSongQueuedForAnotherSinger" />
     </label>
+    <div class="kh-venue-settings__row">
+        <span class="kh-venue-settings__labelled">
+            <label for="venue-remote-song-limit" class="kh-form-label">Songs a singer may have queued</label>
+            <span class="kh-note">
+                Remote sign-ups past this are turned away; songs you add count but are never refused.
+                0 is no limit.
+            </span>
+        </span>
+        <InputNumber id="venue-remote-song-limit" class="kh-form-control" min="0" max="99"
+                     @bind-Value="Model.RemoteSongLimit" />
+    </div>
     @if (Model.WarnOnDuplicateSong)
     {
         <div class="kh-venue-settings__row">

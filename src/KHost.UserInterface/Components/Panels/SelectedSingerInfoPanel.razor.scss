@@ -106,6 +106,14 @@
         text-overflow: ellipsis;
     }
 
+    &__singer-notes {
+        display: inline-block;
+        margin-top: 0.1rem;
+        font-size: 0.75rem;
+        color: var(--kh-text-muted);
+        cursor: help;
+    }
+
     &__name--current {
         color: var(--kh-text-muted);
     }

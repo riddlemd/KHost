@@ -1,0 +1,13 @@
+// The select keeps the row's width; the button beside it takes only what its glyph needs.
+.kh-venue-qr-codes__source {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+
+    ::deep .kh-form-select {
+        flex: 1;
+        min-width: 0;
+    }
+}

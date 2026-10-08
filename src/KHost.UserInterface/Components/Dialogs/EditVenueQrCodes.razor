@@ -6,17 +6,25 @@
 
     <div class="kh-venue-settings__row">
         <label for="venue-qr-source" class="kh-form-label">Code shown</label>
-        <InputSelect id="venue-qr-source" class="kh-form-select" @bind-Value="Model.QrCodeSource">
-            <option value="">None</option>
-            @if (UnavailableQrCodeSource is { } missing)
-            {
-                <option value="@missing">@missing: not installed</option>
-            }
-            @foreach (var (id, label) in QrCodeSources)
-            {
-                <option value="@id">@label</option>
-            }
-        </InputSelect>
+        <div class="kh-venue-qr-codes__source">
+            <InputSelect id="venue-qr-source" class="kh-form-select" @bind-Value="Model.QrCodeSource">
+                <option value="">None</option>
+                @if (UnavailableQrCodeSource is { } missing)
+                {
+                    <option value="@missing">@missing: not installed</option>
+                }
+                @foreach (var (id, label) in QrCodeSources)
+                {
+                    <option value="@id">@label</option>
+                }
+            </InputSelect>
+            <button type="button" class="kh-button kh-button--secondary kh-venue-qr-codes__download"
+                    title="Save this code as a PNG in Downloads" aria-label="Save this code as a PNG"
+                    disabled="@(string.IsNullOrWhiteSpace(Model.QrCodeSource) || _saving)"
+                    @onclick="SaveCodeAsync">
+                <Icon Name="download" />
+            </button>
+        </div>
     </div>
     @if (IsOnUnavailableQrCodeSource)
     {

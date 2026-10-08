@@ -115,6 +115,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         settings.QrCodeSafeZone = Math.Clamp(settings.QrCodeSafeZone, 0, 8);
         settings.QrCodeOffset = Math.Clamp(settings.QrCodeOffset, 0, 20);
+        settings.RemoteSongLimit = Math.Clamp(settings.RemoteSongLimit, 0, 99);
 
         if (settings.QueueRotation is { } rotation)
         {
