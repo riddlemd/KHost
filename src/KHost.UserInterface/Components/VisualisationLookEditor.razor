@@ -88,6 +88,18 @@
             </div>
         }
 
+        <label class="kh-venue-settings__row kh-form-check">
+            <span class="kh-form-check-label">
+                Respects venue theme
+                <span class="kh-note">
+                    Draws in the venue's theme colours at a venue that has a theme. The palette below
+                    is kept for a venue that has none.
+                </span>
+            </span>
+            <input id="visualisation-respects-theme" type="checkbox" class="kh-form-check-input"
+                   checked="@Look.RespectsVenueTheme" @onchange="SetRespectsVenueThemeAsync" />
+        </label>
+
         <div class="kh-venue-settings__row">
             <label for="visualisation-palette" class="kh-form-label">Palette</label>
             <select id="visualisation-palette" class="kh-form-select kh-visualisation-look__choice"
@@ -102,8 +114,7 @@
         {
             <div class="kh-venue-settings__row">
                 <label for="visualisation-colour" class="kh-form-label">Palette colour</label>
-                <input id="visualisation-colour" type="color" class="kh-form-control kh-visualisation-look__colour"
-                       value="@Look.Colour" @onchange="SetColourAsync" />
+                <ColourPicker Id="visualisation-colour" Value="@Look.Colour" ValueChanged="SetColourAsync" />
             </div>
         }
     }

@@ -38,6 +38,10 @@ public sealed class PerformanceBackground : IVisualisationLook
 
     /// <inheritdoc/>
     public string Colour { get; set; } = VisualisationEntry.DefaultColour;
+
+    /// <inheritdoc/>
+    /// <remarks>On for a new background.</remarks>
+    public bool RespectsVenueTheme { get; set; } = true;
 }
 
 /// <summary>What a <see cref="PerformanceBackground"/> draws.</summary>

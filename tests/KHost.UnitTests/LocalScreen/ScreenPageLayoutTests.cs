@@ -23,6 +23,13 @@ public class ScreenPageLayoutTests
         return reader.ReadToEnd();
     }
 
+    /// <summary>The venue dialog shows these as what an unset marquee singer or song is drawn in.</summary>
+    [Theory]
+    [InlineData(".marquee-singer", "--marquee-singer-fg", KHost.UserInterface.Models.ScreenColourDefaults.MarqueeSinger)]
+    [InlineData(".marquee-song", "--marquee-song-fg", KHost.UserInterface.Models.ScreenColourDefaults.MarqueeSong)]
+    public void AMarqueeNameLeftUnset_IsTheColourTheDialogShows(string selector, string variable, string colour)
+        => Assert.Matches(new Regex(Regex.Escape(selector) + @"\s*\{\s*color:\s*var\(" + Regex.Escape(variable) + @",\s*" + Regex.Escape(colour) + @"\)"), Page);
+
     /// <summary>The number that decides which of two overlapping things the room actually sees.</summary>
     private static int ZIndexOf(string selector)
     {

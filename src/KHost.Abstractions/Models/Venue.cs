@@ -134,10 +134,10 @@ public class Venue : RepositoryModel
         /// <summary>Which edge of the screen the marquee band sits against.</summary>
         public MarqueePosition MarqueePosition { get; set; }
 
-        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        /// <summary>The marquee's band. Null takes the theme's shadow, then the screen's own.</summary>
         public string? MarqueeBackgroundColor { get; set; }
 
-        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        /// <summary>The marquee's words and its "Up next" label. Null takes the theme's text, then the screen's own.</summary>
         public string? MarqueeTextColor { get; set; }
 
         /// <summary>Text height in pixels; zero takes the screen's own size, em-sizing the rest.</summary>
@@ -154,13 +154,13 @@ public class Venue : RepositoryModel
         /// zero is a real choice (fully transparent), so it cannot double as "unset".</summary>
         public int? MarqueeBackgroundOpacity { get; set; }
 
-        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        /// <summary>Singer names in the marquee. Null takes the theme's primary, then the screen's own.</summary>
         public string? MarqueeSingerColor { get; set; }
 
-        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        /// <summary>Song titles in the marquee. Null takes the theme's highlight, then the screen's own.</summary>
         public string? MarqueeSongColor { get; set; }
 
-        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        /// <summary>The marquee's divider. Null takes the theme's primary, then a faint marquee text.</summary>
         public string? MarqueeDividerColor { get; set; }
 
         /// <summary>Dot is the zero value, so an old row defaults there — today's look.</summary>
@@ -206,6 +206,65 @@ public class Venue : RepositoryModel
 
         /// <summary>Which corner names it; null takes bottom-left, not the QR's bottom-right.</summary>
         public OverlayCorner? BreakMusicCardCorner { get; set; }
+
+        // The venue's theme: four colours every screen colour below falls back to when the venue
+        // leaves its own unset. Each is #rrggbb, or null for none; a colour with neither its own
+        // setting nor its theme colour takes the screen's own.
+
+        /// <summary>The theme's main colour: the marquee divider, and the main colour of a
+        /// visualisation that respects the venue's theme.</summary>
+        public string? ThemePrimaryColor { get; set; }
+
+        /// <summary>The theme's accent: sung words, singer names, and a respecting visualisation's
+        /// light colour.</summary>
+        public string? ThemeHighlightColor { get; set; }
+
+        /// <summary>The theme's text colour: unsung words and the text of every card and band.</summary>
+        public string? ThemeTextColor { get; set; }
+
+        /// <summary>The theme's dark colour: the screen's background, outlines, the panels behind
+        /// cards and bands, and a respecting visualisation's dark colour.</summary>
+        public string? ThemeShadowColor { get; set; }
+
+        /// <summary>Behind everything the screen draws. Null takes the theme's shadow.</summary>
+        public string? ScreenBackgroundColor { get; set; }
+
+        /// <summary>Sung words, where the song's timing names no colour. Null takes the theme's highlight.</summary>
+        public string? LyricsSungColor { get; set; }
+
+        /// <summary>Words not yet sung, where the timing names no colour. Null takes the theme's text.</summary>
+        public string? LyricsUnsungColor { get; set; }
+
+        /// <summary>The edge round every word. Null takes the theme's shadow.</summary>
+        public string? LyricsOutlineColor { get; set; }
+
+        /// <summary>The title card a song opens on. Null takes the theme's text.</summary>
+        public string? IntroTextColor { get; set; }
+
+        /// <summary>The edge round the title card's words. Null takes the theme's shadow.</summary>
+        public string? IntroOutlineColor { get; set; }
+
+        /// <summary>The "Up next" card's words. Null takes the theme's text.</summary>
+        public string? NextSingerTextColor { get; set; }
+
+        /// <summary>The singer's name on the "Up next" card. Null takes the theme's highlight.</summary>
+        public string? NextSingerNameColor { get; set; }
+
+        /// <summary>The panel behind the "Up next" card. Null takes the theme's shadow.</summary>
+        public string? NextSingerPanelColor { get; set; }
+
+        /// <summary>The words of the card naming what plays between singers. Null takes the theme's text.</summary>
+        public string? BreakMusicCardTextColor { get; set; }
+
+        /// <summary>The panel behind that card. Null takes the theme's shadow.</summary>
+        public string? BreakMusicCardBackgroundColor { get; set; }
+
+        /// <summary>The frame round a QR code, its quiet zone: keep it light, or phones may not read
+        /// the code. Null takes the theme's text.</summary>
+        public string? QrCodeFrameColor { get; set; }
+
+        /// <summary>The words under a QR code, on its frame. Null takes the theme's shadow.</summary>
+        public string? QrCodeCaptionColor { get; set; }
 
         /// <summary>An independent copy, including its own <see cref="QueueRotation"/>; changing
         /// one never affects the other.</summary>

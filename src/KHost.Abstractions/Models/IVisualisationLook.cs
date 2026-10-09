@@ -37,4 +37,8 @@ public interface IVisualisationLook
 
     /// <summary>The colour for <see cref="VisualiserColourScheme.Single"/>, as <c>#rrggbb</c>.</summary>
     string Colour { get; set; }
+
+    /// <summary>Whether a built-in draws in the venue's theme colours, in place of
+    /// <see cref="ColourScheme"/>, at a venue that has a theme. A preset or a video draws as it is.</summary>
+    bool RespectsVenueTheme { get; set; }
 }

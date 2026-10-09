@@ -1,0 +1,9 @@
+<span class="kh-colour-picker @Class">
+    <input id="@Id" type="color" class="kh-colour-picker__box" aria-label="@AriaLabel"
+           value="@(Value ?? Fallback)" @onchange="PickAsync" />
+    @if (Clearable && Value is not null)
+    {
+        <button id="@ClearId" type="button" class="kh-colour-picker__clear" title="@ClearTitle"
+                aria-label="@ClearTitle" @onclick="ClearAsync">×</button>
+    }
+</span>

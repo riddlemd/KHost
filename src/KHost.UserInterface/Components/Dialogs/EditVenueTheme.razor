@@ -1,0 +1,51 @@
+@using KHost.UserInterface.Models
+
+<VenueSettingsSection Title="Theme">
+    <p class="kh-note">
+        Four colours the screen is dressed in. Every screen colour below starts from these until the
+        venue picks its own; a theme colour left unset leaves those to the screen.
+    </p>
+
+    <div class="kh-venue-settings__row">
+        <span class="kh-venue-settings__labelled">
+            <label for="venue-theme-preset" class="kh-form-label">Preset</label>
+            <span class="kh-note">Fills the four colours; change any of them to make it your own.</span>
+        </span>
+        <select id="venue-theme-preset" class="kh-form-select" value="@PresetKey" @onchange="PickPreset">
+            @if (PresetKey == CustomPreset)
+            {
+                <option value="@CustomPreset">Custom</option>
+            }
+            <option value="@NoPreset">None</option>
+            @foreach (var preset in VenueThemePresets.All)
+            {
+                <option value="@preset.Id">@preset.Name</option>
+            }
+        </select>
+    </div>
+
+    @foreach (var role in ThemeRoles)
+    {
+        <ThemedColourRow Id="@($"venue-theme-{role.Key}")" Label="@role.Label"
+                         Value="@role.Get()" ValueChanged="role.Set"
+                         Fallback="@role.Starting" ClearTitle="Clear this theme colour"
+                         FallbackNote="@($"Not set. {role.Uses}")" OwnNote="@role.Uses" />
+    }
+</VenueSettingsSection>
+
+<VenueSettingsSection Title="Screen colours">
+    @foreach (var group in ElementGroups)
+    {
+        <VenueSettingsGroup Title="@group.Title" Note="@group.Note">
+            @foreach (var row in group.Rows)
+            {
+                var (fallback, from) = FallbackFor(row.Theme(), row.ThemeName, row.ScreenDefault);
+                <ThemedColourRow Id="@($"venue-colour-{row.Key}")" Label="@row.Label"
+                                 Value="@row.Get()" ValueChanged="row.Set"
+                                 Fallback="@fallback" FallbackNote="@($"From {from}.")" />
+            }
+        </VenueSettingsGroup>
+    }
+
+    <EditVenueMarqueeColours Model="Model" />
+</VenueSettingsSection>
