@@ -7,7 +7,7 @@
         html, body {
             margin: 0;
             height: 100%;
-            background: #000;
+            background: var(--screen-bg, #000);
             overflow: hidden;
             position: relative;
             /* Double-click toggles full screen; without this it also selects the placeholder text. */
@@ -133,7 +133,7 @@
             inset: 0;
             width: 100%;
             height: 100%;
-            background: #000;
+            background: var(--screen-bg, #000);
             pointer-events: none;
         }
 
@@ -163,16 +163,17 @@
             gap: calc(var(--kh-intro-unit, 6px) * 1.2);
             padding: 0 calc(var(--kh-intro-unit, 6px) * 5);
             overflow: hidden;
-            color: #fff;
+            color: var(--intro-fg, #fff);
             font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
             text-align: center;
+            --kh-intro-edge: color-mix(in srgb, var(--intro-outline, #000) 85%, transparent);
             text-shadow:
-                0 0 0.08em rgba(0, 0, 0, 0.85),
-                0.04em 0.04em 0 rgba(0, 0, 0, 0.85),
-                -0.04em 0.04em 0 rgba(0, 0, 0, 0.85),
-                0.04em -0.04em 0 rgba(0, 0, 0, 0.85),
-                -0.04em -0.04em 0 rgba(0, 0, 0, 0.85),
-                0 0.1em 0.4em rgba(0, 0, 0, 0.6);
+                0 0 0.08em var(--kh-intro-edge),
+                0.04em 0.04em 0 var(--kh-intro-edge),
+                -0.04em 0.04em 0 var(--kh-intro-edge),
+                0.04em -0.04em 0 var(--kh-intro-edge),
+                -0.04em -0.04em 0 var(--kh-intro-edge),
+                0 0.1em 0.4em color-mix(in srgb, var(--intro-outline, #000) 60%, transparent);
         }
 
         .kh-intro[hidden] { display: none; }
@@ -217,7 +218,7 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
-            background: #000;
+            background: var(--screen-bg, #000);
         }
 
         #still[hidden] { display: none; }
@@ -325,9 +326,9 @@
             max-width: 40vmin;
             padding: 0.9vmin 1.4vmin;
             border-radius: 0.6vmin;
-            background: rgba(16, 16, 20, 0.82);
+            background: color-mix(in srgb, var(--break-bg, #101014) 82%, transparent);
             box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.45);
-            color: #fff;
+            color: var(--break-fg, #fff);
             font: 400 2vmin/1.25 system-ui, -apple-system, "Segoe UI", sans-serif;
             text-align: inherit;
         }
@@ -347,13 +348,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #fff;
+            color: var(--next-fg, #fff);
             font: 400 4vmin/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
             text-align: center;
             padding: 6vmin;
         }
 
-        #nextSinger[data-background="blackout"] { background: #000; }
+        #nextSinger[data-background="blackout"] { background: var(--screen-bg, #000); }
 
         /* Translucent so the picture still reads behind it, dark enough that the words do not
            depend on what that picture is. */
@@ -364,7 +365,7 @@
             gap: 2vmin;
             padding: 4vmin 7vmin;
             border-radius: 2vmin;
-            background: rgba(0, 0, 0, 0.62);
+            background: color-mix(in srgb, var(--next-panel, #000) 62%, transparent);
         }
 
         /* On black a panel would only draw a faint box. */
@@ -379,7 +380,7 @@
             opacity: 0.65;
         }
 
-        #nextSinger .kh-next__singer { font-size: 9vmin; font-weight: 700; }
+        #nextSinger .kh-next__singer { font-size: 9vmin; font-weight: 700; color: var(--next-name-fg, inherit); }
 
         #nextSinger .kh-next__song { font-size: 3.4vmin; opacity: 0.8; max-width: 80vw; }
 
@@ -401,7 +402,7 @@
                holds proportion at any size. The SVG no longer carries one, so this is the whole of it. */
             padding: max(3px, calc(var(--kh-qr-size) / var(--kh-qr-modules, 25) * var(--kh-qr-safezone, 1)));
             border-radius: 0.15vmin;
-            background: #fff;
+            background: var(--qr-frame, #fff);
             box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.45);
             --kh-qr-size: 9.5vmin;
         }
@@ -425,7 +426,7 @@
 
         .kh-qr figcaption {
             max-width: max(calc(var(--kh-qr-modules, 33) * 3px), var(--kh-qr-size));
-            color: #101014;
+            color: var(--qr-caption, #101014);
             font: 600 max(11px, calc(var(--kh-qr-size) / 11))/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
             text-align: center;
             overflow-wrap: anywhere;
@@ -546,10 +547,10 @@
             opacity: 0.88;
         }
 
-        /* Coloured independently of the band's own text colour; unset takes it, so a venue that
-           never chose either singer or song colour sees one plain line, as before. */
-        .marquee-singer { color: var(--marquee-singer-fg, currentColor); }
-        .marquee-song { color: var(--marquee-song-fg, currentColor); }
+        /* The theme's starting primary and highlight, so names and songs stay apart from the band's
+           text even at a venue with no theme. */
+        .marquee-singer { color: var(--marquee-singer-fg, #8558fa); }
+        .marquee-song { color: var(--marquee-song-fg, #33ccff); }
 
         /* One copy's width, whatever the copy count is: the track carries as many as it takes to
            cover the screen, and shifting by exactly one puts the next where the last began. */

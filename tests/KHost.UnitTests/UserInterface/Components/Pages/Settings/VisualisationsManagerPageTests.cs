@@ -230,6 +230,73 @@ public class VisualisationsManagerPageTests : BunitContext
             call.Identifier == "khVisualiserPreview.show" && call.Arguments[1]!.ToString()!.Contains("builtIn = ambient-embers"));
     }
 
+    /// <summary>A built-in starts respecting the venue's theme, and the host can turn that off.</summary>
+    [Fact]
+    public async Task ABuiltIn_RespectsTheVenueTheme_UntilUnticked()
+    {
+        var cut = await WithBuiltInAsync("ambient-nebula");
+        Assert.True(cut.Find("#visualisation-respects-theme").HasAttribute("checked"));
+
+        cut.Find("#visualisation-respects-theme").Change(false);
+
+        Assert.False(Assert.Single((await StoredAsync()).Entries).RespectsVenueTheme);
+    }
+
+    /// <summary>The preview draws a respecting built-in in the selected venue's theme, as the screen will.</summary>
+    [Fact]
+    public async Task ThePreview_ABuiltInRespectingAThemedVenue_DrawsInItsColours()
+    {
+        _venues.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { ThemePrimaryColor = "#111111", ThemeHighlightColor = "#222222", ThemeShadowColor = "#444444" },
+        });
+
+        await WithBuiltInAsync("ambient-nebula");
+
+        Assert.Equal(["#111111", "#222222", "#444444"], LastPreviewPalette());
+    }
+
+    [Fact]
+    public async Task ThePreview_ABuiltInNotRespectingTheTheme_DrawsInItsOwnColours()
+    {
+        _venues.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { ThemePrimaryColor = "#111111" },
+        });
+        var cut = await WithBuiltInAsync("ambient-nebula");
+
+        cut.Find("#visualisation-respects-theme").Change(false);
+
+        Assert.Null(LastPreviewPalette());
+    }
+
+    /// <summary>A MilkDrop preset has no palette to replace, so even one left respecting the theme draws as it is.</summary>
+    [Fact]
+    public async Task ThePreview_AMilkDropPresetAtAThemedVenue_DrawsAsItIs()
+    {
+        _venues.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { ThemePrimaryColor = "#111111" },
+        });
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+        cut.Find("#visualisation-add-entry").Click();
+
+        cut.Find("#visualisation-preset").Change("0:_Mig_049");
+
+        Assert.True(Assert.Single((await StoredAsync()).Entries).RespectsVenueTheme);
+        Assert.Null(LastPreviewPalette());
+    }
+
+    private IReadOnlyList<string>? LastPreviewPalette()
+    {
+        var message = JSInterop.Invocations.Last(call => call.Identifier == "khVisualiserPreview.show").Arguments[1]!;
+        return (IReadOnlyList<string>?)message.GetType().GetProperty("venuePalette")!.GetValue(message);
+    }
+
     private async Task<IRenderedComponent<VisualisationsManagerPage>> WithBuiltInAsync(string name)
     {
         var cut = Render<VisualisationsManagerPage>();

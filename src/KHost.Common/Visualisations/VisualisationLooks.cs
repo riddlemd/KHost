@@ -23,6 +23,7 @@ public static class VisualisationLooks
         target.BarCount = VisualisationEntry.BarCounts.MinBy(count => Math.Abs(count - source.BarCount));
         target.ColourScheme = Enum.IsDefined(source.ColourScheme) ? source.ColourScheme : VisualiserColourScheme.Classic;
         target.Colour = IsColour(source.Colour) ? source.Colour.ToLowerInvariant() : VisualisationEntry.DefaultColour;
+        target.RespectsVenueTheme = source.RespectsVenueTheme;
     }
 
     /// <summary>A copy of <paramref name="background"/> held to its ranges: a look as

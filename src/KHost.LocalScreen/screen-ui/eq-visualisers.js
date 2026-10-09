@@ -297,8 +297,14 @@ function eqParseColour(value) {
 }
 
 /// The colour stops along a meter, from its floor (0) to full (1): Winamp's green, yellow, red;
-/// the accent from dark to light; or one colour throughout.
+/// the accent from dark to light; one colour throughout; or the venue's main to its light. For
+/// 'venue', `colour` is the venue's palette as three [r, g, b]: main, light, dark.
 function eqColourStops(scheme, colour) {
+    if (scheme === 'venue') {
+        const [main, light] = colour;
+        return [[0, `rgb(${main.join(',')})`], [1, `rgb(${light.join(',')})`]];
+    }
+
     if (scheme === 'theme' || scheme === 'single') {
         const rgb = eqParseColour(scheme === 'theme' ? EQ_THEME_COLOUR : colour) || eqParseColour(scheme === 'theme' ? EQ_THEME_COLOUR : EQ_SINGLE_COLOUR);
         const css = (f) => `rgb(${Math.round(rgb[0] * f)},${Math.round(rgb[1] * f)},${Math.round(rgb[2] * f)})`;
@@ -315,9 +321,12 @@ function isAmbientStyle(name) {
     return typeof name === 'string' && name.startsWith('ambient-') && isEqVisualiserStyle(name);
 }
 
-/// The colours a scene draws with, as [r, g, b]: the classic spread, or the accent or the single
-/// colour with a lighter and a darker shade of it, so a one-colour scene still has depth.
+/// The colours a scene draws with, as [r, g, b]: the classic spread, the venue's own three, or the
+/// accent or the single colour with a lighter and a darker shade of it, so a one-colour scene still
+/// has depth.
 function ambientPalette(scheme, colour) {
+    if (scheme === 'venue') return colour;
+
     if (scheme === 'theme' || scheme === 'single') {
         const rgb = eqParseColour(scheme === 'theme' ? EQ_THEME_COLOUR : colour) || eqParseColour(EQ_SINGLE_COLOUR);
         const shade = (f) => rgb.map((c) => Math.round(f >= 0 ? c + (255 - c) * f : c * (1 + f)));
@@ -347,7 +356,7 @@ function isRetroStyle(name) {
 /// `cyan` (a chroma fringe). Classic is the effect's own look; the accent or a single colour turns
 /// every one of them into a shade of that colour, the fringes included.
 function retroColours(style, scheme, colour) {
-    if (scheme === 'theme' || scheme === 'single') {
+    if (scheme === 'theme' || scheme === 'single' || scheme === 'venue') {
         const [base, light, dark] = ambientPalette(scheme, colour);
         return { main: [base, light, dark], grain: light, red: light, cyan: dark };
     }
@@ -574,7 +583,7 @@ function isFieldStyle(name) {
 /// A field scene's palette as three [r, g, b] in 0–1: its own classic colours, or the accent or the
 /// single colour with its lighter and darker shade.
 function ambientFieldColours(style, scheme, colour) {
-    const rgb = scheme === 'theme' || scheme === 'single'
+    const rgb = scheme === 'theme' || scheme === 'single' || scheme === 'venue'
         ? ambientPalette(scheme, colour)
         : AMBIENT_FIELD_CLASSIC[style].map(eqParseColour);
     return rgb.map((c) => c.map((v) => v / 255));
@@ -1272,9 +1281,17 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         },
 
         /// Bar count (snapped to EQ_BAR_COUNTS), colour scheme ('classic', 'theme' or 'single')
-        /// and the single colour ('#rrggbb').
-        setOptions({ barCount: count, colourScheme, colour: single } = {}) {
+        /// and the single colour ('#rrggbb'). A `palette` of the venue's main, light and dark
+        /// ('#rrggbb' each) draws in those in place of the scheme.
+        setOptions({ barCount: count, colourScheme, colour: single, palette } = {}) {
             barCount = eqBarCount(count);
+            const venue = Array.isArray(palette) && palette.length === 3 ? palette.map(eqParseColour) : null;
+            if (venue && venue.every(Boolean)) {
+                scheme = 'venue';
+                colour = venue;
+                return;
+            }
+
             scheme = colourScheme === 'theme' || colourScheme === 'single' ? colourScheme : 'classic';
             colour = eqParseColour(single) ? single : EQ_SINGLE_COLOUR;
         },

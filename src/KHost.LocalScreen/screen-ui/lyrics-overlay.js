@@ -27,6 +27,16 @@ function createLyricsOverlay(canvas, clock) {
         return color ? `rgb(${color.r},${color.g},${color.b})` : fallback;
     }
 
+    // The venue's colours for what a timing leaves unset and for the edge round every word; the
+    // page's own where the venue gives none.
+    const OWN_COLOURS = { sung: '#8558fa', unsung: '#ffffff', outline: '#000000' };
+    let colours = { ...OWN_COLOURS };
+
+    function rgba(hex, alpha) {
+        const n = parseInt(hex.slice(1), 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+    }
+
     function visiblePages(t) {
         const out = [];
         for (const page of lyrics.pages || []) {
@@ -92,18 +102,18 @@ function createLyricsOverlay(canvas, clock) {
         ctx2d.save();
         ctx2d.globalAlpha = alpha;
         roundedRect(x, y, w, h, 4 * scale);
-        ctx2d.fillStyle = css(countIn.inactive, '#ffffff');
+        ctx2d.fillStyle = css(countIn.inactive, colours.unsung);
         ctx2d.fill();
 
         ctx2d.save();
         ctx2d.clip();
-        ctx2d.fillStyle = css(countIn.active, '#8558fa');
+        ctx2d.fillStyle = css(countIn.active, colours.sung);
         ctx2d.fillRect(x, y, w * fill, h);
         ctx2d.restore();
 
         if (countIn.borderWidth > 0) {
             ctx2d.lineWidth = countIn.borderWidth * scale;
-            ctx2d.strokeStyle = css(countIn.border, '#000000');
+            ctx2d.strokeStyle = css(countIn.border, colours.outline);
             ctx2d.stroke();
         }
         ctx2d.restore();
@@ -122,9 +132,9 @@ function createLyricsOverlay(canvas, clock) {
         ctx2d.textBaseline = 'alphabetic';
         ctx2d.lineWidth = Math.max(2, fontSize * 0.06);
         ctx2d.lineJoin = 'round';
-        ctx2d.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx2d.strokeStyle = rgba(colours.outline, 0.85);
         ctx2d.strokeText(String(n), x + w / 2, y + h * 1.25);
-        ctx2d.fillStyle = '#ffffff';
+        ctx2d.fillStyle = colours.unsung;
         ctx2d.fillText(String(n), x + w / 2, y + h * 1.25);
         ctx2d.restore();
     }
@@ -164,10 +174,10 @@ function createLyricsOverlay(canvas, clock) {
             const x = cx + (physical - 1) * gap;
             ctx2d.beginPath();
             ctx2d.arc(x, y, r, 0, Math.PI * 2);
-            ctx2d.fillStyle = order >= goneOut ? css(page.active, '#8558fa') : 'rgba(255,255,255,0.12)';
+            ctx2d.fillStyle = order >= goneOut ? css(page.active, colours.sung) : rgba(colours.unsung, 0.12);
             ctx2d.fill();
             ctx2d.lineWidth = Math.max(1.5, r * 0.45);
-            ctx2d.strokeStyle = 'rgba(0,0,0,0.85)';
+            ctx2d.strokeStyle = rgba(colours.outline, 0.85);
             ctx2d.stroke();
         }
     }
@@ -198,10 +208,10 @@ function createLyricsOverlay(canvas, clock) {
         const x = offsetX + head * scale - w / 2;
         const y = baseline - fontSize * 0.35 - h / 2;
 
-        ctx2d.fillStyle = css(page.active, '#8558fa');
+        ctx2d.fillStyle = css(page.active, colours.sung);
         ctx2d.fillRect(x, y, w, h);
         ctx2d.lineWidth = 3 * scale;
-        ctx2d.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx2d.strokeStyle = rgba(colours.outline, 0.85);
         ctx2d.strokeRect(x, y, w, h);
     }
 
@@ -253,10 +263,10 @@ function createLyricsOverlay(canvas, clock) {
             // The outline is what keeps the words legible over whatever is behind them.
             ctx2d.lineWidth = Math.max(2, fontSize * 0.09);
             ctx2d.lineJoin = 'round';
-            ctx2d.strokeStyle = 'rgba(0,0,0,0.85)';
+            ctx2d.strokeStyle = rgba(colours.outline, 0.85);
             ctx2d.strokeText(syl.text, penX, baseline);
 
-            ctx2d.fillStyle = css(page.inactive, '#ffffff');
+            ctx2d.fillStyle = css(page.inactive, colours.unsung);
             ctx2d.fillText(syl.text, penX, baseline);
 
             // Linear, no easing.
@@ -273,7 +283,7 @@ function createLyricsOverlay(canvas, clock) {
                 ctx2d.rect(lyrics.isRightToLeft ? penX + w * (1 - frac) : penX, baseline - h,
                     w * frac, h * 2);
                 ctx2d.clip();
-                ctx2d.fillStyle = css(page.active, '#8558fa');
+                ctx2d.fillStyle = css(page.active, colours.sung);
                 ctx2d.fillText(syl.text, penX, baseline);
                 ctx2d.restore();
             }
@@ -339,6 +349,14 @@ function createLyricsOverlay(canvas, clock) {
 
         /// Wipes what is drawn and keeps the timing: the next frame draws again if a song is held.
         clear() { ctx2d.clearRect(0, 0, canvas.width, canvas.height); },
+
+        /// The venue's `sung`, `unsung` and `outline` colours, each '#rrggbb' or null for the page's own.
+        setColours({ sung, unsung, outline } = {}) {
+            const hex = (value, own) => (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : own);
+            colours = { sung: hex(sung, OWN_COLOURS.sung), unsung: hex(unsung, OWN_COLOURS.unsung), outline: hex(outline, OWN_COLOURS.outline) };
+        },
+
+        get colours() { return { ...colours }; },
 
         /// `value` is the host's TimedLyrics, or null for a song with no words to draw.
         setLyrics(value) {

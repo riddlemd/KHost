@@ -184,6 +184,9 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetBreakMusicCardCommand cmd:
                 _player.SetBreakMusicCard(cmd);
                 break;
+            case SetScreenThemeCommand cmd:
+                _player.SetScreenTheme(cmd);
+                break;
             case ShowNextSingerCommand cmd:
                 _player.ShowNextSinger(cmd);
                 break;

@@ -32,11 +32,71 @@ public class TimedLyricsServiceTests
 
     private readonly PlaybackService.ServiceOptions _options = new();
 
-    private TimedLyricsService Service(params ITimedLyricsProvider[] providers)
+    private TimedLyricsService Service(params ITimedLyricsProvider[] providers) => Service(null, providers);
+
+    private TimedLyricsService Service(IVenuesService? venues, params ITimedLyricsProvider[] providers)
     {
         var monitor = Substitute.For<IOptionsMonitor<PlaybackService.ServiceOptions>>();
         monitor.CurrentValue.Returns(_ => _options);
-        return new(NullLogger<TimedLyricsService>.Instance, providers, monitor, Substitute.For<IMessageBroker>());
+        return new(NullLogger<TimedLyricsService>.Instance, providers, monitor, Substitute.For<IMessageBroker>(), venues: venues);
+    }
+
+    private static IVenuesService VenueWith(Venue.VenueSettings settings)
+    {
+        var venues = Substitute.For<IVenuesService>();
+        venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = settings });
+        return venues;
+    }
+
+    private static TimedLyrics OnePageNamingNoColours() => SomeLyrics() with
+    {
+        Pages = [new LyricPage { ShowFromSeconds = 1, ShowUntilSeconds = 5 }],
+    };
+
+    /// <summary>What the timing leaves uncoloured takes the venue's theme, in the one place the
+    /// screen and the burn-in both read through.</summary>
+    [Fact]
+    public async Task GetTimedLyricsAsync_AVenueWithATheme_ColoursWhatTheTimingLeavesUnset()
+    {
+        var venues = VenueWith(new Venue.VenueSettings { ThemeHighlightColor = "#ff0000", ThemeTextColor = "#00ff00" });
+
+        var lyrics = await Service(venues, Provider(claims: true, answer: OnePageNamingNoColours())).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Equal((new LyricColor(255, 0, 0), new LyricColor(0, 255, 0)), (lyrics!.Pages[0].Active, lyrics.Pages[0].Inactive));
+    }
+
+    /// <summary>Filled ahead of the colour-blind adjustment, which then works on the colours the room sees.</summary>
+    [Fact]
+    public async Task GetTimedLyricsAsync_ColourBlindFriendly_SeparatesTheVenuesColours()
+    {
+        _options.ColorBlindFriendlyLyrics = true;
+        var venues = VenueWith(new Venue.VenueSettings { ThemeHighlightColor = "#808080", ThemeTextColor = "#828282" });
+
+        var lyrics = await Service(venues, Provider(claims: true, answer: OnePageNamingNoColours())).GetTimedLyricsAsync(SourceFile);
+
+        Assert.NotNull(lyrics!.Pages[0].Active);
+        Assert.NotEqual(new LyricColor(0x82, 0x82, 0x82), lyrics.Pages[0].Inactive);
+    }
+
+    [Fact]
+    public async Task GetTimedLyricsAsync_NoVenueSelected_LeavesTheTimingsColoursAlone()
+    {
+        var venues = Substitute.For<IVenuesService>();
+        venues.ReadSelectedVenueAsync().Returns((Venue?)null);
+        var answer = OnePageNamingNoColours();
+
+        Assert.Same(answer, await Service(venues, Provider(claims: true, answer: answer)).GetTimedLyricsAsync(SourceFile));
+    }
+
+    /// <summary>A venue that cannot be read costs the song its venue colours, never its words.</summary>
+    [Fact]
+    public async Task GetTimedLyricsAsync_TheVenueCannotBeRead_ShowsTheWordsAsSupplied()
+    {
+        var venues = Substitute.For<IVenuesService>();
+        venues.ReadSelectedVenueAsync().ThrowsAsync(new InvalidOperationException("database gone"));
+        var answer = OnePageNamingNoColours();
+
+        Assert.Same(answer, await Service(venues, Provider(claims: true, answer: answer)).GetTimedLyricsAsync(SourceFile));
     }
 
     /// <summary>One opener, sung after a 2.5s silence, on a page up long enough for a full run.</summary>

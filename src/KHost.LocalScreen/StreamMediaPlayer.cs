@@ -240,7 +240,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         builtIn = command.BuiltIn, barCount = command.BarCount,
         colourScheme = command.ColourScheme.ToString().ToLowerInvariant(), colour = command.Colour,
         brightness = command.Brightness, saturation = command.Saturation, sensitivity = command.Sensitivity,
-        levels = command.LevelsUrl, videoUrl = command.VideoUrl,
+        levels = command.LevelsUrl, videoUrl = command.VideoUrl, venuePalette = command.VenuePalette,
     };
 
     public void SetMarquee(SetMarqueeCommand command)
@@ -267,6 +267,31 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             fontSizePixels = command.FontSizePixels,
             scrollSpeed = command.ScrollSpeed,
             pinLabel = command.PinLabel,
+        });
+    }
+
+    /// <summary>The venue's colours; a null leaves that part in the page's own colour.</summary>
+    public void SetScreenTheme(SetScreenThemeCommand command)
+    {
+        _logger.LogInformation("Screen theme: background {Background}, sung words {Sung}",
+            command.Background ?? "own", command.LyricsSung ?? "own");
+
+        Send(new
+        {
+            type = "screen-theme",
+            background = command.Background,
+            lyricsSung = command.LyricsSung,
+            lyricsUnsung = command.LyricsUnsung,
+            lyricsOutline = command.LyricsOutline,
+            introText = command.IntroText,
+            introOutline = command.IntroOutline,
+            nextSingerText = command.NextSingerText,
+            nextSingerName = command.NextSingerName,
+            nextSingerPanel = command.NextSingerPanel,
+            breakMusicCardText = command.BreakMusicCardText,
+            breakMusicCardBackground = command.BreakMusicCardBackground,
+            qrCodeFrame = command.QrCodeFrame,
+            qrCodeCaption = command.QrCodeCaption,
         });
     }
 

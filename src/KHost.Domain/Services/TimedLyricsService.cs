@@ -2,6 +2,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Display;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -20,6 +21,7 @@ public sealed class TimedLyricsService : ITimedLyricsService, IStartsWithTheHost
     private readonly IReadOnlyList<ITimedLyricsProvider> _providers;
     private readonly IOptionsMonitor<PlaybackService.ServiceOptions> _options;
     private readonly IMessageBroker _broker;
+    private readonly IVenuesService? _venues;
     private readonly IDisposable? _optionsSubscription;
     private readonly Timer _settleTimer;
     private readonly TimeSpan _settle;
@@ -33,8 +35,10 @@ public sealed class TimedLyricsService : ITimedLyricsService, IStartsWithTheHost
         IEnumerable<ITimedLyricsProvider> providers,
         IOptionsMonitor<PlaybackService.ServiceOptions> options,
         IMessageBroker broker,
-        TimeSpan? settle = null)
+        TimeSpan? settle = null,
+        IVenuesService? venues = null)
     {
+        _venues = venues;
         _logger = logger;
         _providers = [.. providers];
         _options = options;
@@ -73,10 +77,32 @@ public sealed class TimedLyricsService : ITimedLyricsService, IStartsWithTheHost
                 return null;
             }
 
-            return lyrics is null ? null : Adjusted(lyrics, filePath);
+            return lyrics is null ? null : Adjusted(await InVenueColoursAsync(lyrics, filePath), filePath);
         }
 
         return null;
+    }
+
+    /// <summary>The words the timing leaves uncoloured, in the selected venue's colours.</summary>
+    private async Task<TimedLyrics> InVenueColoursAsync(TimedLyrics lyrics, string filePath)
+    {
+        if (_venues is null) return lyrics;
+
+        try
+        {
+            if ((await _venues.ReadSelectedVenueAsync())?.Settings is not { } settings) return lyrics;
+
+            var colours = settings.ResolveScreenColours();
+            return VenueLyricColours.FillUnset(lyrics,
+                VenueLyricColours.FromHex(colours.LyricsSung),
+                VenueLyricColours.FromHex(colours.LyricsUnsung),
+                VenueLyricColours.FromHex(colours.LyricsOutline));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Showing the lyrics of '{FilePath}' in the song's own colours: the venue's could not be read", filePath);
+            return lyrics;
+        }
     }
 
     /// <summary>Adjusted here, the one door both the screen and the burn-in read through, so they agree.</summary>
