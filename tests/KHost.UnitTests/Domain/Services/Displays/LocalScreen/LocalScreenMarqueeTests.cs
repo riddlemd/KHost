@@ -30,6 +30,34 @@ public class LocalScreenMarqueeTests
         // NSubstitute hands back a task wrapping null otherwise, and the composition .Where()s it.
         => _performances.ReadQueuedAsync().Returns([]);
 
+    /// <summary>A venue that left the marquee's colours to its theme gets them from the theme.</summary>
+    [Fact]
+    public async Task BuildMarqueeAsync_ColoursLeftUnset_ComeFromTheVenuesTheme()
+    {
+        Arrange(new Venue.VenueSettings
+        {
+            MarqueeEnabled = true,
+            ThemePrimaryColor = "#111111",
+            ThemeHighlightColor = "#222222",
+            ThemeTextColor = "#333333",
+            ThemeShadowColor = "#444444",
+        });
+
+        var command = await BuildAsync();
+
+        Assert.Equal(("#444444", "#333333", "#111111", "#222222", "#111111"),
+            (command.BackgroundColor, command.TextColor, command.SingerColor, command.SongColor, command.DividerColor));
+    }
+
+    /// <summary>The venue's own marquee colour wins over its theme.</summary>
+    [Fact]
+    public async Task BuildMarqueeAsync_AnOwnColour_WinsOverTheTheme()
+    {
+        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, ThemePrimaryColor = "#222222", MarqueeSingerColor = "#abcdef" });
+
+        Assert.Equal("#abcdef", (await BuildAsync()).SingerColor);
+    }
+
     [Fact]
     public async Task BuildMarqueeAsync_NoVenueSelected_IsDisabled()
     {

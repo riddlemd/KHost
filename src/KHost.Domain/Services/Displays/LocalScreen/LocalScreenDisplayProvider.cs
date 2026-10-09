@@ -182,7 +182,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // The venue owns how the marquee, the codes and the card look, including whether each is there
         // at all.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(
-            _ => Redraw(Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard | Overlay.Visualiser)));
+            _ => Redraw(Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard | Overlay.Visualiser | Overlay.Theme)));
+        // The venue's colours fill in what a song's timing leaves unset, so the words on screen are read again.
+        _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>((_, _) => ReplaceTimedLyricsAsync()));
 
         // Who is next is the marquee's content, however the queue, the turns or the mic moved it.
         _subscriptions.Add(broker.Subscribe<UpNextChanged>(_ => Redraw(Overlay.Marquee)));
@@ -447,6 +449,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
         var upcoming = await upNext.ReadAsync(settings.MarqueeSingerCount);
         var glyph = MarqueeEntrySegmenter.ResolveGlyph(settings.MarqueeDividerShape);
+        var colours = settings.ResolveScreenColours();
 
         var segments = new List<MarqueeSegment>();
         foreach (var (entry, index) in upcoming.Select((entry, index) => (entry, index)))
@@ -465,12 +468,11 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             Message = MarqueeText.CollapseToOneLine(settings.MarqueeMessage),
             Position = settings.MarqueePosition,
 
-            // A cleared colour is no colour, not an empty CSS value the screen would take.
-            BackgroundColor = string.IsNullOrWhiteSpace(settings.MarqueeBackgroundColor) ? null : settings.MarqueeBackgroundColor.Trim(),
-            TextColor = string.IsNullOrWhiteSpace(settings.MarqueeTextColor) ? null : settings.MarqueeTextColor.Trim(),
-            SingerColor = string.IsNullOrWhiteSpace(settings.MarqueeSingerColor) ? null : settings.MarqueeSingerColor.Trim(),
-            SongColor = string.IsNullOrWhiteSpace(settings.MarqueeSongColor) ? null : settings.MarqueeSongColor.Trim(),
-            DividerColor = string.IsNullOrWhiteSpace(settings.MarqueeDividerColor) ? null : settings.MarqueeDividerColor.Trim(),
+            BackgroundColor = colours.MarqueeBackground,
+            TextColor = colours.MarqueeText,
+            SingerColor = colours.MarqueeSinger,
+            SongColor = colours.MarqueeSong,
+            DividerColor = colours.MarqueeDivider,
             DividerGlyph = glyph,
             BackgroundOpacityPercent = settings.MarqueeBackgroundOpacity,
             FontSizePixels = settings.MarqueeFontSizePixels,
@@ -675,7 +677,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// (<see cref="SendTimedLyricsAsync"/>), so it never gets one.</remarks>
     private async Task<SetVisualiserCommand> DecideVisualiserAsync(PlaybackProgram.Playing song, DisplayLoad load)
     {
-        var playlistId = (await ReadVenueSettingsAsync())?.VisualisationPlaylistId;
+        var venue = await ReadVenueSettingsAsync();
+        var playlistId = venue?.VisualisationPlaylistId;
         var background = await ReadBackgroundAsync(song);
 
         // Ahead of the probe below: a venue with no playlist and a song with no look of its own
@@ -692,7 +695,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         if (background is { Type: PerformanceBackgroundType.Black }) return VisualiserOff;
 
         if (background is { Type: PerformanceBackgroundType.Look }
-            && LookForSong(song, background, () => LevelsUrlFor(path, load)) is { } own)
+            && LookForSong(song, background, () => LevelsUrlFor(path, load), venue) is { } own)
             return own;
 
         if (playlistId is not { } venuePlaylistId) return VisualiserOff;
@@ -704,7 +707,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // Never through the levels: a video is drawn muted and does not follow the song.
         if (entry.PresetSource == VisualiserPresetSource.Video) return VideoVisualiserFor(song, entry, entry.Id) ?? VisualiserOff;
 
-        return VisualiserFor(entry, song.Media.Title, () => LevelsUrlFor(path, load)) ?? VisualiserOff;
+        return VisualiserFor(entry, song.Media.Title, () => LevelsUrlFor(path, load), venue) ?? VisualiserOff;
     }
 
     /// <summary>The performance's own background, read afresh: the program carries the row as it was
@@ -720,9 +723,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <summary>The command that draws the performance's own look; null when it does not resolve,
     /// so the venue's playlist draws instead. A video whose URL is still being found is drawn as
     /// off meanwhile, not handed to the playlist.</summary>
-    private SetVisualiserCommand? LookForSong(PlaybackProgram.Playing song, PerformanceBackground look, Func<string?> levelsUrl)
+    private SetVisualiserCommand? LookForSong(
+        PlaybackProgram.Playing song, PerformanceBackground look, Func<string?> levelsUrl, Venue.VenueSettings? venue)
     {
-        if (look.PresetSource != VisualiserPresetSource.Video) return VisualiserFor(look, song.Media.Title, levelsUrl);
+        if (look.PresetSource != VisualiserPresetSource.Video) return VisualiserFor(look, song.Media.Title, levelsUrl, venue);
 
         // Known not to play, or naming none: the playlist answers, and keeps its own pick.
         if (look.VideoMediaId is not { } mediaId || _visualiserVideo is { Url: null } known && known.MediaId == mediaId)
@@ -742,7 +746,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// found, which leaves whatever was under it.</summary>
     /// <remarks><paramref name="levelsUrl"/> is asked only once the preset resolves: it may start a
     /// read of the song's levels.</remarks>
-    private SetVisualiserCommand? VisualiserFor(IVisualisationLook entry, string drawnFor, Func<string?> levelsUrl)
+    private SetVisualiserCommand? VisualiserFor(
+        IVisualisationLook entry, string drawnFor, Func<string?> levelsUrl, Venue.VenueSettings? venue)
     {
         string? name = null, url = null, builtIn = null;
         if (entry.PresetSource == VisualiserPresetSource.BuiltIn)
@@ -785,6 +790,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             Saturation = entry.Saturation,
             Sensitivity = entry.Sensitivity,
             LevelsUrl = levelsUrl(),
+
+            // A preset's colours are its own; only the host's drawings take the venue's.
+            VenuePalette = builtIn is not null && entry.RespectsVenueTheme ? venue?.ResolveScreenColours().VisualisationPalette : null,
         };
     }
 
@@ -910,7 +918,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     {
         try
         {
-            if ((await ReadVenueSettingsAsync())?.VisualisationPlaylistId is not { } playlistId) return null;
+            var venue = await ReadVenueSettingsAsync();
+            if (venue?.VisualisationPlaylistId is not { } playlistId) return null;
             if (_services?.GetService<IVisualisationPlaylistService>() is not { } playlists) return null;
 
             // An empty or missing playlist answers null.
@@ -919,7 +928,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             // The turn is taken all the same: looking on for a drawing would spend two.
             if (entry.PresetSource == VisualiserPresetSource.Video) return null;
 
-            return VisualiserFor(entry, "the next-singer card", () => null);
+            return VisualiserFor(entry, "the next-singer card", () => null, venue);
         }
         catch (Exception ex)
         {
@@ -1038,6 +1047,31 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         await SendAsync(new SetBackgroundVolumeCommand { Volume = FullVolume });
     }
 
+    /// <summary>The venue's colours for everything drawn besides the marquee; every one null, the
+    /// screen's own, with no venue selected.</summary>
+    internal static SetScreenThemeCommand BuildScreenTheme(Venue.VenueSettings? settings)
+    {
+        if (settings is null) return new SetScreenThemeCommand();
+
+        var colours = settings.ResolveScreenColours();
+        return new SetScreenThemeCommand
+        {
+            Background = colours.Background,
+            LyricsSung = colours.LyricsSung,
+            LyricsUnsung = colours.LyricsUnsung,
+            LyricsOutline = colours.LyricsOutline,
+            IntroText = colours.IntroText,
+            IntroOutline = colours.IntroOutline,
+            NextSingerText = colours.NextSingerText,
+            NextSingerName = colours.NextSingerName,
+            NextSingerPanel = colours.NextSingerPanel,
+            BreakMusicCardText = colours.BreakMusicCardText,
+            BreakMusicCardBackground = colours.BreakMusicCardBackground,
+            QrCodeFrame = colours.QrCodeFrame,
+            QrCodeCaption = colours.QrCodeCaption,
+        };
+    }
+
     /// <summary>Pulls the current state of each overlay asked for and sends it whole.</summary>
     /// <remarks>Never throws: one overlay that cannot be built must not keep the rest off the screen.</remarks>
     private async Task RedrawAsync(Overlay overlays)
@@ -1055,6 +1089,13 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             await DrawPictureAsync(PictureCause.ProgramMoved);
         else if (overlays.HasFlag(Overlay.IdleCard))
             await DrawPictureAsync(PictureCause.VenueChanged);
+
+        // Ahead of what it colours, so a screen that has just joined draws them in the venue's colours.
+        if (overlays.HasFlag(Overlay.Theme))
+        {
+            try { await SendOverlayAsync(BuildScreenTheme(await ReadVenueSettingsAsync())); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Could not send the venue's colours to the screen"); }
+        }
 
         if (overlays.HasFlag(Overlay.Visualiser))
             await SendVisualiserAsync(load: null);
@@ -1419,7 +1460,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         /// <summary>Whether the playing song gets a visualiser; its own load decides it first.</summary>
         Visualiser = 128,
 
-        All = Volume | Marquee | QrCodes | BreakMusicCard | Picture,
+        /// <summary>The venue's colours for everything drawn besides the marquee.</summary>
+        Theme = 256,
+
+        All = Volume | Marquee | QrCodes | BreakMusicCard | Picture | Theme,
     }
 
     private enum PictureCause

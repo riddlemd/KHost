@@ -195,6 +195,52 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
             (entry.PresetSource, entry.PresetName, entry.BarCount, entry.ColourScheme, entry.Colour));
     }
 
+    /// <summary>The entry is copied field by field, so a new field is easily left behind.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReplaceEntriesAsync_KeepsWhetherItRespectsTheVenueTheme(bool respects)
+    {
+        var playlist = await _repository.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+
+        await _repository.ReplaceEntriesAsync(playlist.Id, [new() { PresetName = "ambient-nebula", RespectsVenueTheme = respects }]);
+
+        Assert.Equal(respects, Assert.Single((await _repository.ReadWithEntriesAsync(playlist.Id))!.Entries).RespectsVenueTheme);
+    }
+
+    [Fact]
+    public async Task Migrate_AFreshDatabase_ShipsBothPlaylistsRespectingTheVenueTheme()
+    {
+        var entries = (await _repository.ReadWithEntriesAsync(ShippedVisualisationPlaylists.BasicId))!.Entries
+            .Concat((await _repository.ReadWithEntriesAsync(ShippedVisualisationPlaylists.AdvancedId))!.Entries)
+            .ToList();
+
+        Assert.Equal(14, entries.Count);
+        Assert.All(entries, e => Assert.True(e.RespectsVenueTheme, e.PresetName));
+    }
+
+    /// <summary>On upgrade a host's own entries keep the colours they were given; the shipped ones,
+    /// having none of their own to keep, take the venue's.</summary>
+    [Fact]
+    public async Task Migrate_ADatabaseFromBeforeVenueThemes_TurnsItOnForTheShippedPlaylistsOnly()
+    {
+        await using var context = await MigratedToBeforeAdvancedAsync();
+        await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261009150303_AddAdvancedBackgroundsPlaylist");
+        var ownPlaylist = Guid.NewGuid().ToString().ToUpperInvariant();
+        await context.Database.ExecuteSqlRawAsync(
+            "INSERT INTO VisualisationPlaylists (Id, Name, NameFolded, Shuffle) VALUES ({0}, 'Mine', 'mine', 0)", ownPlaylist);
+        await context.Database.ExecuteSqlRawAsync(
+            "INSERT INTO VisualisationEntries (Id, VisualisationPlaylistId, Position, PresetSource, PresetName, Brightness, Saturation, Sensitivity, BarCount, Colour, ColourScheme) VALUES ({0}, {1}, 0, 2, 'ambient-bokeh', 100, 100, 100, 32, '#ff8800', 2)",
+            Guid.NewGuid().ToString().ToUpperInvariant(), ownPlaylist);
+
+        await context.Database.MigrateAsync();
+
+        var entries = await context.VisualisationEntries.AsNoTracking().ToListAsync();
+        Assert.False(entries.Single(e => e.VisualisationPlaylistId == Guid.Parse(ownPlaylist)).RespectsVenueTheme);
+        Assert.All(entries.Where(e => e.VisualisationPlaylistId != Guid.Parse(ownPlaylist)), e => Assert.True(e.RespectsVenueTheme, e.PresetName));
+        Assert.Equal(14, entries.Count(e => e.VisualisationPlaylistId != Guid.Parse(ownPlaylist)));
+    }
+
     [Fact]
     public async Task ReplaceEntriesAsync_KeepsAVideosMediaId()
     {

@@ -21,6 +21,16 @@ public class VisualisationLooksTests
         return target;
     }
 
+    public static TheoryData<string, bool> ShapesAndRespects => new() { { "entry", true }, { "entry", false }, { "background", true }, { "background", false } };
+
+    [Theory, MemberData(nameof(ShapesAndRespects))]
+    public void CopyWithinRangesTo_WhetherItRespectsTheVenueTheme_IsKept(string shape, bool respects)
+        => Assert.Equal(respects, Held(shape, l => l.RespectsVenueTheme = respects).RespectsVenueTheme);
+
+    /// <summary>A look made new respects the venue's theme.</summary>
+    [Theory, MemberData(nameof(Shapes))]
+    public void New_RespectsTheVenueTheme(string shape) => Assert.True(New(shape).RespectsVenueTheme);
+
     [Theory, MemberData(nameof(Shapes))]
     public void CopyWithinRangesTo_AVideo_KeepsItsVideoAndDropsAnyPresetName(string shape)
     {

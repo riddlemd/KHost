@@ -45,6 +45,7 @@ public class LocalScreenVisualiserTests
     private readonly IStemStreamService _stems = Substitute.For<IStemStreamService>();
     private readonly IMediaService _library = Substitute.For<IMediaService>();
     private readonly IVideoBackdropService _backdrops = Substitute.For<IVideoBackdropService>();
+    private readonly ServiceCollection _extraServices = new();
     private int _reads;
 
     private static readonly Guid VideoId = Guid.NewGuid();
@@ -81,6 +82,7 @@ public class LocalScreenVisualiserTests
             .AddSingleton(_backdrops);
 
         if (withProbe) services.AddSingleton(_probe);
+        foreach (var extra in _extraServices) services.Add(extra);
 
         return new LocalScreenDisplayProvider(
             NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _broker, _venues,
@@ -240,6 +242,122 @@ public class LocalScreenVisualiserTests
         Assert.True(sent.Enabled);
         Assert.Equal(("ambient-embers", null, null, VisualiserColourScheme.Theme), (sent.BuiltIn, sent.PresetName, sent.PresetUrl, sent.ColourScheme));
     }
+
+    private void Themed()
+    {
+        _settings.ThemePrimaryColor = "#111111";
+        _settings.ThemeHighlightColor = "#222222";
+        _settings.ThemeShadowColor = "#444444";
+    }
+
+    private VisualisationEntry FirstEntryIsABuiltIn(bool respectsVenueTheme)
+    {
+        var entry = _playlist.Entries[0];
+        entry.PresetSource = VisualiserPresetSource.BuiltIn;
+        entry.PresetName = "ambient-nebula";
+        entry.RespectsVenueTheme = respectsVenueTheme;
+        return entry;
+    }
+
+    /// <summary>A built-in that respects the venue's theme is sent the theme's main, light and dark.</summary>
+    [Fact]
+    public async Task LoadAsync_ABuiltInRespectingTheVenuesTheme_SendsTheThemesPalette()
+    {
+        Themed();
+        FirstEntryIsABuiltIn(respectsVenueTheme: true);
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.Equal(["#111111", "#222222", "#444444"], Last().VenuePalette);
+    }
+
+    [Fact]
+    public async Task LoadAsync_ABuiltInNotRespectingTheTheme_KeepsItsOwnPalette()
+    {
+        Themed();
+        FirstEntryIsABuiltIn(respectsVenueTheme: false);
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.Null(Last().VenuePalette);
+    }
+
+    /// <summary>A preset's colours are its own: it draws as made whatever the entry asks.</summary>
+    [Fact]
+    public async Task LoadAsync_APresetRespectingTheTheme_IsSentNoPalette()
+    {
+        Themed();
+        _playlist.Entries[0].RespectsVenueTheme = true;
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.Equal("Rovastar - Oozing Resistance", Last().PresetName);
+        Assert.Null(Last().VenuePalette);
+    }
+
+    [Fact]
+    public async Task LoadAsync_AVenueWithNoTheme_SendsNoPalette()
+    {
+        FirstEntryIsABuiltIn(respectsVenueTheme: true);
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.Null(Last().VenuePalette);
+    }
+
+    /// <summary>A performance's own look respects the theme the same way a playlist entry does.</summary>
+    [Fact]
+    public async Task LoadAsync_APerformancesOwnLookRespectingTheTheme_SendsThePalette()
+    {
+        Themed();
+        var song = Playing("/songs/africa.song");
+        var performances = Substitute.For<IPerformanceService>();
+        performances.ReadAsync(song.Performance!.Id).Returns(new Performance
+        {
+            Id = song.Performance.Id,
+            Background = new PerformanceBackground
+            {
+                Type = PerformanceBackgroundType.Look,
+                PresetSource = VisualiserPresetSource.BuiltIn,
+                PresetName = "ambient-clouds",
+                RespectsVenueTheme = true,
+            },
+        });
+        _extraServices.AddSingleton(performances);
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.Equal("ambient-clouds", Last().BuiltIn);
+        Assert.Equal(["#111111", "#222222", "#444444"], Last().VenuePalette);
+    }
+
+    /// <summary>The venue's colours reach a screen as soon as its venue changes.</summary>
+    [Fact]
+    public async Task SelectedVenueChanged_SendsTheVenuesColours()
+    {
+        using var provider = Provider();
+        _settings.ThemeShadowColor = "#444444";
+        _settings.LyricsSungColor = "#abcdef";
+
+        _broker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitUntilAsync(() => Themes().Any(t => t is { Background: "#444444", LyricsSung: "#abcdef" })));
+    }
+
+    private List<SetScreenThemeCommand> Themes()
+        => [.. _screenServer.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
+            .Select(call => call.GetArguments()[0])
+            .OfType<SetScreenThemeCommand>()];
 
     [Fact]
     public async Task LoadAsync_ARetroEffect_SendsItByNameWithItsPalette()

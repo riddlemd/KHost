@@ -1,0 +1,12 @@
+<div class="kh-venue-settings-group">
+    <div class="kh-venue-settings-group__head">
+        <span class="kh-venue-settings-group__title">@Title</span>
+        @if (Note is not null)
+        {
+            <span class="kh-venue-settings-group__note">@Note</span>
+        }
+    </div>
+    <div class="kh-venue-settings-group__rows">
+        @ChildContent
+    </div>
+</div>

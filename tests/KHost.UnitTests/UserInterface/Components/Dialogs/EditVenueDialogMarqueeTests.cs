@@ -122,21 +122,46 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Assert.False(string.IsNullOrEmpty(cut.Find(BackgroundSelector).GetAttribute("value")));
     }
 
-    /// <summary>A number input can't show "the screen decides", so no size gets the screen's own.</summary>
     [Fact]
-    public void MarqueeOn_NoFontSizeStored_OffersTheScreensOwnSizeRatherThanZero()
+    public void MarqueeOn_TheTextSize_OffersSmallMediumAndLarge()
     {
         var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true });
 
-        Assert.NotEqual("0", cut.Find(FontSizeSelector).GetAttribute("value"));
+        Assert.Equal(["Small", "Medium", "Large"], cut.FindAll(FontSizeSelector + " option").Select(o => o.TextContent));
+    }
+
+    /// <summary>Medium is the screen's own size, so a venue that never chose one opens on it.</summary>
+    [Fact]
+    public void MarqueeOn_NoFontSizeStored_OffersMedium()
+    {
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true });
+
+        Assert.Equal("28", cut.Find(FontSizeSelector).GetAttribute("value"));
+    }
+
+    /// <summary>A size saved before the three were offered shows as the nearest of them.</summary>
+    [Theory]
+    [InlineData(14, "20")]
+    [InlineData(23, "20")]
+    [InlineData(33, "28")]
+    [InlineData(44, "40")]
+    public void MarqueeOn_AnOlderStoredFontSize_ShowsTheNearestSize(int stored, string shown)
+    {
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeFontSizePixels = stored });
+
+        Assert.Equal(shown, cut.Find(FontSizeSelector).GetAttribute("value"));
     }
 
     [Fact]
-    public void MarqueeOn_ShowsTheVenuesStoredFontSize()
+    public void MarqueeOn_PickingLarge_SavesItsPixels()
     {
-        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeFontSizePixels = 44 });
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true }, venue => saved = venue);
 
-        Assert.Equal("44", cut.Find(FontSizeSelector).GetAttribute("value"));
+        cut.Find(FontSizeSelector).Change("40");
+        cut.Find("form").Submit();
+
+        Assert.Equal(40, saved!.Settings.MarqueeFontSizePixels);
     }
 
     [Fact]
@@ -196,6 +221,16 @@ public class EditVenueDialogMarqueeTests : BunitContext
         var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeBackgroundOpacity = 25 });
 
         Assert.Equal("25", cut.Find(OpacitySelector).GetAttribute("value"));
+    }
+
+    /// <summary>The value is a percentage, said inside its box rather than in the label.</summary>
+    [Fact]
+    public void MarqueeOn_TheOpacity_CarriesAPercentSign()
+    {
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true });
+
+        var box = cut.Find(OpacitySelector).Closest(".kh-input-affix")!;
+        Assert.Equal("%", box.QuerySelector(".kh-input-affix__text--suffix")!.TextContent);
     }
 
     /// <summary>Stored zero is a deliberate fully-transparent choice, kept rather than treated as unset.</summary>

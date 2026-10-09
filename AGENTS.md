@@ -231,7 +231,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 - `KHost.Abstractions` and `KHost.Common` are **NuGet packages**; a plugin takes a `PackageReference`, never a `ProjectReference` into this repo.
 - `<ContractsVersion>` in `Directory.Build.props` versions both. Bump it on any shape change, additions included; 0.x while the contracts move.
-- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (**1** and **2**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
+- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (**1** and **3**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
   - `CurrentVersion` moves on any **addition** a plugin could call or implement (a new interface, member, model field, enum value), so a plugin built against it is refused by an older host with a reason, not a run-time `MissingMethodException`.
   - `MinimumVersion` moves only on a **break**: changing a method a plugin **calls or implements**, including adding an optional parameter (the default compiles into the call site; a changed implemented signature is a `TypeLoadException` at load), or removing anything. A break moves `CurrentVersion` too.
   - Not a break: a new interface member with a **default body** (still an addition).
@@ -311,6 +311,21 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - **A preset must stay alive in silence** (several MilkDrop presets fade to black with no input, and levels may be missing). `screen-ui/VISUALISER-NOTICE.md` says how the set was chosen.
 - No darkened band behind the words on either drawer: `lyrics-overlay.js` and `TimedLyricsPainter` draw only the words (and chase, count-ins, lead-ins); the black outline keeps them legible.
 - Capped at 30fps and a 1280x720 drawing buffer, frozen on pause (last frame holds), drawn only while shown. The engine is built on first use and never with its own audio context: samples are read here and handed to each frame (every stem song brings a new context).
+
+## A venue's colours
+
+- **Everything drawn on the screen has a venue colour**, stored on `Venue.VenueSettings` (owned JSON, no migration) as `#rrggbb` or null. Resolution is one rule for every display, in `Common/Display/ScreenColours.ResolveScreenColours`: the element's own setting, else the theme colour its doc names, else null (**the display's own default**). Never resolve a venue colour anywhere else.
+- **The theme is four roles**, all unset by default (a venue that never set one looks as it always did):
+  - Primary: marquee singers and divider, a visualisation's main colour.
+  - Highlight: sung words, the up-next singer's name, marquee songs, a visualisation's light colour.
+  - Text: unsung words, card and marquee text, the QR frame.
+  - Shadow: the screen background, outlines, card panels, the marquee band, the QR caption, a visualisation's dark colour.
+  - `VisualisationPalette` is `[Primary ?? Highlight ?? Shadow, Highlight ?? main, Shadow ?? main]`, null with none of the three.
+- The theme is the venue's, not the screen's: `VisualiserColourScheme.Theme` is still the screen's own `#8558fa` accent.
+- `LocalScreenDisplayProvider` sends the resolved set as `SetScreenThemeCommand` (IPC only) on connect and on `SelectedVenueChanged`, before the visualiser. `player.js` sets or removes `:root` variables; `index.html`'s fallbacks are the screen's own colours. Translucent layers keep their alpha through `color-mix`.
+- **Lyric colours are filled into the timing**, not drawn over it: `TimedLyricsService` fills unset page and count-in colours from the venue (`VenueLyricColours.FillUnset`) **before** the colour-blind step, so the screen and burned-in words agree and a song's own colours win. A venue read that fails returns the words as they are. The burn-in painter's outline stays black.
+- **`IVisualisationLook.RespectsVenueTheme`** (true for a new entry or background) makes a built-in draw in the venue's palette (`SetVisualiserCommand.VenuePalette`, the `venue` scheme in `eq-visualisers.js`) instead of its own palette setting. MilkDrop presets and videos ignore it. `AddRespectsVenueTheme` adds the column false for existing entries and sets it on both shipped playlists only.
+- Marquee colours that hold the old saved defaults (`#000000` band, `#f2f2f5` text) read as unset in the venue dialog (`EditVenueModel.OwnUnlessOldDefault`), so a venue saved before themes follows its theme once saved again.
 
 ## Streaming a song
 

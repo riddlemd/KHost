@@ -26,6 +26,7 @@ namespace KHost.IPC.SignalR.Contracts;
 [JsonDerivedType(typeof(ShowNextSingerCommand), "showNextSinger")]
 [JsonDerivedType(typeof(SetTimedLyricsCommand), "setTimedLyrics")]
 [JsonDerivedType(typeof(SetVisualiserCommand), "setVisualiser")]
+[JsonDerivedType(typeof(SetScreenThemeCommand), "setScreenTheme")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>Loads one song or clip, ready to play but not playing: a stream to play end to end,
@@ -385,6 +386,57 @@ public sealed class SetVisualiserCommand : ScreenCommandBase
 
     /// <summary>A video the screen plays muted and looping in place of a preset, from its start each song.</summary>
     public string? VideoUrl { get; init; }
+
+    /// <summary>The venue's main, light and dark colours, each <c>#rrggbb</c>, for a built-in that
+    /// respects the venue's theme; it draws in these in place of <see cref="ColourScheme"/>. Null
+    /// draws in <see cref="ColourScheme"/>.</summary>
+    public IReadOnlyList<string>? VenuePalette { get; init; }
+}
+
+/// <summary>The colours the venue gives everything the screen draws besides the marquee, sent
+/// whole on connect and whenever the venue moves.</summary>
+/// <remarks>Each is <c>#rrggbb</c>, or null for the screen's own. Lyric colours apply only where a
+/// song's timing names none.</remarks>
+public sealed class SetScreenThemeCommand : ScreenCommandBase
+{
+    /// <summary>Behind everything the screen draws.</summary>
+    public string? Background { get; init; }
+
+    /// <summary>Sung words.</summary>
+    public string? LyricsSung { get; init; }
+
+    /// <summary>Words not yet sung.</summary>
+    public string? LyricsUnsung { get; init; }
+
+    /// <summary>The edge round every word.</summary>
+    public string? LyricsOutline { get; init; }
+
+    /// <summary>The title card a song opens on.</summary>
+    public string? IntroText { get; init; }
+
+    /// <summary>The edge round the title card's words.</summary>
+    public string? IntroOutline { get; init; }
+
+    /// <summary>The "Up next" card's words.</summary>
+    public string? NextSingerText { get; init; }
+
+    /// <summary>The singer's name on the "Up next" card.</summary>
+    public string? NextSingerName { get; init; }
+
+    /// <summary>The panel behind the "Up next" card.</summary>
+    public string? NextSingerPanel { get; init; }
+
+    /// <summary>The break music card's words.</summary>
+    public string? BreakMusicCardText { get; init; }
+
+    /// <summary>The panel behind the break music card.</summary>
+    public string? BreakMusicCardBackground { get; init; }
+
+    /// <summary>The frame round a QR code.</summary>
+    public string? QrCodeFrame { get; init; }
+
+    /// <summary>The words under a QR code.</summary>
+    public string? QrCodeCaption { get; init; }
 }
 
 /// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>

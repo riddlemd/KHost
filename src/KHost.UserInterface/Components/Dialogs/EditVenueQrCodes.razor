@@ -36,50 +36,54 @@
 
     @if (!string.IsNullOrWhiteSpace(Model.QrCodeSource))
     {
-        <div class="kh-venue-settings__row">
-            <label for="venue-qr-corner" class="kh-form-label">Corner</label>
-            <InputSelect id="venue-qr-corner" class="kh-form-select" @bind-Value="Model.QrCodeCorner">
-                <OverlayCornerOptions />
-            </InputSelect>
-        </div>
+        <VenueSettingsGroup Title="Placement">
+            <div class="kh-venue-settings__row">
+                <label for="venue-qr-corner" class="kh-form-label">Corner</label>
+                <InputSelect id="venue-qr-corner" class="kh-form-select" @bind-Value="Model.QrCodeCorner">
+                    <OverlayCornerOptions />
+                </InputSelect>
+            </div>
 
-        <div class="kh-venue-settings__row">
-            <label for="venue-qr-size" class="kh-form-label">Size</label>
-            <InputSelect id="venue-qr-size" class="kh-form-select" @bind-Value="Model.QrCodeSize">
-                <option value="@QrCodeSize.Small">Small</option>
-                <option value="@QrCodeSize.Medium">Medium</option>
-                <option value="@QrCodeSize.Large">Large</option>
-                <option value="@QrCodeSize.ExtraLarge">Extra Large</option>
-            </InputSelect>
-        </div>
-
-        <div class="kh-venue-settings__row">
-            <span class="kh-venue-settings__labelled">
-                <label for="venue-qr-safe-zone" class="kh-form-label">Safe zone</label>
-                <span class="kh-note">
-                    The white around the code, measured in the code&rsquo;s own squares.
+            <div class="kh-venue-settings__row">
+                <span class="kh-venue-settings__labelled">
+                    <label for="venue-qr-offset" class="kh-form-label">Offset</label>
+                    <span class="kh-note">
+                        Pushes the code in from the edges it sits against, as a percentage of
+                        the screen&rsquo;s shorter side.
+                    </span>
                 </span>
-            </span>
-            <InputNumber id="venue-qr-safe-zone" class="kh-form-control" min="0" max="8"
-                         @bind-Value="Model.QrCodeSafeZone" />
-        </div>
+                <InputNumber id="venue-qr-offset" class="kh-form-control" min="0" max="20" step="0.1"
+                             @bind-Value="Model.QrCodeOffset" />
+            </div>
 
-        <div class="kh-venue-settings__row">
-            <span class="kh-venue-settings__labelled">
-                <label for="venue-qr-offset" class="kh-form-label">Offset</label>
-                <span class="kh-note">
-                    Pushes the code in from the edges it sits against, as a percentage of
-                    the screen&rsquo;s shorter side.
+            <label class="kh-venue-settings__row kh-form-check">
+                <span class="kh-form-check-label">Hide codes while someone is singing</span>
+                <input id="venue-qr-hide-during-song" type="checkbox" class="kh-form-check-input"
+                       @bind="Model.QrCodeHideDuringSong" />
+            </label>
+        </VenueSettingsGroup>
+
+        <VenueSettingsGroup Title="Look">
+            <div class="kh-venue-settings__row">
+                <label for="venue-qr-size" class="kh-form-label">Size</label>
+                <InputSelect id="venue-qr-size" class="kh-form-select" @bind-Value="Model.QrCodeSize">
+                    <option value="@QrCodeSize.Small">Small</option>
+                    <option value="@QrCodeSize.Medium">Medium</option>
+                    <option value="@QrCodeSize.Large">Large</option>
+                    <option value="@QrCodeSize.ExtraLarge">Extra Large</option>
+                </InputSelect>
+            </div>
+
+            <div class="kh-venue-settings__row">
+                <span class="kh-venue-settings__labelled">
+                    <label for="venue-qr-safe-zone" class="kh-form-label">Safe zone</label>
+                    <span class="kh-note">
+                        The white around the code, measured in the code&rsquo;s own squares.
+                    </span>
                 </span>
-            </span>
-            <InputNumber id="venue-qr-offset" class="kh-form-control" min="0" max="20" step="0.1"
-                         @bind-Value="Model.QrCodeOffset" />
-        </div>
-
-        <label class="kh-venue-settings__row kh-form-check">
-            <span class="kh-form-check-label">Hide codes while someone is singing</span>
-            <input id="venue-qr-hide-during-song" type="checkbox" class="kh-form-check-input"
-                   @bind="Model.QrCodeHideDuringSong" />
-        </label>
+                <InputNumber id="venue-qr-safe-zone" class="kh-form-control" min="0" max="8"
+                             @bind-Value="Model.QrCodeSafeZone" />
+            </div>
+        </VenueSettingsGroup>
     }
 </VenueSettingsSection>
