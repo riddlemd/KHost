@@ -184,9 +184,7 @@ public partial class AvailablePluginsTab
     /// <summary>Why nothing is installable, for the badge's tooltip: the two causes ask different
     /// things of a host.</summary>
     private static string IncompatibleReason(PluginCatalogEntry entry)
-        => entry.HasReleaseForThisHost()
-            ? $"The catalog publishes no build for {PluginRid.Current}."
-            : "No release targets this host's plugin API.";
+        => entry.DescribeApiRefusal() ?? $"The catalog publishes no build for {PluginRid.Current}.";
 
     /// <summary>A catalog entry has no manifest to declare an icon with, so this stays the generic
     /// glyph until install, kept as a method so the row reads the same as the installed one.</summary>

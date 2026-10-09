@@ -4,6 +4,7 @@ using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
+using KHost.Common.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
@@ -111,8 +112,8 @@ public static class PluginLoader
         if (!seenIds.Add(manifest.Id))
             return Errored(directory, manifest, $"Duplicate plugin id '{manifest.Id}'.");
 
-        if (manifest.ApiVersion != PluginApi.CurrentVersion)
-            return Incompatible(directory, manifest);
+        if (PluginApiRange.ThisHost.DescribeRefusal(manifest.ApiVersion) is { } refusal)
+            return Incompatible(directory, manifest, refusal);
 
         if (!File.Exists(Path.Combine(directory, manifest.EntryAssembly)))
             return Errored(directory, manifest, $"Entry assembly '{manifest.EntryAssembly}' not found.");
@@ -289,11 +290,11 @@ public static class PluginLoader
         Error = error,
     };
 
-    private static DiscoveredPlugin Incompatible(string directory, PluginManifest manifest) => new()
+    private static DiscoveredPlugin Incompatible(string directory, PluginManifest manifest, string reason) => new()
     {
         Directory = directory,
         Manifest = manifest,
         Status = PluginStatus.Incompatible,
-        Error = $"Requires plugin API v{manifest.ApiVersion}; this host supports v{PluginApi.CurrentVersion}.",
+        Error = reason,
     };
 }

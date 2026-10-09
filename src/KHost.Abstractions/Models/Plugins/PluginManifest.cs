@@ -24,8 +24,10 @@ public class PluginManifest
     /// <summary>Path to the plugin's entry point assembly, relative to this manifest's own folder.</summary>
     public required string EntryAssembly { get; set; }
 
-    /// <summary>The <see cref="PluginApi.CurrentVersion"/> this plugin was built against. A value
-    /// that does not match the host's exactly is refused before load.</summary>
+    /// <summary>The plugin API this plugin was built against: the <see cref="PluginApi.CurrentVersion"/>
+    /// of the contracts it compiled with. A host runs it only when this lies between its own
+    /// <see cref="PluginApi.MinimumVersion"/> and <see cref="PluginApi.CurrentVersion"/>, and refuses
+    /// it before load otherwise.</summary>
     public required int ApiVersion { get; set; }
     /// <summary>A Bootstrap Icons glyph, or <see cref="PluginIcon.ImageSpecifier"/> for its image.</summary>
     public string? Icon { get; set; }

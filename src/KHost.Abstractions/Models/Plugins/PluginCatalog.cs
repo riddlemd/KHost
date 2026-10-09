@@ -40,20 +40,21 @@ public sealed class PluginCatalogEntry
     /// it actually registered; these are the publisher's word, not the host's.</summary>
     public List<string> Capabilities { get; set; } = [];
 
-    /// <summary>Every release published for this plugin; a host installs the one matching its own
-    /// plugin API version and platform.</summary>
+    /// <summary>Every release published for this plugin, superseded ones included; a host installs
+    /// the newest plugin version built against a plugin API it runs, for its platform.</summary>
     public List<PluginCatalogRelease> Releases { get; set; } = [];
 }
 
-/// <summary>One published build of a plugin, for one plugin API version and (optionally) one
-/// platform.</summary>
+/// <summary>One published build of a plugin, built against one plugin API version and (optionally)
+/// for one platform.</summary>
 public sealed class PluginCatalogRelease
 {
     /// <summary>The plugin's own version string; shown to the host and otherwise not interpreted.</summary>
     public string Version { get; set; } = string.Empty;
 
-    /// <summary>The <see cref="PluginApi.CurrentVersion"/> this build was compiled against. A host
-    /// installs only a release whose value matches its own exactly.</summary>
+    /// <summary>The plugin API this build was built against, as its manifest declares. A host
+    /// installs it only when this lies between its own <see cref="PluginApi.MinimumVersion"/> and
+    /// <see cref="PluginApi.CurrentVersion"/>.</summary>
     public int ApiVersion { get; set; }
 
     /// <summary>Where to download the release zip. Must be https for <see cref="IsInstallable"/>

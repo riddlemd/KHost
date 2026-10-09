@@ -88,16 +88,25 @@ internal static class Program
 
         // No expected id: the payload decides, so a catalog can never claim an id the plugin does
         // not have. That mismatch is otherwise only caught at install time.
-        var manifest = new PluginPayloadReader().Unpack(zipPath, Path.Combine(work, "payload")).Manifest;
+        // The catalog serves every host, so a build for a plugin API this one does not run is listed too.
+        var manifest = new PluginPayloadReader().UnpackForCatalog(zipPath, Path.Combine(work, "payload")).Manifest;
+        var range = PluginApiRange.ThisHost;
 
-        Console.WriteLine($"  manifest: {manifest.Name} {manifest.Version}, id {manifest.Id}, api v{manifest.ApiVersion}");
+        Console.WriteLine($"  manifest: {manifest.Name} {manifest.Version}, id {manifest.Id}, plugin API {manifest.ApiVersion}");
+        Console.WriteLine(range.Covers(manifest.ApiVersion)
+            ? $"  this KHost (plugin API {range.Minimum}-{range.Current}) runs it"
+            : $"  this KHost (plugin API {range.Minimum}-{range.Current}) does not run it: {range.DescribeRefusal(manifest.ApiVersion)}");
 
         if (PluginVersion.Parse(manifest.Version) != PluginVersion.Parse(release.TagName))
             Console.WriteLine($"  warning: tag {release.TagName} and manifest version {manifest.Version} disagree");
 
-        var catalogPath = Path.GetFullPath(options.CatalogPath);
+        if ((options.CatalogPath ?? CatalogLocation.FindDefault(Directory.GetCurrentDirectory())) is not { } catalogOption)
+            return Fail("No KHost.Releases checkout found beside this repo (../../KHost.Releases/main/plugins.json or ../KHost.Releases/plugins.json). Pass --catalog <path>.");
+
+        var catalogPath = Path.GetFullPath(catalogOption);
         var catalog = Read(catalogPath);
-        var before = Serialize(catalog);
+        var schema = File.Exists(catalogPath) ? CatalogSchemaLine.Read(File.ReadAllText(catalogPath)) : null;
+        var before = Serialize(catalog, schema);
 
         CatalogMerge.Apply(catalog, new SyncFacts
         {
@@ -118,7 +127,7 @@ internal static class Program
             },
         });
 
-        var after = Serialize(catalog);
+        var after = Serialize(catalog, schema);
 
         if (before == after)
         {
@@ -149,12 +158,16 @@ internal static class Program
 
     // Nulls are omitted, not written: a neutral release carrying "rid": null is noise in a
     // document people review, and syncing one plugin would rewrite every other entry to add it.
-    private static string Serialize(PluginCatalog catalog)
-        => JsonSerializer.Serialize(catalog, new JsonSerializerOptions(JsonSerializerOptions.Web)
+    private static string Serialize(PluginCatalog catalog, string? schema)
+    {
+        var options = new JsonSerializerOptions(JsonSerializerOptions.Web)
         {
             WriteIndented = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        }) + Environment.NewLine;
+        };
+
+        return CatalogSchemaLine.Prepend(JsonSerializer.Serialize(catalog, options) + Environment.NewLine, schema, options);
+    }
 
     private static GitHubAsset? SelectAsset(GitHubRelease release, string? named)
     {

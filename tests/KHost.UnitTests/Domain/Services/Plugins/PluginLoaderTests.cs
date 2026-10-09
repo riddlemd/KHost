@@ -79,13 +79,26 @@ public class PluginLoaderTests : IDisposable
     }
 
     [Fact]
-    public void Discover_ApiVersionMismatch_ReportsIncompatible()
+    public void Discover_BuiltAgainstANewerApi_ReportsIncompatibleSayingKHostNeedsTheUpdate()
     {
         WritePlugin("future", "0f000000-0000-4000-8000-000000f07072", apiVersion: PluginApi.CurrentVersion + 1);
 
         var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
 
         Assert.Equal(PluginStatus.Incompatible, plugin.Status);
+        Assert.StartsWith("Needs a newer KHost", plugin.Error);
+    }
+
+    [Theory]
+    [MemberData(nameof(PluginPayloadReaderTests.EndsOfThisHostsRange), MemberType = typeof(PluginPayloadReaderTests))]
+    public void Discover_BuiltAgainstAnApiInRange_IsNotIncompatible(int apiVersion)
+    {
+        WritePlugin("in-range", "0f000000-0000-4000-8000-0000000a9e00", apiVersion: apiVersion);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.Equal(PluginStatus.Disabled, plugin.Status);
+        Assert.Null(plugin.Error);
     }
 
     /// <summary>The direction the number actually exists for, and the one a mismatch check written
@@ -94,13 +107,14 @@ public class PluginLoaderTests : IDisposable
     /// moment the host asks for a member that has since been renamed, which is a broken start with
     /// nothing on the Plugins page to say why, rather than one row reading Incompatible.</summary>
     [Fact]
-    public void Discover_APluginBuiltAgainstAnOlderApi_ReportsIncompatible()
+    public void Discover_APluginBuiltAgainstAnOlderApi_ReportsIncompatibleSayingItNeedsAnUpdate()
     {
-        WritePlugin("stale", "05000000-0000-4000-8000-00000057a1e0", apiVersion: PluginApi.CurrentVersion - 1);
+        WritePlugin("stale", "05000000-0000-4000-8000-00000057a1e0", apiVersion: PluginApi.MinimumVersion - 1);
 
         var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
 
         Assert.Equal(PluginStatus.Incompatible, plugin.Status);
+        Assert.EndsWith("it needs an update.", plugin.Error);
     }
 
     [Fact]
