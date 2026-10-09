@@ -329,6 +329,24 @@ public class PluginsManagerPageTests : BunitContext
     }
 
     [Fact]
+    public void StagingBanner_CountsWhatIsStaged()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+        _installer.Staged().Returns(new PluginStagingState
+        {
+            Installs = new HashSet<Guid> { Guid.NewGuid(), Guid.NewGuid() },
+            Removals = new HashSet<string> { "old-plugin" },
+            Failures = new Dictionary<Guid, string> { [Guid.NewGuid()] = "bad zip" },
+        });
+
+        var cut = Render<PluginsManagerPage>();
+
+        Assert.Equal(
+            "2 to install, 1 to remove, 1 failed: restart KHost to apply.",
+            cut.Find(".kh-plugins-manager__restart").TextContent.Trim());
+    }
+
+    [Fact]
     public void NoPlugins_RendersTheEmptyState()
     {
         _pluginsService.Plugins.Returns([]);
