@@ -96,7 +96,7 @@ public class ScreenCommandSerializationTests
                 ],
             },
         },
-        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, PresetUrl = "http://host/media/visualiser-presets/Mine?v=1", Brightness = 80, Saturation = 150, Sensitivity = 200, LevelsUrl = "http://host/media/levels/abc" },
+        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, PresetUrl = "http://host/media/visualiser-presets/Mine?v=1", Brightness = 80, Saturation = 150, Sensitivity = 200, LevelsUrl = "http://host/media/levels/abc", VideoUrl = "http://host/media/backdrops/def" },
         [nameof(ShowNextSingerCommand)] = new ShowNextSingerCommand
         {
             Singer = "Ada",
@@ -166,6 +166,17 @@ public class ScreenCommandSerializationTests
 
         var back = Assert.IsType<LoadMediaCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(json, Options));
         Assert.Equal("http://host/media/a/stream.m3u8", back.StreamUrl);
+    }
+
+    [Fact]
+    public void RoundTrip_KeepsTheVisualisersVideo()
+    {
+        var json = JsonSerializer.Serialize(
+            (ScreenCommandBase)new SetVisualiserCommand { Enabled = true, VideoUrl = "http://host/media/backdrops/abc", Brightness = 70, Saturation = 40 },
+            typeof(ScreenCommandBase), Options);
+
+        var back = Assert.IsType<SetVisualiserCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(json, Options));
+        Assert.Equal(("http://host/media/backdrops/abc", 70, 40), (back.VideoUrl, back.Brightness, back.Saturation));
     }
 
     /// <summary>Lost on the wire, a CD+G would be smoothed back into a blur on the screen.</summary>

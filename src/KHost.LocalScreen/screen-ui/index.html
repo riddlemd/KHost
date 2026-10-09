@@ -128,7 +128,7 @@
         /* Stands in for the black under a song's words when the song has no picture of its own.
            Over the video elements, which have nothing to show then, and under the words. The
            drawing buffer is smaller than the window and stretched to it. */
-        #visualiser, #visualiser-eq {
+        #visualiser, #visualiser-eq, #visualiser-video {
             position: absolute;
             inset: 0;
             width: 100%;
@@ -137,7 +137,10 @@
             pointer-events: none;
         }
 
-        #visualiser[hidden], #visualiser-eq[hidden] { display: none; }
+        /* A library video in the visualiser's place fills the screen, cropped rather than boxed. */
+        #visualiser-video { object-fit: cover; }
+
+        #visualiser[hidden], #visualiser-eq[hidden], #visualiser-video[hidden] { display: none; }
 
         /* The intro card's own layer, so a stop's fade can dim it while the card's timing sets
            the card. Over the song's picture and under a still, like the words. */
@@ -593,6 +596,8 @@
         <canvas id="visualiser" hidden></canvas>
         <!-- The host's own drawings take a canvas of their own: butterchurn holds the one above as WebGL. -->
         <canvas id="visualiser-eq" hidden></canvas>
+        <!-- A library video in the visualiser's place: muted, looping, never the song's own picture. -->
+        <video id="visualiser-video" muted loop playsinline preload="auto" hidden></video>
         <!-- The native path's picture. Sits with the video elements because it stands in their place:
              a song is drawn here or streamed there, never both. -->
         <canvas id="lyrics" class="video" hidden></canvas>

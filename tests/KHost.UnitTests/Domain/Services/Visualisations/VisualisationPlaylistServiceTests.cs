@@ -106,6 +106,38 @@ public class VisualisationPlaylistServiceTests
     }
 
     [Fact]
+    public async Task ReplaceEntriesAsync_AVideo_KeepsItsVideoAndNoPresetName()
+    {
+        var video = Guid.NewGuid();
+        IReadOnlyList<VisualisationEntry>? saved = null;
+        await _repository.ReplaceEntriesAsync(_playlist.Id, Arg.Do<IReadOnlyList<VisualisationEntry>>(entries => saved = entries));
+
+        await Service().ReplaceEntriesAsync(_playlist.Id,
+        [
+            new() { PresetSource = VisualiserPresetSource.Video, PresetName = "left over", VideoMediaId = video },
+            new() { PresetSource = VisualiserPresetSource.Video },
+        ]);
+
+        Assert.Equal([(video, ""), (null, "")], saved!.Select(e => (e.VideoMediaId, e.PresetName)));
+    }
+
+    [Theory]
+    [InlineData(VisualiserPresetSource.Bundled)]
+    [InlineData(VisualiserPresetSource.Imported)]
+    [InlineData(VisualiserPresetSource.BuiltIn)]
+    public async Task ReplaceEntriesAsync_APreset_DropsAnyVideo(VisualiserPresetSource source)
+    {
+        IReadOnlyList<VisualisationEntry>? saved = null;
+        await _repository.ReplaceEntriesAsync(_playlist.Id, Arg.Do<IReadOnlyList<VisualisationEntry>>(entries => saved = entries));
+
+        await Service().ReplaceEntriesAsync(_playlist.Id, [new() { PresetSource = source, PresetName = "p", VideoMediaId = Guid.NewGuid() }]);
+
+        var entry = Assert.Single(saved!);
+        Assert.Null(entry.VideoMediaId);
+        Assert.Equal("p", entry.PresetName);
+    }
+
+    [Fact]
     public async Task ReplaceEntriesAsync_HoldsTheBuiltInOptionsToWhatTheScreenDraws()
     {
         IReadOnlyList<VisualisationEntry>? saved = null;

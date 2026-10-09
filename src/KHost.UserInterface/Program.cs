@@ -86,6 +86,7 @@ internal static class Program
         app.MapMediaStream();
         app.MapMediaImages();
         app.MapSongLevels();
+        app.MapVideoBackdrops();
         app.MapVisualiserPresets();
         app.MapThemeStylesheets();
         app.MapPluginIcons();

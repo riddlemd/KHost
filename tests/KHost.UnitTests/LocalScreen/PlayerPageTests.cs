@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using KHost.LocalScreen;
 
 namespace KHost.UnitTests.LocalScreen;
@@ -314,6 +315,33 @@ public class PlayerPageTests
 
         Assert.True(videoB >= 0 && visualiser > videoB && lyrics > visualiser,
             "the visualiser must sit after the video elements and before the words in the page");
+    }
+
+    // A library video in the visualiser's place: on the stage over the song's own elements, under the words.
+    [Fact]
+    public void BuildPlayerPage_Always_PlaysTheBackdropVideoUnderTheWords()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var stage = page.IndexOf("<div id=\"stage\">", StringComparison.Ordinal);
+        var videoB = page.IndexOf("<video id=\"video-b\"", StringComparison.Ordinal);
+        var backdrop = page.IndexOf("<video id=\"visualiser-video\"", StringComparison.Ordinal);
+        var lyrics = page.IndexOf("<canvas id=\"lyrics\"", StringComparison.Ordinal);
+
+        Assert.True(stage >= 0 && videoB > stage && backdrop > videoB && lyrics > backdrop,
+            "the backdrop video must sit on the stage after the song's elements and before the words");
+    }
+
+    // Unmuted or without playsinline, a web view refuses to start it unprompted.
+    [Fact]
+    public void BuildPlayerPage_Always_MakesTheBackdropVideoMutedLoopingAndInline()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var tag = Regex.Match(page, "<video id=\"visualiser-video\"[^>]*>").Value;
+
+        Assert.Equal(["hidden", "loop", "muted", "playsinline", "preload=\"auto\""],
+            tag.Split(' ', StringSplitOptions.RemoveEmptyEntries)[2..].Select(a => a.TrimEnd('>')).Order());
     }
 
     // The window is chromeless, so a page shipped without the bar has no way to move or close it.

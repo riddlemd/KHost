@@ -3,6 +3,8 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.DataAccess.Repositories;
+using KHost.Domain.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Visualisations;
 using KHost.UnitTests.DataAccess;
@@ -25,6 +27,10 @@ public class VisualisationsManagerPageTests : BunitContext
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
+    private readonly IMediaService _media = Substitute.For<IMediaService>();
+    private readonly IMediaUploader _uploader = Substitute.For<IMediaUploader>();
+    private readonly IVideoBackdropService _backdrops = Substitute.For<IVideoBackdropService>();
+    private readonly Media _waves = new() { Id = Guid.NewGuid(), Title = "Waves", FilePath = "/videos/waves.mp4", Type = MediaType.Video };
     private Func<Task>? _confirm;
 
     public VisualisationsManagerPageTests()
@@ -55,6 +61,14 @@ public class VisualisationsManagerPageTests : BunitContext
         Services.AddSingleton(_dialogs);
         Services.AddSingleton(_flash);
         Services.AddSingleton<IMessageBroker>(_broker);
+
+        _media.ReadAllByTypesAsync(Arg.Any<MediaType[]>()).Returns(new List<Media> { _waves });
+        _media.ReadAsync(_waves.Id).Returns(_waves);
+        _uploader.ExtensionsFor(Arg.Any<IReadOnlyList<MediaType>>()).Returns([]);
+        _backdrops.DirectUrlForAsync(_waves, Arg.Any<CancellationToken>()).Returns("http://host:5251/media/backdrops/abc");
+        Services.AddSingleton(_media);
+        Services.AddSingleton(_uploader);
+        Services.AddSingleton(_backdrops);
     }
 
     protected override void Dispose(bool disposing)
@@ -415,5 +429,113 @@ public class VisualisationsManagerPageTests : BunitContext
         cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("nope", "Bad.milk"));
 
         _flash.Received(1).Show("Bad.milk: That is not a butterchurn preset.", FlashType.Warning);
+    }
+
+    /// <summary>A new entry switched to a video, with its row picked in the picker that takes the
+    /// preset select's place.</summary>
+    private async Task<IRenderedComponent<VisualisationsManagerPage>> WithVideoAsync()
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+        cut.Find("#visualisation-add-entry").Click();
+        cut.Find("#visualisation-preset").Change(VisualisationsManagerPage.VideoKey);
+
+        cut.Find(".kh-visualisations__video .kh-combobox__input").Focus();
+        cut.FindAll(".kh-combobox__option").Single(o => o.TextContent.Trim() == "Waves").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(_waves.Id, Assert.Single(StoredAsync().GetAwaiter().GetResult().Entries).VideoMediaId));
+        return cut;
+    }
+
+    [Fact]
+    public async Task ChoosingAVideo_SavesTheRowWithNoPresetName()
+    {
+        await WithVideoAsync();
+
+        var entry = Assert.Single((await StoredAsync()).Entries);
+        Assert.Equal((VisualiserPresetSource.Video, _waves.Id, ""), (entry.PresetSource, entry.VideoMediaId, entry.PresetName));
+    }
+
+    [Fact]
+    public async Task ChoosingAVideo_SelectsTheVideoChoice()
+    {
+        var cut = await WithVideoAsync();
+
+        Assert.Equal(VisualisationsManagerPage.VideoKey, cut.Find("#visualisation-preset").GetAttribute("value"));
+        Assert.Empty(cut.FindAll("#visualisation-preset option[value=\"3:\"] ~ option[value=\"3:\"]"));
+    }
+
+    [Fact]
+    public async Task SwitchingFromAVideoToAPreset_ClearsTheVideo()
+    {
+        var cut = await WithVideoAsync();
+
+        cut.Find("#visualisation-preset").Change("0:_Mig_049");
+
+        var entry = Assert.Single((await StoredAsync()).Entries);
+        Assert.Equal((VisualiserPresetSource.Bundled, "_Mig_049", (Guid?)null), (entry.PresetSource, entry.PresetName, entry.VideoMediaId));
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".kh-visualisations__video")));
+    }
+
+    /// <summary>A video plays as it is: nothing about bars, palette or the music applies.</summary>
+    [Fact]
+    public async Task AVideoEntry_OffersBrightnessAndColourOnly()
+    {
+        var cut = await WithBuiltInAsync("spectrum-bars");
+
+        cut.Find("#visualisation-preset").Change(VisualisationsManagerPage.VideoKey);
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".kh-visualisations__video")));
+        Assert.Empty(cut.FindAll("#visualisation-bars"));
+        Assert.Empty(cut.FindAll("#visualisation-palette"));
+        Assert.Empty(cut.FindAll("#visualisation-sensitivity"));
+        Assert.Single(cut.FindAll("#visualisation-brightness"));
+        Assert.Single(cut.FindAll("#visualisation-saturation"));
+    }
+
+    [Fact]
+    public async Task AVideoTheScreenPlaysAsItIs_IsSentToThePreview_WithNoNote()
+    {
+        var cut = await WithVideoAsync();
+
+        cut.WaitForAssertion(() => Assert.Contains(JSInterop.Invocations, call =>
+            call.Identifier == "khVisualiserPreview.show"
+            && call.Arguments[1]!.ToString()!.Contains("videoUrl = http://host:5251/media/backdrops/abc,")));
+        Assert.Empty(cut.FindAll(".kh-visualisations__video-note"));
+    }
+
+    [Fact]
+    public async Task AVideoNeedingAnEncode_SaysThePreviewCannotPlayIt_AndSendsNoVideo()
+    {
+        _backdrops.DirectUrlForAsync(_waves, Arg.Any<CancellationToken>()).Returns((string?)null);
+
+        var cut = await WithVideoAsync();
+
+        cut.WaitForAssertion(() => Assert.Contains("MP4 (H.264)", cut.Find(".kh-visualisations__video + .kh-note").TextContent));
+        Assert.DoesNotContain(JSInterop.Invocations, call =>
+            call.Identifier == "khVisualiserPreview.show" && call.Arguments[1]!.ToString()!.Contains("videoUrl = http"));
+    }
+
+    [Fact]
+    public async Task AVideoEntry_IsListedByTheVideosTitle_WithoutASensitivity()
+    {
+        var playlist = await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        await _playlists.ReplaceEntriesAsync(playlist.Id, [new VisualisationEntry { PresetSource = VisualiserPresetSource.Video, VideoMediaId = _waves.Id }]);
+
+        var cut = Render<VisualisationsManagerPage>();
+
+        Assert.Equal("Waves", cut.Find(".kh-visualisations__entry-name").TextContent);
+        Assert.DoesNotContain("Sensitivity", cut.Find(".kh-visualisations__entry-look").TextContent);
+    }
+
+    [Fact]
+    public async Task AVideoEntryWhoseRowIsGone_IsListedAsNotFound()
+    {
+        var playlist = await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        await _playlists.ReplaceEntriesAsync(playlist.Id, [new VisualisationEntry { PresetSource = VisualiserPresetSource.Video, VideoMediaId = Guid.NewGuid() }]);
+
+        var cut = Render<VisualisationsManagerPage>();
+
+        Assert.Equal("Video not found", cut.Find(".kh-visualisations__entry-name").TextContent);
     }
 }
