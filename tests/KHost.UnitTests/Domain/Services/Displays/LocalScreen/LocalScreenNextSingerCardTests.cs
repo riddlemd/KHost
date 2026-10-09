@@ -173,4 +173,24 @@ public class LocalScreenNextSingerCardTests
         Assert.Equal(NextSingerBackground.Over, card.Background);
         Assert.Null(card.Visualiser);
     }
+
+    /// <summary>A video is drawn only under a song; its turn is spent, not passed to the next entry.</summary>
+    [Fact]
+    public async Task NextSingerAnnounced_VisualisationPicksAVideo_DrawsNoVisualiserAndSpendsTheTurn()
+    {
+        _settings.NextSingerBackground = NextSingerBackground.Visualisation;
+        _playlist.Entries[0].PresetSource = VisualiserPresetSource.Video;
+        _playlist.Entries[0].PresetName = "";
+        _playlist.Entries[0].VideoMediaId = Guid.NewGuid();
+        using var provider = Provider();
+
+        await AnnounceAsync();
+        await AnnounceAsync();
+
+        var cards = Cards();
+        Assert.Equal(2, cards.Count);
+        Assert.Equal(NextSingerBackground.Over, cards[0].Background);
+        Assert.Null(cards[0].Visualiser);
+        Assert.Equal("_Mig_049", cards[1].Visualiser?.PresetName);
+    }
 }

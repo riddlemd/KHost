@@ -62,6 +62,7 @@ internal class VisualisationPlaylistRepository : BaseRepository<VisualisationPla
                 Position = i,
                 PresetSource = entry.PresetSource,
                 PresetName = entry.PresetName,
+                VideoMediaId = entry.VideoMediaId,
                 Brightness = entry.Brightness,
                 Saturation = entry.Saturation,
                 Sensitivity = entry.Sensitivity,

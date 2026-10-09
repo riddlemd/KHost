@@ -105,6 +105,13 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// Kept across a key change's reload: the levels are indexed by song time.</summary>
     private string? _visualiserLevelsUrl;
 
+    /// <summary>The video entry's URL for <see cref="_visualiserFor"/>, null when it cannot be had; asked
+    /// once per song and video, since the first ask may encode for seconds.</summary>
+    private (Guid MediaId, string? Url)? _visualiserVideo;
+
+    /// <summary>The video being resolved off the load path for <see cref="_visualiserFor"/>.</summary>
+    private Guid? _visualiserVideoPending;
+
     // Every venue edit and every song redraws the codes, and the picture only changes when the
     // payload does. Encoding a few times a minute for an unchanged string is work for nothing.
     private readonly Dictionary<string, (string Image, int Modules)> _encoded = [];
@@ -641,6 +648,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                 _visualiserPick = null;
                 _visualiserSourceHasPicture = null;
                 _visualiserLevelsUrl = null;
+                _visualiserVideo = null;
+                _visualiserVideoPending = null;
             }
 
             if (load is not null) _visualiserLoad = load;
@@ -677,6 +686,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
         // Picked only once the song is known to draw one, so a video does not use up a turn.
         if (await EntryForSongAsync(playlists, playlistId) is not { } entry) return VisualiserOff;
+
+        // Never through the levels: a video is drawn muted and does not follow the song.
+        if (entry.PresetSource == VisualiserPresetSource.Video) return VideoVisualiserFor(song, entry) ?? VisualiserOff;
 
         return VisualiserFor(entry, song.Media.Title, () => LevelsUrlFor(path, load)) ?? VisualiserOff;
     }
@@ -731,6 +743,93 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         };
     }
 
+    /// <summary>The command that plays <paramref name="entry"/>'s video, once its URL is known; null
+    /// until then, or when it cannot be had.</summary>
+    /// <remarks>The first ask for a song is answered off the load path: an encode can take seconds,
+    /// and the song must not wait on its decoration. <see cref="ResolveVideoAsync"/> decides again
+    /// once it is known.</remarks>
+    private SetVisualiserCommand? VideoVisualiserFor(PlaybackProgram.Playing song, VisualisationEntry entry)
+    {
+        if (entry.VideoMediaId is not { } mediaId)
+        {
+            _logger.LogWarning("The visualisation names no video; '{Title}' draws without it", song.Media.Title);
+            return null;
+        }
+
+        if (_visualiserVideo is { } known && known.MediaId == mediaId)
+        {
+            if (known.Url is null) return null;
+
+            return new SetVisualiserCommand
+            {
+                Enabled = true,
+                VideoUrl = known.Url,
+                Brightness = entry.Brightness,
+                Saturation = entry.Saturation,
+            };
+        }
+
+        if (_visualiserVideoPending != mediaId)
+        {
+            _visualiserVideoPending = mediaId;
+            _ = Task.Run(() => ResolveVideoAsync(song, entry.Id, mediaId));
+        }
+
+        return null;
+    }
+
+    /// <summary>Finds where the screen plays a video entry's video, then draws it if the same song
+    /// and the same entry are still current.</summary>
+    /// <remarks>Never throws. A song that ended, or an entry replaced, while it was encoding gets
+    /// nothing.</remarks>
+    private async Task ResolveVideoAsync(PlaybackProgram.Playing song, Guid entryId, Guid mediaId)
+    {
+        string? url = null;
+        try
+        {
+            var media = _services?.GetService<IMediaService>() is { } library ? await library.ReadAsync(mediaId) : null;
+
+            if (media is null)
+                _logger.LogWarning("The visualisation's video {MediaId} is not in the library; '{Title}' draws without it", mediaId, song.Media.Title);
+            else if (media.Type != MediaType.Video)
+                _logger.LogWarning("The visualisation names '{Video}', which is not a video; '{Title}' draws without it", media.Title, song.Media.Title);
+            else if (_services?.GetService<IVideoBackdropService>() is { } backdrops)
+                url = await backdrops.UrlForAsync(media);
+
+            if (media is { Type: MediaType.Video } && url is null)
+                _logger.LogWarning("The screen cannot play '{Video}'; '{Title}' draws without it", media.Title, song.Media.Title);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not find the visualisation's video {MediaId} for '{Title}'", mediaId, song.Media.Title);
+        }
+
+        await _visualiserLock.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(song, _visualiserFor)
+                || !ReferenceEquals(song, _services?.GetService<IPlaybackService>()?.CurrentProgram))
+                return;
+
+            // Kept even for an entry since replaced: it is this song's answer for this video.
+            if (_visualiserVideoPending == mediaId) _visualiserVideoPending = null;
+            _visualiserVideo = (mediaId, url);
+
+            if (url is null || _visualiserPick?.EntryId != entryId || _visualiserLoad is not { } loaded) return;
+
+            // Decided whole again rather than sent as found: the venue or the entry may have moved.
+            await SendAsync(await DecideVisualiserAsync(song, loaded));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not draw the visualisation's video for '{Title}'", song.Media.Title);
+        }
+        finally
+        {
+            _visualiserLock.Release();
+        }
+    }
+
     /// <summary>Hands the screen the "Up next" card with what the venue wants behind it.</summary>
     /// <remarks>A one-shot: a venue edit while it is up reaches the next announcement, not this one.
     /// A visualisation the venue cannot draw (no playlist, an empty one, a preset gone) falls back
@@ -768,6 +867,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
             // An empty or missing playlist answers null.
             if (await playlists.SelectNextAsync(playlistId) is not { } entry) return null;
+
+            // The turn is taken all the same: looking on for a drawing would spend two.
+            if (entry.PresetSource == VisualiserPresetSource.Video) return null;
 
             return VisualiserFor(entry, "the next-singer card", () => null);
         }

@@ -338,9 +338,11 @@ public sealed class SetTimedLyricsCommand : ScreenCommandBase
 /// <summary>Whether the screen draws a music-reactive visualiser under the loaded song's words, which
 /// preset, and how.</summary>
 /// <remarks>Sent after every load and whenever the program, the venue or its playlist moves, so it is
-/// the whole state. The screen also takes it down itself once a stop has faded out. Exactly one of
-/// <see cref="PresetName"/> and <see cref="PresetUrl"/> is set while it is on; a preset the screen
-/// cannot resolve leaves black.</remarks>
+/// the whole state. The screen also takes it down itself once a stop has faded out. While it is on,
+/// exactly one of <see cref="PresetName"/>, <see cref="PresetUrl"/>, <see cref="BuiltIn"/> and
+/// <see cref="VideoUrl"/> says what to draw; a preset the screen cannot resolve leaves black.
+/// <see cref="Brightness"/> and <see cref="Saturation"/> apply to a video too; <see cref="BarCount"/>,
+/// <see cref="Colour"/>, <see cref="Sensitivity"/> and <see cref="LevelsUrl"/> do not.</remarks>
 public sealed class SetVisualiserCommand : ScreenCommandBase
 {
     /// <summary>False takes it down and leaves black behind the words.</summary>
@@ -380,6 +382,9 @@ public sealed class SetVisualiserCommand : ScreenCommandBase
     /// <remarks>For a song the screen cannot listen to itself — an encoded song where the web view
     /// has no <c>captureStream</c>. A fetch waits for the read, so the URL is sent at once.</remarks>
     public string? LevelsUrl { get; init; }
+
+    /// <summary>A video the screen plays muted and looping in place of a preset, from its start each song.</summary>
+    public string? VideoUrl { get; init; }
 }
 
 /// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>

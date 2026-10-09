@@ -218,7 +218,8 @@ function createVisualiserTap(context, node) {
 /// (eq-visualisers.js): a canvas holds one kind of context for life, and butterchurn's is WebGL.
 /// `clock` answers the song position in seconds (null when nothing holds the song), for the host
 /// levels to be read at. `fetchPreset` answers an imported preset's URL with its parsed file.
-function createVisualiser(canvas, { engine, presets, reportError, frame, cancelFrame, now, clock: songClock, fetchPreset, eqCanvas, createEq }) {
+/// `videoEl` is a <video> for a library video drawn in place of either, muted and looping.
+function createVisualiser(canvas, { engine, presets, reportError, frame, cancelFrame, now, clock: songClock, fetchPreset, eqCanvas, createEq, videoEl }) {
     const requestFrame = frame || ((cb) => window.requestAnimationFrame(cb));
     const cancel = cancelFrame || ((id) => window.cancelAnimationFrame(id));
     const clock = now || (() => performance.now());
@@ -229,6 +230,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
     // The built-in renderer, and whether what is shown is one of its styles rather than a preset.
     let eq = null;
     let builtIn = false;
+    let video = false;
     let spectrum = null;
     // What is drawn (the preset's name or URL) and what was last asked for, which a slow fetch
     // must not overtake.
@@ -297,7 +299,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
     }
 
     function running() {
-        return (builtIn ? eq !== null : viz !== null) && shownKey !== null && !frozen;
+        return !video && (builtIn ? eq !== null : viz !== null) && shownKey !== null && !frozen;
     }
 
     function schedule() {
@@ -364,16 +366,60 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         return feed;
     }
 
+    function playVideo() {
+        // AbortError is a load superseding the play (a new URL, or the hide), not a failure.
+        videoEl.play().catch((e) => { if (e && e.name !== 'AbortError') reportError(`visualiser video: ${e}`); });
+    }
+
+    /// Paused before it is hidden: WebKit stalls a decoder whose element leaves the render tree playing.
+    function stopVideo() {
+        video = false;
+        if (!videoEl || !videoEl.hasAttribute('src')) { if (videoEl) videoEl.hidden = true; return; }
+
+        videoEl.pause();
+        videoEl.removeAttribute('src');
+        // Drops the decoder and the connection; removing src alone keeps the last file loaded.
+        videoEl.load();
+        videoEl.hidden = true;
+    }
+
     function hide() {
         shownKey = null;
         wantedKey = null;
         builtIn = false;
         unschedule();
+        stopVideo();
         canvas.hidden = true;
         if (eqCanvas) eqCanvas.hidden = true;
     }
 
+    /// The same URL again keeps it playing where it is, so a key change's reload does not restart it.
+    function showVideo(url) {
+        const key = `video:${url}`;
+        if (!videoEl) { reportError('visualiser video: no element'); hide(); return false; }
+
+        unschedule();
+        builtIn = false;
+        canvas.hidden = true;
+        if (eqCanvas) eqCanvas.hidden = true;
+
+        if (key !== shownKey) {
+            // Both, because autoplay is judged on the attribute and WebKit reads the property.
+            videoEl.muted = true;
+            videoEl.setAttribute('muted', '');
+            videoEl.src = url;
+            videoEl.currentTime = 0;
+        }
+
+        shownKey = key;
+        video = true;
+        videoEl.hidden = false;
+        if (!frozen) playVideo();
+        return true;
+    }
+
     function showPreset(key, preset) {
+        if (video) stopVideo();
         if (key !== shownKey || builtIn) {
             try { viz.loadPreset(preset, 0); } catch (e) { reportError(`visualiser preset: ${e}`); hide(); return false; }
         }
@@ -394,6 +440,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
             return false;
         }
 
+        if (video) stopVideo();
         shownKey = key;
         builtIn = true;
         canvas.hidden = true;
@@ -405,8 +452,14 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
     const api = {
         /// Shows a shipped preset by `presetName` or an imported one from `presetUrl`, answering
         /// whether it is up. The same one again leaves the picture running, so a rebuild at a new
-        /// key does not restart it. One that cannot be found or read leaves black.
-        show({ presetName, presetUrl, builtIn: style } = {}) {
+        /// key does not restart it. One that cannot be found or read leaves black. A `videoUrl` plays
+        /// that video from its start instead, unless it is the one already playing.
+        show({ presetName, presetUrl, builtIn: style, videoUrl } = {}) {
+            if (videoUrl) {
+                wantedKey = `video:${videoUrl}`;
+                return Promise.resolve(showVideo(videoUrl));
+            }
+
             if (style) {
                 wantedKey = `builtin:${style}`;
                 return Promise.resolve(showBuiltIn(style));
@@ -416,7 +469,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
             wantedKey = key;
             if (!key || !ensureEngine()) { hide(); return Promise.resolve(false); }
 
-            if (key === shownKey && !builtIn) return Promise.resolve(showPreset(key, null));
+            if (key === shownKey && !builtIn && !video) return Promise.resolve(showPreset(key, null));
 
             if (!presetUrl) {
                 const preset = findVisualiserPreset(presets, presetName);
@@ -438,6 +491,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         setLook({ brightness, saturation, sensitivity: react, barCount, colourScheme, colour } = {}) {
             canvas.style.filter = visualiserFilter(brightness, saturation);
             if (eqCanvas) eqCanvas.style.filter = canvas.style.filter;
+            if (videoEl) videoEl.style.filter = canvas.style.filter;
             sensitivity = Number.isFinite(react) ? Math.max(0, react) / 100 : 1;
             look = { barCount, colourScheme, colour };
             if (eq) eq.setOptions(look);
@@ -448,6 +502,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         /// Paused, the last frame holds: motion under a stopped song reads as the song still going.
         freeze(value) {
             frozen = value === true;
+            if (video) { if (frozen) videoEl.pause(); else playVideo(); return; }
             if (frozen) unschedule(); else schedule();
         },
 
@@ -487,6 +542,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         get listening() { return tap !== null; },
         get hostLevels() { return track !== null; },
         get builtIn() { return builtIn; },
+        get video() { return video; },
     };
 
     return api;

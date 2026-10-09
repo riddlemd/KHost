@@ -15,5 +15,10 @@
         &[hidden] {
             display: none;
         }
+
+        // Fills the frame as the screen fills the window, cropped rather than boxed.
+        &--video {
+            object-fit: cover;
+        }
     }
 }

@@ -2,6 +2,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Visualisations;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -21,6 +22,11 @@ public partial class VisualisationsManagerPage : IDisposable
     [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IMediaService Media { get; set; } = default!;
+    [Inject] private IVideoBackdropService Backdrops { get; set; } = default!;
+
+    /// <summary>The select's value for a video entry, whichever video it names.</summary>
+    internal static readonly string VideoKey = PresetKey(VisualiserPresetSource.Video, "");
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -29,6 +35,13 @@ public partial class VisualisationsManagerPage : IDisposable
     private Guid? _selectedId;
     private int _selectedEntry = -1;
     private Guid? _activePlaylistId;
+
+    /// <summary>The library rows video entries name, by id; a row since gone is absent.</summary>
+    private Dictionary<Guid, Media> _videos = [];
+
+    /// <summary>The preview's answer for one video: where it plays as it is, or null when it would
+    /// need encoding. Asked once per video picked, since asking reads the file.</summary>
+    private (Guid MediaId, string? Url)? _previewVideo;
 
     private ElementReference _preview;
 
@@ -72,8 +85,17 @@ public partial class VisualisationsManagerPage : IDisposable
             return;
         }
 
+        if (entry is { PresetSource: VisualiserPresetSource.Video, VideoMediaId: { } videoId } && _previewVideo?.MediaId != videoId)
+        {
+            _previewVideo = (videoId, _videos.TryGetValue(videoId, out var video) ? await Backdrops.DirectUrlForAsync(video) : null);
+            // The note under the picker follows the answer, and the message below waits for it.
+            StateHasChanged();
+            return;
+        }
+
         var message = new
         {
+            videoUrl = PreviewVideoUrl(entry),
             presetName = entry.PresetSource == VisualiserPresetSource.Bundled ? entry.PresetName : null,
             presetUrl = entry.PresetSource == VisualiserPresetSource.Imported ? ImportedUrl(entry.PresetName) : null,
             builtIn = entry.PresetSource == VisualiserPresetSource.BuiltIn ? entry.PresetName : null,
@@ -112,6 +134,7 @@ public partial class VisualisationsManagerPage : IDisposable
         _playlists = [.. await Playlists.ReadAllWithEntriesAsync()];
         _presets = Presets.ReadAll();
         _activePlaylistId = (await Venues.ReadSelectedVenueAsync())?.Settings.VisualisationPlaylistId;
+        await ReadVideosAsync();
 
         if (_selectedId is not null && Selected is null) _selectedId = _playlists.FirstOrDefault()?.Id;
         if (SelectedEntry is null) _selectedEntry = Selected is { Entries.Count: > 0 } s ? Math.Min(Math.Max(_selectedEntry, 0), s.Entries.Count - 1) : -1;
@@ -234,6 +257,15 @@ public partial class VisualisationsManagerPage : IDisposable
         await SaveEntriesAsync(playlist);
     }
 
+    private async Task SetVideoAsync(Guid? mediaId)
+    {
+        if (Selected is not { } playlist || SelectedEntry is not { PresetSource: VisualiserPresetSource.Video } entry) return;
+
+        entry.VideoMediaId = mediaId;
+        await ReadVideosAsync();
+        await SaveEntriesAsync(playlist);
+    }
+
     /// <summary>A slider moving: shown in the preview at once, saved when it is let go.</summary>
     private void Adjust(Setting setting, object? value)
     {
@@ -339,8 +371,30 @@ public partial class VisualisationsManagerPage : IDisposable
             "Delete");
     }
 
+    /// <summary>Read by id rather than every video in the library: a list names only a few.</summary>
+    private async Task ReadVideosAsync()
+    {
+        var ids = _playlists.SelectMany(p => p.Entries).Select(e => e.VideoMediaId).OfType<Guid>().Distinct();
+        var videos = new Dictionary<Guid, Media>();
+        foreach (var id in ids)
+            if (await Media.ReadAsync(id) is { } row) videos[id] = row;
+
+        _videos = videos;
+    }
+
+    private string? PreviewVideoUrl(VisualisationEntry entry)
+        => entry is { PresetSource: VisualiserPresetSource.Video, VideoMediaId: { } id } && _previewVideo is { } known && known.MediaId == id
+            ? known.Url
+            : null;
+
+    /// <summary>Whether the picked video is there but the preview cannot play it as it is.</summary>
+    private bool PreviewNeedsEncode(VisualisationEntry entry)
+        => entry is { PresetSource: VisualiserPresetSource.Video, VideoMediaId: { } id }
+           && _videos.ContainsKey(id)
+           && _previewVideo is { } known && known.MediaId == id && known.Url is null;
+
     private bool IsAvailable(VisualisationEntry entry)
-        => _presets.Any(p => p.Source == entry.PresetSource && p.Name == entry.PresetName);
+        => entry.PresetSource == VisualiserPresetSource.Video || _presets.Any(p => p.Source == entry.PresetSource && p.Name == entry.PresetName);
 
     private static string PresetKey(VisualisationEntry entry) => PresetKey(entry.PresetSource, entry.PresetName);
 
@@ -354,12 +408,18 @@ public partial class VisualisationsManagerPage : IDisposable
     }
 
     private string DescribePreset(VisualisationEntry entry)
-        => _presets.FirstOrDefault(p => p.Source == entry.PresetSource && p.Name == entry.PresetName) is { } preset
+        => entry.PresetSource == VisualiserPresetSource.Video
+            ? entry.VideoMediaId is not { } id ? "No video picked"
+              : _videos.TryGetValue(id, out var video) ? video.Title
+              : "Video not found"
+            : _presets.FirstOrDefault(p => p.Source == entry.PresetSource && p.Name == entry.PresetName) is { } preset
             ? preset.Title ?? preset.Name
             : $"{entry.PresetName} (not there any more)";
 
     private static string DescribeLook(VisualisationEntry entry)
-        => $"Brightness {entry.Brightness}% · Colour {entry.Saturation}% · Sensitivity {entry.Sensitivity}%"
+        => $"Brightness {entry.Brightness}% · Colour {entry.Saturation}%"
+           // A video plays as it is, deaf to the song.
+           + (entry.PresetSource == VisualiserPresetSource.Video ? "" : $" · Sensitivity {entry.Sensitivity}%")
            + (entry.PresetSource != VisualiserPresetSource.BuiltIn ? ""
                : (HasBars(entry) ? $" · {entry.BarCount} bars" : "") + entry.ColourScheme switch
                {

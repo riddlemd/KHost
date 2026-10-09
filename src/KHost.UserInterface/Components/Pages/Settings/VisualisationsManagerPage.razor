@@ -152,9 +152,25 @@
                                                 {
                                                     <option value="@PresetKey(editing)">@editing.PresetName: not there any more</option>
                                                 }
+                                                <option value="@VideoKey">A video from the library</option>
                                                 <VisualiserPresetOptions Presets="_presets" />
                                             </select>
                                         </div>
+
+                                        @if (editing.PresetSource == VisualiserPresetSource.Video)
+                                        {
+                                            <div class="kh-venue-settings__field kh-visualisations__video">
+                                                <label class="kh-form-label">Video</label>
+                                                <MediaPicker Types="[MediaType.Video]" MediaId="editing.VideoMediaId" MediaIdChanged="SetVideoAsync"
+                                                             AllowBrowse="false" Placeholder="Pick a video" />
+                                            </div>
+                                            @if (PreviewNeedsEncode(editing))
+                                            {
+                                                <p class="kh-note kh-visualisations__video-note">
+                                                    Preview plays MP4 (H.264) videos only; this one is converted for the screen when a song plays.
+                                                </p>
+                                            }
+                                        }
 
                                         <div class="kh-venue-settings__row">
                                             <label for="visualisation-brightness" class="kh-form-label">Brightness</label>
@@ -180,20 +196,23 @@
                                             </span>
                                         </div>
 
-                                        <div class="kh-venue-settings__row">
-                                            <span class="kh-venue-settings__labelled">
-                                                <label for="visualisation-sensitivity" class="kh-form-label">Audio sensitivity</label>
-                                                <span class="kh-note">How hard it moves to the music. 100% is as the preset was made.</span>
-                                            </span>
-                                            <span class="kh-visualisations__slider">
-                                                <input id="visualisation-sensitivity" type="range" class="kh-visualisations__range"
-                                                       min="@VisualisationEntry.MinSensitivity" max="@VisualisationEntry.MaxSensitivity" step="10"
-                                                       value="@editing.Sensitivity"
-                                                       @oninput="e => Adjust(Setting.Sensitivity, e.Value)"
-                                                       @onchange="e => CommitAsync(Setting.Sensitivity, e.Value)" />
-                                                <span class="kh-visualisations__value">@editing.Sensitivity%</span>
-                                            </span>
-                                        </div>
+                                        @if (editing.PresetSource != VisualiserPresetSource.Video)
+                                        {
+                                            <div class="kh-venue-settings__row">
+                                                <span class="kh-venue-settings__labelled">
+                                                    <label for="visualisation-sensitivity" class="kh-form-label">Audio sensitivity</label>
+                                                    <span class="kh-note">How hard it moves to the music. 100% is as the preset was made.</span>
+                                                </span>
+                                                <span class="kh-visualisations__slider">
+                                                    <input id="visualisation-sensitivity" type="range" class="kh-visualisations__range"
+                                                           min="@VisualisationEntry.MinSensitivity" max="@VisualisationEntry.MaxSensitivity" step="10"
+                                                           value="@editing.Sensitivity"
+                                                           @oninput="e => Adjust(Setting.Sensitivity, e.Value)"
+                                                           @onchange="e => CommitAsync(Setting.Sensitivity, e.Value)" />
+                                                    <span class="kh-visualisations__value">@editing.Sensitivity%</span>
+                                                </span>
+                                            </div>
+                                        }
 
                                         @if (editing.PresetSource == VisualiserPresetSource.BuiltIn)
                                         {
