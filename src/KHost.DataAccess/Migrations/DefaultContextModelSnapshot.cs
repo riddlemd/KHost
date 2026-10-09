@@ -505,6 +505,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<int>("Sensitivity")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("VideoMediaId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("VisualisationPlaylistId")
                         .HasColumnType("TEXT");
 

@@ -86,8 +86,10 @@ function atSongStart() {
 // Under the words, for a song with nothing of its own to show there; the host says when.
 const visualiserCanvas = document.getElementById('visualiser');
 const visualiserEqCanvas = document.getElementById('visualiser-eq');
+const visualiserVideo = document.getElementById('visualiser-video');
 const visualiser = createVisualiser(visualiserCanvas, {
     eqCanvas: visualiserEqCanvas,
+    videoEl: visualiserVideo,
     engine: window.butterchurn && window.butterchurn.default,
     presets: VISUALISER_PRESETS,
     reportError,
@@ -121,7 +123,7 @@ function loadVisualiserLevels(url) {
 }
 
 // Everything drawn over the song rather than streamed: a stop dims these with the sound.
-const songLayers = [visualiserCanvas, visualiserEqCanvas, lyricsCanvas, introLayer];
+const songLayers = [visualiserVideo, visualiserCanvas, visualiserEqCanvas, lyricsCanvas, introLayer];
 const background = document.getElementById('background');
 const still = document.getElementById('still');
 
@@ -369,7 +371,8 @@ function releaseElementTap() {
 
 /// Points the visualiser at whatever the room is hearing now. Asked on every change of that.
 function retapVisualiser() {
-    if (!visualiser.active) return;
+    // A video is drawn muted and follows nothing it could hear.
+    if (!visualiser.active || visualiser.video) return;
 
     visualiser.setAudio(stemMixer ? stemMixer.analysisSource() : elementAudioSource(current.el));
 }
@@ -641,8 +644,11 @@ function showNextSinger(message) {
 
 /// Puts the card's visualisation up, unless a song's is already drawing: the card sits over that
 /// one and leaves it to the song. One that cannot be drawn leaves the card over the venue's picture.
-function startCardVisualiser(look) {
-    if (!look || (visualiser.active && !cardVisualiser)) return;
+function startCardVisualiser(card) {
+    if (!card || (visualiser.active && !cardVisualiser)) return;
+
+    // The card never plays a video; one sent here draws nothing, leaving the card over the picture.
+    const { videoUrl, ...look } = card;
 
     cardVisualiser = true;
     visualiser.setLook(look);
@@ -1018,7 +1024,11 @@ function handleCommand(raw) {
                 // Tapped once it is up: an imported preset arrives after a fetch, and a tap is
                 // asked for only while the visualiser is active.
                 visualiser.show(message).then((up) => { if (up) retapVisualiser(); });
-                loadVisualiserLevels(message.levels);
+                loadVisualiserLevels(message.videoUrl ? null : message.levels);
+                if (message.videoUrl) {
+                    visualiser.setAudio(null);
+                    releaseElementTap();
+                }
                 retapVisualiser();
             } else {
                 visualiser.hide();
