@@ -1,12 +1,13 @@
 @using KHost.UserInterface.Models
 
-<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick" CloseOnEscape="true">
     <Header>
         <Icon Name="question-circle" /> Help
     </Header>
     <Body>
         <details class="@(_rootClassName)__section" open="@ControlState.HelpQuickGuideExpanded" @ontoggle="ToggleQuickGuide">
-            <summary class="@(_rootClassName)__summary">
+            @* Focused on open (focusFirstInput takes [autofocus]) so Esc lands inside the dialog; it has no input to take focus. *@
+            <summary class="@(_rootClassName)__summary" autofocus>
                 <Icon Name="chevron-right" Class="@($"{_rootClassName}__chevron")" />
                 <h3 class="@(_rootClassName)__section-title">Quick guide</h3>
             </summary>
