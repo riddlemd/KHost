@@ -17,7 +17,7 @@ public class EditVenueDialogSectionsTests : BunitContext
 {
     private static readonly string[] SectionTitles =
     [
-        "General", "Screen marquee", "Screen QR codes", "Visualisations", "Break music", "Ads", "Queue behavior",
+        "General", "Theme", "Screen colours", "Screen marquee", "Screen QR codes", "Visualisations", "Break music", "Ads", "Queue behavior",
         "Guests on their phones", "Tipping", "Require confirmation when removing", "Notes",
     ];
 
@@ -87,10 +87,8 @@ public class EditVenueDialogSectionsTests : BunitContext
             [
                 "Show a marquee on the screen",
                 "Message", "Entry format", "Singers to show",
-                "Position", "Text size", "Scroll speed",
-                "Divider", "Background color", "Background opacity",
-                "Text color", "Singer color", "Song color", "Divider color",
-                "Hold “Up next” at the edge instead of scrolling it", "Hide while a song is playing",
+                "Position", "Hold “Up next” at the edge instead of scrolling it", "Hide while a song is playing",
+                "Text size", "Scroll speed", "Divider",
             ]
         },
         { "General", ["Placeholder image", "Behind the “Up next” card"] },
@@ -99,10 +97,10 @@ public class EditVenueDialogSectionsTests : BunitContext
         {
             "Queue behavior",
             [
-                "Edit Singer Queue Rotation Strategy", "Songs a singer may have queued",
-                "Show estimated wait time in the singer queue", "Allow Singer Aliases",
+                "Edit Singer Queue Rotation Strategy",
+                "Songs a singer may have queued", "Refuse a song another singer already has queued",
                 "Warn when queueing a song already queued or recently sung", "Consider a song recently sung within",
-                "Refuse a song another singer already has queued",
+                "Show estimated wait time in the singer queue", "Allow Singer Aliases",
                 "Clear queue when closing",
             ]
         },

@@ -118,6 +118,10 @@ public class VisualisationEntry : RepositoryModel, IVisualisationLook
     /// <summary>The colour for <see cref="VisualiserColourScheme.Single"/>, as <c>#rrggbb</c>;
     /// anything else is taken as <see cref="DefaultColour"/> on save.</summary>
     public string Colour { get; set; } = DefaultColour;
+
+    /// <inheritdoc/>
+    /// <remarks>On for a new entry.</remarks>
+    public bool RespectsVenueTheme { get; set; } = true;
 }
 
 /// <summary>A visualiser preset a host can put in a playlist.</summary>

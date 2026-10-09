@@ -70,6 +70,46 @@
         }
     }
 
+    // A run of related rows inside a section (VenueSettingsGroup); a panel, since
+    // its name would otherwise read as one more of the small uppercase row labels under it.
+    @at-root .kh-venue-settings-group {
+        margin-top: 0.75rem;
+        background: var(--kh-bg-elevated);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        overflow: hidden;
+
+        &:first-child {
+            margin-top: 0;
+        }
+
+        &__head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.25rem 0.75rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--kh-card-header-bg);
+            border-bottom: 1px solid var(--kh-border);
+        }
+
+        &__title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--kh-text);
+        }
+
+        &__note {
+            font-size: 0.75rem;
+            color: var(--kh-text-muted);
+        }
+
+        &__rows {
+            padding: 0.625rem 0.75rem 0.375rem;
+        }
+    }
+
     &__section-title {
         display: block;
         font-size: 0.7rem;
@@ -145,14 +185,6 @@
 
         // A native colour input paints its swatch inside the control's own padding, so the text-input
         // sizing above leaves a sliver of colour in a wide box; sized to the swatch, padding taken back.
-        .kh-venue-settings__color {
-            flex: 0 0 3rem;
-            width: 3rem;
-            height: 2rem;
-            padding: 2px;
-            cursor: pointer;
-        }
-
         .kh-form-check-input {
             margin: 0;
             flex-shrink: 0;
@@ -174,14 +206,11 @@
             > .kh-form-select,
             > .kh-venue-settings__picker,
             > .kh-venue-qr-codes__source,
+            > .kh-themed-colour,
+            > .kh-input-affix,
             > .kh-media-picker {
                 flex: 0 0 var(--kh-venue-control-width);
                 width: var(--kh-venue-control-width);
-            }
-
-            > .kh-venue-settings__color {
-                flex: 0 0 3rem;
-                width: 3rem;
             }
 
             .kh-note {

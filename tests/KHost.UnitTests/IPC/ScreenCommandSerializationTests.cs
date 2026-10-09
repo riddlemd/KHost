@@ -96,7 +96,23 @@ public class ScreenCommandSerializationTests
                 ],
             },
         },
-        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, PresetUrl = "http://host/media/visualiser-presets/Mine?v=1", Brightness = 80, Saturation = 150, Sensitivity = 200, LevelsUrl = "http://host/media/levels/abc", VideoUrl = "http://host/media/backdrops/def" },
+        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, PresetUrl = "http://host/media/visualiser-presets/Mine?v=1", Brightness = 80, Saturation = 150, Sensitivity = 200, LevelsUrl = "http://host/media/levels/abc", VideoUrl = "http://host/media/backdrops/def", VenuePalette = ["#6c63ff", "#c8b6ff", "#0b0a1a"] },
+        [nameof(SetScreenThemeCommand)] = new SetScreenThemeCommand
+        {
+            Background = "#010101",
+            LyricsSung = "#020202",
+            LyricsUnsung = "#030303",
+            LyricsOutline = "#040404",
+            IntroText = "#050505",
+            IntroOutline = "#060606",
+            NextSingerText = "#070707",
+            NextSingerName = "#080808",
+            NextSingerPanel = "#090909",
+            BreakMusicCardText = "#0a0a0a",
+            BreakMusicCardBackground = "#0b0b0b",
+            QrCodeFrame = "#0c0c0c",
+            QrCodeCaption = "#0d0d0d",
+        },
         [nameof(ShowNextSingerCommand)] = new ShowNextSingerCommand
         {
             Singer = "Ada",
@@ -155,6 +171,19 @@ public class ScreenCommandSerializationTests
 
         Assert.NotNull(back);
         Assert.IsType(original.GetType(), back);
+    }
+
+    /// <summary>Every colour and the palette arrive as sent: a dropped one would draw in the screen's own.</summary>
+    [Fact]
+    public void RoundTrip_KeepsEveryScreenThemeColourAndTheVenuePalette()
+    {
+        foreach (var name in new[] { nameof(SetScreenThemeCommand), nameof(SetVisualiserCommand) })
+        {
+            var original = Samples[name];
+            var back = JsonSerializer.Deserialize<ScreenCommandBase>(JsonSerializer.Serialize(original, typeof(ScreenCommandBase), Options), Options);
+
+            Assert.Equivalent(original, back, strict: true);
+        }
     }
 
     [Fact]

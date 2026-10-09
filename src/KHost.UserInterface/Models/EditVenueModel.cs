@@ -1,17 +1,13 @@
 using System.ComponentModel.DataAnnotations;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.QueueRotation;
+using KHost.Common.Display;
 
 namespace KHost.UserInterface.Models;
 
 public class EditVenueModel
 {
     public static readonly int[] DuplicateWindowOptions = [1, 2, 4, 8, 12];
-
-    // What the colour inputs show a venue that has never chosen: a native colour picker has no
-    // empty state, so it would otherwise open on black and read as a deliberate choice.
-    private const string DefaultMarqueeBackground = "#000000";
-    private const string DefaultMarqueeText = "#f2f2f5";
 
     // The screen's own default look: today's opacity, and the singer/song colour with nothing
     // chosen, which is the same one colour as the band's own text.
@@ -22,6 +18,12 @@ public class EditVenueModel
 
     /// <summary>Matches the screen's own default, so the dialog opens on what the room is seeing.</summary>
     private const int DefaultMarqueeFontSizePixels = 28;
+
+    /// <summary>The marquee's text sizes on offer, in pixels: small, medium (the screen's own) and large.</summary>
+    public static readonly IReadOnlyList<int> MarqueeTextSizes = [20, DefaultMarqueeFontSizePixels, 40];
+
+    public static string MarqueeTextSizeName(int pixels)
+        => pixels < DefaultMarqueeFontSizePixels ? "Small" : pixels > DefaultMarqueeFontSizePixels ? "Large" : "Medium";
 
     /// <summary>Also the screen's own, for the same reason.</summary>
     private const int DefaultMarqueeScrollSpeed = 90;
@@ -98,6 +100,26 @@ public class EditVenueModel
     public string? MarqueeSingerColor { get; set; }
     public string? MarqueeSongColor { get; set; }
     public string? MarqueeDividerColor { get; set; }
+
+    // Every colour below is #rrggbb, or null for "from the theme", which is itself null for "the
+    // screen's own".
+    public string? ThemePrimaryColor { get; set; }
+    public string? ThemeHighlightColor { get; set; }
+    public string? ThemeTextColor { get; set; }
+    public string? ThemeShadowColor { get; set; }
+    public string? ScreenBackgroundColor { get; set; }
+    public string? LyricsSungColor { get; set; }
+    public string? LyricsUnsungColor { get; set; }
+    public string? LyricsOutlineColor { get; set; }
+    public string? IntroTextColor { get; set; }
+    public string? IntroOutlineColor { get; set; }
+    public string? NextSingerTextColor { get; set; }
+    public string? NextSingerNameColor { get; set; }
+    public string? NextSingerPanelColor { get; set; }
+    public string? BreakMusicCardTextColor { get; set; }
+    public string? BreakMusicCardBackgroundColor { get; set; }
+    public string? QrCodeFrameColor { get; set; }
+    public string? QrCodeCaptionColor { get; set; }
     public MarqueeDividerShape MarqueeDividerShape { get; set; }
     public bool MarqueeHideDuringSong { get; set; }
 
@@ -179,22 +201,40 @@ public class EditVenueModel
             MarqueeMessage = settings.MarqueeMessage,
             MarqueeEntryFormat = settings.MarqueeEntryFormat,
             MarqueePosition = settings.MarqueePosition,
-            MarqueeBackgroundColor = settings.MarqueeBackgroundColor ?? DefaultMarqueeBackground,
-            MarqueeTextColor = settings.MarqueeTextColor ?? DefaultMarqueeText,
+            MarqueeBackgroundColor = OwnUnlessOldDefault(settings.MarqueeBackgroundColor, ScreenColourDefaults.MarqueeBackground),
+            MarqueeTextColor = OwnUnlessOldDefault(settings.MarqueeTextColor, ScreenColourDefaults.MarqueeText),
             // Zero is "the screen decides", which a number input cannot say. It shows the size the
             // screen would pick instead, and saving it back changes nothing.
-            MarqueeFontSizePixels = settings.MarqueeFontSizePixels > 0
+            // A size saved before the three were offered shows as the nearest of them.
+            MarqueeFontSizePixels = MarqueeTextSizes.MinBy(size => Math.Abs(size - (settings.MarqueeFontSizePixels > 0
                 ? settings.MarqueeFontSizePixels
-                : DefaultMarqueeFontSizePixels,
+                : DefaultMarqueeFontSizePixels))),
             MarqueeScrollSpeed = settings.MarqueeScrollSpeed > 0
                 ? settings.MarqueeScrollSpeed
                 : DefaultMarqueeScrollSpeed,
             MarqueePinLabel = settings.MarqueePinLabel,
             // Null is "the screen decides", which a number input cannot say either.
             MarqueeBackgroundOpacity = settings.MarqueeBackgroundOpacity ?? DefaultMarqueeBackgroundOpacity,
-            MarqueeSingerColor = settings.MarqueeSingerColor ?? DefaultMarqueeText,
-            MarqueeSongColor = settings.MarqueeSongColor ?? DefaultMarqueeText,
-            MarqueeDividerColor = settings.MarqueeDividerColor ?? DefaultMarqueeText,
+            MarqueeSingerColor = OwnUnlessOldDefault(settings.MarqueeSingerColor, ScreenColourDefaults.MarqueeText),
+            MarqueeSongColor = OwnUnlessOldDefault(settings.MarqueeSongColor, ScreenColourDefaults.MarqueeText),
+            MarqueeDividerColor = OwnUnlessOldDefault(settings.MarqueeDividerColor, ScreenColourDefaults.MarqueeText),
+            ThemePrimaryColor = ScreenColours.HexOrNull(settings.ThemePrimaryColor),
+            ThemeHighlightColor = ScreenColours.HexOrNull(settings.ThemeHighlightColor),
+            ThemeTextColor = ScreenColours.HexOrNull(settings.ThemeTextColor),
+            ThemeShadowColor = ScreenColours.HexOrNull(settings.ThemeShadowColor),
+            ScreenBackgroundColor = ScreenColours.HexOrNull(settings.ScreenBackgroundColor),
+            LyricsSungColor = ScreenColours.HexOrNull(settings.LyricsSungColor),
+            LyricsUnsungColor = ScreenColours.HexOrNull(settings.LyricsUnsungColor),
+            LyricsOutlineColor = ScreenColours.HexOrNull(settings.LyricsOutlineColor),
+            IntroTextColor = ScreenColours.HexOrNull(settings.IntroTextColor),
+            IntroOutlineColor = ScreenColours.HexOrNull(settings.IntroOutlineColor),
+            NextSingerTextColor = ScreenColours.HexOrNull(settings.NextSingerTextColor),
+            NextSingerNameColor = ScreenColours.HexOrNull(settings.NextSingerNameColor),
+            NextSingerPanelColor = ScreenColours.HexOrNull(settings.NextSingerPanelColor),
+            BreakMusicCardTextColor = ScreenColours.HexOrNull(settings.BreakMusicCardTextColor),
+            BreakMusicCardBackgroundColor = ScreenColours.HexOrNull(settings.BreakMusicCardBackgroundColor),
+            QrCodeFrameColor = ScreenColours.HexOrNull(settings.QrCodeFrameColor),
+            QrCodeCaptionColor = ScreenColours.HexOrNull(settings.QrCodeCaptionColor),
             MarqueeDividerShape = settings.MarqueeDividerShape,
             MarqueeHideDuringSong = settings.MarqueeHideDuringSong,
 
@@ -243,15 +283,32 @@ public class EditVenueModel
         venue.Settings.MarqueeMessage = MarqueeMessage;
         venue.Settings.MarqueeEntryFormat = MarqueeEntryFormat;
         venue.Settings.MarqueePosition = MarqueePosition;
-        venue.Settings.MarqueeBackgroundColor = MarqueeBackgroundColor;
-        venue.Settings.MarqueeTextColor = MarqueeTextColor;
+        venue.Settings.MarqueeBackgroundColor = ScreenColours.HexOrNull(MarqueeBackgroundColor);
+        venue.Settings.MarqueeTextColor = ScreenColours.HexOrNull(MarqueeTextColor);
         venue.Settings.MarqueeFontSizePixels = Math.Clamp(MarqueeFontSizePixels, 12, 96);
         venue.Settings.MarqueeScrollSpeed = Math.Clamp(MarqueeScrollSpeed, 15, 400);
         venue.Settings.MarqueePinLabel = MarqueePinLabel;
         venue.Settings.MarqueeBackgroundOpacity = Math.Clamp(MarqueeBackgroundOpacity, 0, 100);
-        venue.Settings.MarqueeSingerColor = MarqueeSingerColor;
-        venue.Settings.MarqueeSongColor = MarqueeSongColor;
-        venue.Settings.MarqueeDividerColor = MarqueeDividerColor;
+        venue.Settings.MarqueeSingerColor = ScreenColours.HexOrNull(MarqueeSingerColor);
+        venue.Settings.MarqueeSongColor = ScreenColours.HexOrNull(MarqueeSongColor);
+        venue.Settings.MarqueeDividerColor = ScreenColours.HexOrNull(MarqueeDividerColor);
+        venue.Settings.ThemePrimaryColor = ScreenColours.HexOrNull(ThemePrimaryColor);
+        venue.Settings.ThemeHighlightColor = ScreenColours.HexOrNull(ThemeHighlightColor);
+        venue.Settings.ThemeTextColor = ScreenColours.HexOrNull(ThemeTextColor);
+        venue.Settings.ThemeShadowColor = ScreenColours.HexOrNull(ThemeShadowColor);
+        venue.Settings.ScreenBackgroundColor = ScreenColours.HexOrNull(ScreenBackgroundColor);
+        venue.Settings.LyricsSungColor = ScreenColours.HexOrNull(LyricsSungColor);
+        venue.Settings.LyricsUnsungColor = ScreenColours.HexOrNull(LyricsUnsungColor);
+        venue.Settings.LyricsOutlineColor = ScreenColours.HexOrNull(LyricsOutlineColor);
+        venue.Settings.IntroTextColor = ScreenColours.HexOrNull(IntroTextColor);
+        venue.Settings.IntroOutlineColor = ScreenColours.HexOrNull(IntroOutlineColor);
+        venue.Settings.NextSingerTextColor = ScreenColours.HexOrNull(NextSingerTextColor);
+        venue.Settings.NextSingerNameColor = ScreenColours.HexOrNull(NextSingerNameColor);
+        venue.Settings.NextSingerPanelColor = ScreenColours.HexOrNull(NextSingerPanelColor);
+        venue.Settings.BreakMusicCardTextColor = ScreenColours.HexOrNull(BreakMusicCardTextColor);
+        venue.Settings.BreakMusicCardBackgroundColor = ScreenColours.HexOrNull(BreakMusicCardBackgroundColor);
+        venue.Settings.QrCodeFrameColor = ScreenColours.HexOrNull(QrCodeFrameColor);
+        venue.Settings.QrCodeCaptionColor = ScreenColours.HexOrNull(QrCodeCaptionColor);
         venue.Settings.MarqueeDividerShape = MarqueeDividerShape;
         venue.Settings.MarqueeHideDuringSong = MarqueeHideDuringSong;
         venue.Settings.QrCodeSource = QrCodeSource;
@@ -265,4 +322,9 @@ public class EditVenueModel
         venue.Settings.QrCodeSafeZone = QrCodeSafeZone;
         venue.Settings.QrCodeOffset = QrCodeOffset;
     }
+
+    // The dialog used to save the screen's own marquee colours whenever a venue was saved, a picker
+    // having no empty state; read back, they would pin the band against the theme for good.
+    private static string? OwnUnlessOldDefault(string? stored, string oldDefault)
+        => ScreenColours.HexOrNull(stored) is { } own && own != oldDefault ? own : null;
 }

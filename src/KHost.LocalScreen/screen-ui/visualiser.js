@@ -488,12 +488,12 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
 
         /// How it is drawn: brightness and colour in percent, sensitivity in percent of the swing.
         /// The built-in styles also take a bar count and a colour scheme; a preset ignores them.
-        setLook({ brightness, saturation, sensitivity: react, barCount, colourScheme, colour } = {}) {
+        setLook({ brightness, saturation, sensitivity: react, barCount, colourScheme, colour, venuePalette } = {}) {
             canvas.style.filter = visualiserFilter(brightness, saturation);
             if (eqCanvas) eqCanvas.style.filter = canvas.style.filter;
             if (videoEl) videoEl.style.filter = canvas.style.filter;
             sensitivity = Number.isFinite(react) ? Math.max(0, react) / 100 : 1;
-            look = { barCount, colourScheme, colour };
+            look = { barCount, colourScheme, colour, palette: venuePalette };
             if (eq) eq.setOptions(look);
         },
 

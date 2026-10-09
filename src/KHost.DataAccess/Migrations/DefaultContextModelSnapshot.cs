@@ -502,6 +502,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<int>("PresetSource")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("RespectsVenueTheme")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Saturation")
                         .HasColumnType("INTEGER");
 
@@ -613,15 +616,29 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int?>("BrandingImageScaling");
 
+                            b1.Property<string>("BreakMusicCardBackgroundColor");
+
                             b1.Property<int?>("BreakMusicCardCorner");
 
                             b1.Property<bool>("BreakMusicCardEnabled");
+
+                            b1.Property<string>("BreakMusicCardTextColor");
 
                             b1.Property<Guid?>("BreakMusicPoolId");
 
                             b1.Property<bool>("ClearQueueOnClose");
 
                             b1.Property<int>("DuplicateSongWindowHours");
+
+                            b1.Property<string>("IntroOutlineColor");
+
+                            b1.Property<string>("IntroTextColor");
+
+                            b1.Property<string>("LyricsOutlineColor");
+
+                            b1.Property<string>("LyricsSungColor");
+
+                            b1.Property<string>("LyricsUnsungColor");
 
                             b1.Property<string>("MarqueeBackgroundColor");
 
@@ -657,11 +674,21 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int>("NextSingerBackground");
 
+                            b1.Property<string>("NextSingerNameColor");
+
+                            b1.Property<string>("NextSingerPanelColor");
+
+                            b1.Property<string>("NextSingerTextColor");
+
                             b1.Property<bool>("PromptBeforeRemovingPerformance");
 
                             b1.Property<bool>("PromptBeforeRemovingSinger");
 
+                            b1.Property<string>("QrCodeCaptionColor");
+
                             b1.Property<int?>("QrCodeCorner");
+
+                            b1.Property<string>("QrCodeFrameColor");
 
                             b1.Property<bool>("QrCodeHideDuringSong");
 
@@ -677,9 +704,19 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int>("RemoteSongLimit");
 
+                            b1.Property<string>("ScreenBackgroundColor");
+
                             b1.Property<bool>("ShowEstimatedWaitTime");
 
                             b1.Property<bool>("ShowQueueToGuests");
+
+                            b1.Property<string>("ThemeHighlightColor");
+
+                            b1.Property<string>("ThemePrimaryColor");
+
+                            b1.Property<string>("ThemeShadowColor");
+
+                            b1.Property<string>("ThemeTextColor");
 
                             b1.Property<bool>("TippingEnabled");
 

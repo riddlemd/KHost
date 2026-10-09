@@ -784,6 +784,30 @@ function setQrCodes(message) {
 // Kind -> the class that colours it; 'other' and 'separator' are handled separately below.
 const MARQUEE_SEGMENT_CLASSES = { singer: 'marquee-singer', song: 'marquee-song' };
 
+/// The venue's colours. Each is a CSS custom property the page's rules read with their own colour as
+/// the fallback, so a null removes it and puts that part back in the page's own colour.
+function setScreenTheme(message) {
+    const root = document.documentElement.style;
+    const properties = {
+        '--screen-bg': message.background,
+        '--intro-fg': message.introText,
+        '--intro-outline': message.introOutline,
+        '--next-fg': message.nextSingerText,
+        '--next-name-fg': message.nextSingerName,
+        '--next-panel': message.nextSingerPanel,
+        '--break-fg': message.breakMusicCardText,
+        '--break-bg': message.breakMusicCardBackground,
+        '--qr-frame': message.qrCodeFrame,
+        '--qr-caption': message.qrCodeCaption,
+    };
+    for (const [name, value] of Object.entries(properties)) {
+        if (value) root.setProperty(name, value);
+        else root.removeProperty(name);
+    }
+
+    overlay.setColours({ sung: message.lyricsSung, unsung: message.lyricsUnsung, outline: message.lyricsOutline });
+}
+
 function setMarquee(message) {
     if (message.enabled !== true) {
         marquee.hidden = true;
@@ -1146,6 +1170,9 @@ function handleCommand(raw) {
             // clearing its picture got a black screen with nothing on it at all, since show-image
             // had already hidden the card and nothing put it back.
             placeholder.hidden = false;
+            break;
+        case 'screen-theme':
+            setScreenTheme(message);
             break;
         case 'marquee':
             setMarquee(message);

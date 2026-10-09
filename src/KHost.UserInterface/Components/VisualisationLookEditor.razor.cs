@@ -1,8 +1,10 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Display;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Visualisations;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
 namespace KHost.UserInterface.Components;
@@ -20,6 +22,10 @@ public partial class VisualisationLookEditor
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMediaService Media { get; set; } = default!;
     [Inject] private IVideoBackdropService Backdrops { get; set; } = default!;
+    [Inject] private IServiceProvider Services { get; set; } = default!;
+
+    // The selected venue's theme, so a look that respects it previews in it; null with no venue or no theme.
+    private IReadOnlyList<string>? _venuePalette;
 
     /// <summary>The preview's answer for one video: whether its row is there, and where it plays as
     /// it is, or null when it would need encoding. Asked once per video picked, since asking reads
@@ -58,6 +64,13 @@ public partial class VisualisationLookEditor
     internal static bool HasBars(IVisualisationLook look)
         => look.PresetSource == VisualiserPresetSource.BuiltIn && look.PresetName is "spectrum-bars" or "mirrored-bars";
 
+    protected override async Task OnInitializedAsync()
+    {
+        // Looked up rather than injected: a page with no venue to preview against still edits a look.
+        if (Services.GetService<IVenuesService>() is { } venues)
+            _venuePalette = (await venues.ReadSelectedVenueAsync())?.Settings.ResolveScreenColours().VisualisationPalette;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!ShowPreview) return;
@@ -83,6 +96,7 @@ public partial class VisualisationLookEditor
             brightness = Look.Brightness,
             saturation = Look.Saturation,
             sensitivity = Look.Sensitivity,
+            venuePalette = Look.PresetSource == VisualiserPresetSource.BuiltIn && Look.RespectsVenueTheme ? _venuePalette : null,
         };
 
         var sent = System.Text.Json.JsonSerializer.Serialize(message);
@@ -142,9 +156,15 @@ public partial class VisualisationLookEditor
         await LookChanged.InvokeAsync(Look);
     }
 
-    private async Task SetColourAsync(ChangeEventArgs e)
+    private async Task SetRespectsVenueThemeAsync(ChangeEventArgs e)
     {
-        if (e.Value?.ToString() is not { } colour) return;
+        Look.RespectsVenueTheme = e.Value is true;
+        await LookChanged.InvokeAsync(Look);
+    }
+
+    private async Task SetColourAsync(string? colour)
+    {
+        if (colour is null) return;
 
         Look.Colour = colour;
         await LookChanged.InvokeAsync(Look);

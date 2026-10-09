@@ -69,6 +69,7 @@ internal class VisualisationPlaylistRepository : BaseRepository<VisualisationPla
                 BarCount = entry.BarCount,
                 ColourScheme = entry.ColourScheme,
                 Colour = entry.Colour,
+                RespectsVenueTheme = entry.RespectsVenueTheme,
             });
         }
 

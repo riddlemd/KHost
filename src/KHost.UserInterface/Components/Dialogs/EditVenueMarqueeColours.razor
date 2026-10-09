@@ -1,0 +1,32 @@
+<VenueSettingsGroup Title="Marquee" Note="Used while the marquee is on">
+    <ThemedColourRow Id="marquee-background" Label="Background color" Value="@Model.MarqueeBackgroundColor"
+                     ValueChanged="v => Model.MarqueeBackgroundColor = v"
+                     Fallback="@Background.Colour" FallbackNote="@($"From {Background.From}.")" />
+
+    <div class="kh-venue-settings__row">
+        <span class="kh-venue-settings__labelled">
+            <label for="marquee-background-opacity" class="kh-form-label">Background opacity</label>
+            <span class="kh-note">
+                How much of the song shows through behind the marquee.
+            </span>
+        </span>
+        <InputAffix Suffix="%">
+            <InputNumber id="marquee-background-opacity" class="kh-form-control" min="0" max="100" step="5"
+                         @bind-Value="Model.MarqueeBackgroundOpacity" />
+        </InputAffix>
+        <ValidationMessage For="() => Model.MarqueeBackgroundOpacity" />
+    </div>
+
+    <ThemedColourRow Id="marquee-text" Label="Text color" Value="@Model.MarqueeTextColor"
+                     ValueChanged="v => Model.MarqueeTextColor = v"
+                     Fallback="@TextColour.Colour" FallbackNote="@($"From {TextColour.From}.")" />
+    <ThemedColourRow Id="marquee-singer-color" Label="Singer color" Value="@Model.MarqueeSingerColor"
+                     ValueChanged="v => Model.MarqueeSingerColor = v"
+                     Fallback="@Singer.Colour" FallbackNote="@($"From {Singer.From}.")" />
+    <ThemedColourRow Id="marquee-song-color" Label="Song color" Value="@Model.MarqueeSongColor"
+                     ValueChanged="v => Model.MarqueeSongColor = v"
+                     Fallback="@Song.Colour" FallbackNote="@($"From {Song.From}.")" />
+    <ThemedColourRow Id="marquee-divider-color" Label="Divider color" Value="@Model.MarqueeDividerColor"
+                     ValueChanged="v => Model.MarqueeDividerColor = v"
+                     Fallback="@Divider.Colour" FallbackNote="@($"From {Divider.From}.")" />
+</VenueSettingsGroup>

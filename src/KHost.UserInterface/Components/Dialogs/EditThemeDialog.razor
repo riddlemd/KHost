@@ -45,10 +45,8 @@
                                 <div class="@(_rootClassName)__inputs">
                                     @if (field.Kind == ThemeVariableKind.Color)
                                     {
-                                        <input type="color" class="@(_rootClassName)__swatch"
-                                               aria-label="@($"{field.Label} colour picker")"
-                                               value="@Swatch(field)"
-                                               @onchange="e => Set(field.Key, e.Value?.ToString())" />
+                                        <ColourPicker AriaLabel="@($"{field.Label} colour picker")" Value="@Swatch(field)"
+                                                  ValueChanged="v => Set(field.Key, v)" />
                                     }
                                     <input type="text" id="@FieldId(field)" class="kh-form-control"
                                            autocomplete="off" spellcheck="false"
