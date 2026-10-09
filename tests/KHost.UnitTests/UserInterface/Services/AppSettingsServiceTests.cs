@@ -176,8 +176,10 @@ public class AppSettingsServiceTests : IDisposable
     [Theory]
     [InlineData(-3, 0)]
     [InlineData(45, 30)]
-    [InlineData(2.5, 2.5)]
-    public async Task StopFadeSeconds_IsClampedOnReadAsWellAsOnSave(double typed, double expected)
+    [InlineData(2.4, 2)]
+    [InlineData(7.2, 8)]
+    [InlineData(5, 5)]
+    public async Task StopFadeSeconds_ReadsAndSavesAsTheNearestChoice(double typed, double expected)
     {
         var service = Service(new KeyValuePair<string, string?>(
             "Playback:StopFadeDuration", TimeSpan.FromSeconds(typed).ToString()));
@@ -453,6 +455,22 @@ public class AppSettingsServiceTests : IDisposable
     [InlineData("", null)]
     public void NewVenuePlaceholderImageScaling_ReadsAnythingItCannotNameAsTheImagesOwn(string stored, ImageScaling? expected)
         => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("Venues:NewVenuePlaceholderImageScaling", stored)).Current.NewVenuePlaceholderImageScaling);
+
+    /// <summary>A hand-edited duration the select does not offer reads, and saves, as the nearest one it does.</summary>
+    [Theory]
+    [InlineData("00:00:12", 10)]
+    [InlineData("00:00:13", 15)]
+    [InlineData("00:00:01", 5)]
+    [InlineData("00:05:00", 30)]
+    [InlineData("00:00:20", 20)]
+    public async Task AdDefaultDurationSeconds_ReadsAndSavesAsTheNearestChoice(string stored, double expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("Ads:DefaultDuration", stored));
+        Assert.Equal(expected, service.Current.AdDefaultDurationSeconds);
+
+        await Service().SaveAsync(new AppSettings { AdDefaultDurationSeconds = TimeSpan.Parse(stored).TotalSeconds });
+        Assert.Equal(expected, FromOverlay().Current.AdDefaultDurationSeconds);
+    }
 
     private AppSettingsService FromOverlay()
         => new(new ConfigurationBuilder().AddJsonFile(Path.Combine(_directory, AppSettingsService.OverlayFileName)).Build(),

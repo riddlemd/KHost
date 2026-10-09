@@ -88,6 +88,7 @@ internal static class AppSettingsPageServices
 
         services.AddSingleton(ffmpeg);
         services.AddSingleton(directories);
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
 
         return ffmpeg;

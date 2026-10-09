@@ -37,9 +37,10 @@
                             <span class="kh-card__title">Playback</span>
                         </div>
                         <div class="kh-card__body">
-                            <SettingRow Label="Stop fade (seconds)" Applies="applies immediately">
-                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.StopFadeSeconds"
-                                             min="@MinStopFadeSeconds" max="@MaxStopFadeSeconds" step="0.5" />
+                            <SettingRow Label="Stop fade" Applies="applies immediately">
+                                <ChoiceSelect TValue="double" Id="stop-fade" Choices="StopFadeChoices"
+                                              Value="_model.StopFadeSeconds" ValueChanged="v => _model.StopFadeSeconds = v"
+                                              Label="StopFadeLabel" />
                             </SettingRow>
                             <SettingRow Label="Default backing vocals volume" Applies="applies immediately">
                                 <InputAffix Suffix="%">
@@ -138,7 +139,7 @@
                             <span class="kh-card__title">New venues</span>
                         </div>
                         <div class="kh-card__body">
-                            <SettingRow Label="Backgrounds" Applies="applies to the next venue added">
+                            <SettingRow Label="Default Visualization" Applies="applies to the next venue added">
                                 <Note>
                                     <span class="kh-note">
                                         The visualisation playlist under the words at a venue you add. Advanced
@@ -177,9 +178,10 @@
                             <span class="kh-card__title">Ads</span>
                         </div>
                         <div class="kh-card__body">
-                            <SettingRow Label="Default ad duration (seconds)" Applies="applies immediately">
-                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.AdDefaultDurationSeconds"
-                                             min="@MinAdDurationSeconds" max="@MaxAdDurationSeconds" step="1" />
+                            <SettingRow Label="Default ad duration" Applies="applies immediately">
+                                <ChoiceSelect TValue="double" Id="ad-default-duration" Choices="AdDurationChoices"
+                                              Value="_model.AdDefaultDurationSeconds" ValueChanged="v => _model.AdDefaultDurationSeconds = v"
+                                              Label="AdDurationLabel" />
                             </SettingRow>
                         </div>
                     </section>
@@ -187,7 +189,7 @@
                     <section class="kh-app-settings__panel kh-card">
                         <div class="kh-card__header">
                             <Icon Name="window" />
-                            <span class="kh-card__title">Console</span>
+                            <span class="kh-card__title">Hosting Dashboard</span>
                         </div>
                         <div class="kh-card__body">
                             <SettingRow Label="Song controls" Applies="applies immediately">
@@ -246,8 +248,16 @@
                             <span class="kh-card__title">Media</span>
                         </div>
                         <div class="kh-card__body">
-                            <SettingRow Label="@($"Media directory (blank = {_defaultMediaDirectory})")" Applies="applies to plugin downloads immediately">
-                                <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
+                            <SettingRow Label="Media directory" Applies="applies to plugin downloads immediately">
+                                <Note>
+                                    <span class="kh-note">
+                                        Where downloaded and added media is kept. Left blank, it is @_defaultMediaDirectory.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <InputText id="media-directory" class="kh-form-control kh-app-settings__path"
+                                               @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
+                                </ChildContent>
                             </SettingRow>
                         </div>
                     </section>
@@ -269,25 +279,38 @@
                                         </button>
                                     }
                                     <button type="button" class="kh-button kh-app-settings__recheck"
-                                            disabled="@_ffmpegStatus.Install.IsRunning" @onclick="CheckFFmpegAsync">
-                                        Check again
+                                            disabled="@(_ffmpegStatus.Install.IsRunning || _checkingFFmpeg)" @onclick="CheckFFmpegAsync">
+                                        @(_checkingFFmpeg ? "Checking…" : "Check again")
                                     </button>
                                 </div>
+                                @* Said even when nothing changed, or a second check looks like it did nothing. *@
+                                @if (_ffmpegCheckedAt is { } checkedAt)
+                                {
+                                    <p class="kh-note kh-app-settings__ffmpeg-checked" role="status">@CheckSummary(checkedAt)</p>
+                                }
                             </div>
                             @if (FFmpeg.CanInstall)
                             {
-                                <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
-                                    <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                                <SettingRow Label="FFmpeg directory" Applies="applies when saved">
+                                    <Note>
+                                        <span class="kh-note">Where to find FFmpeg and FFprobe. Left blank, KHost looks in its own bin folder, then on PATH.</span>
+                                    </Note>
+                                    <ChildContent>
+                                        <InputText id="ffmpeg-directory" class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                                    </ChildContent>
                                 </SettingRow>
                             }
                             else
                             {
-                                <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
+                                <SettingRow Label="FFmpeg directory" Applies="applies when saved">
                                     <Note>
-                                        <span class="kh-note">KHost has no download for this computer: install FFmpeg yourself and set this to its folder.</span>
+                                        <span class="kh-note">
+                                            KHost has no download for this computer: install FFmpeg yourself and set this to its folder.
+                                            Left blank, KHost looks in its own bin folder, then on PATH.
+                                        </span>
                                     </Note>
                                     <ChildContent>
-                                        <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                                        <InputText id="ffmpeg-directory" class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
                                     </ChildContent>
                                 </SettingRow>
                             }
@@ -326,9 +349,10 @@
                                                   Label="GraphicsScaleLabel" />
                                 </ChildContent>
                             </SettingRow>
-                            <SettingRow Label="HLS segment length (seconds)" Applies="applies immediately">
-                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds"
-                                             min="@MinSegmentSeconds" max="@MaxSegmentSeconds" step="1" />
+                            <SettingRow Label="HLS segment length" Applies="applies immediately">
+                                <ChoiceSelect TValue="int" Id="segment-seconds" Choices="SegmentSecondsChoices"
+                                              Value="_model.SegmentSeconds" ValueChanged="v => _model.SegmentSeconds = v"
+                                              Label="SecondsLabel" />
                             </SettingRow>
                         </div>
                     </section>

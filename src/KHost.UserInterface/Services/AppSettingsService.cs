@@ -47,7 +47,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
         FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
-        StopFadeSeconds = StopFadeClamp(
+        StopFadeSeconds = StopFadeChoice(
             (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds),
         SegmentSeconds = SegmentClamp(_configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2),
         GraphicsScaleHeight = GraphicsScaling.SnapToOffered(
@@ -58,7 +58,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             && Enum.IsDefined(encoder)
             ? encoder
             : VideoEncoderPreference.Auto,
-        AdDefaultDurationSeconds = AdDurationClamp(
+        AdDefaultDurationSeconds = AdDurationChoice(
             (_configuration.GetValue<TimeSpan?>("Ads:DefaultDuration")
                 ?? TimeSpan.FromSeconds(AppSettings.DefaultAdDurationSeconds)).TotalSeconds),
         MediaPageSize = PageSize("Media"),
@@ -113,14 +113,13 @@ internal sealed class AppSettingsService : IAppSettingsService
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
         PaginationClamp(_configuration.GetValue<int?>($"Pagination:{key}") ?? fallback);
 
-    // Clamped on read as well as on save: a hand-edited zero would end every ad the instant it
-    // started, and a hand-edited hour would hold the room until someone restarted the console.
-    private static double AdDurationClamp(double seconds) =>
-        Math.Clamp(seconds, AppSettings.MinAdDurationSeconds, AppSettings.MaxAdDurationSeconds);
+    // Read as well as save: a hand-edited value the select does not offer would show as none of them.
+    private static double AdDurationChoice(double seconds) =>
+        AppSettings.AdDurationChoices.MinBy(choice => Math.Abs(choice - seconds));
 
-    // Read as well as save, for the same reason as the ad duration.
-    private static double StopFadeClamp(double seconds) =>
-        Math.Clamp(seconds, AppSettings.MinStopFadeSeconds, AppSettings.MaxStopFadeSeconds);
+    // Read as well as save: a hand-edited value the select does not offer would show as none of them.
+    private static double StopFadeChoice(double seconds) =>
+        AppSettings.StopFadeChoices.MinBy(choice => Math.Abs(choice - seconds));
 
     private static int SegmentClamp(int seconds) =>
         Math.Clamp(seconds, AppSettings.MinSegmentSeconds, AppSettings.MaxSegmentSeconds);
@@ -157,7 +156,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         {
             ["Playback"] = new Dictionary<string, object?>
             {
-                ["StopFadeDuration"] = TimeSpan.FromSeconds(StopFadeClamp(settings.StopFadeSeconds)).ToString(),
+                ["StopFadeDuration"] = TimeSpan.FromSeconds(StopFadeChoice(settings.StopFadeSeconds)).ToString(),
                 ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
                 ["LeadInGraceSeconds"] = LeadInGraceChoice(settings.LeadInGraceSeconds),
                 ["DynamicLeadIns"] = settings.DynamicLeadIns,
@@ -172,7 +171,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             },
             ["Ads"] = new Dictionary<string, object?>
             {
-                ["DefaultDuration"] = TimeSpan.FromSeconds(AdDurationClamp(settings.AdDefaultDurationSeconds)).ToString(),
+                ["DefaultDuration"] = TimeSpan.FromSeconds(AdDurationChoice(settings.AdDefaultDurationSeconds)).ToString(),
             },
             ["Pagination"] = new Dictionary<string, object?>
             {

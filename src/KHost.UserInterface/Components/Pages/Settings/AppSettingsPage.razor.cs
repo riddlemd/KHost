@@ -19,6 +19,7 @@ public partial class AppSettingsPage : IDisposable
     [Inject] private IDialogService Dialog { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IFFmpegService FFmpeg { get; set; } = default!;
+    [Inject] private TimeProvider Clock { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
     [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
@@ -36,15 +37,11 @@ public partial class AppSettingsPage : IDisposable
     private string? _error;
     private string? _defaultMediaDirectory;
     private FFmpegStatus _ffmpegStatus = default!;
+    private bool _checkingFFmpeg;
+    private DateTimeOffset? _ffmpegCheckedAt;
 
     // The bounds the service clamps to on save, so the control and the store cannot disagree.
     // Qualified: the injected service is also called AppSettings on this page.
-    private const double MinStopFadeSeconds = KHost.UserInterface.Services.AppSettings.MinStopFadeSeconds;
-    private const double MaxStopFadeSeconds = KHost.UserInterface.Services.AppSettings.MaxStopFadeSeconds;
-    private const int MinSegmentSeconds = KHost.UserInterface.Services.AppSettings.MinSegmentSeconds;
-    private const int MaxSegmentSeconds = KHost.UserInterface.Services.AppSettings.MaxSegmentSeconds;
-    private const double MinAdDurationSeconds = KHost.UserInterface.Services.AppSettings.MinAdDurationSeconds;
-    private const double MaxAdDurationSeconds = KHost.UserInterface.Services.AppSettings.MaxAdDurationSeconds;
     private const int MinPageSize = KHost.UserInterface.Services.AppSettings.MinPageSize;
     private const int MaxPageSize = KHost.UserInterface.Services.AppSettings.MaxPageSize;
 
@@ -115,12 +112,52 @@ public partial class AppSettingsPage : IDisposable
             Flash.Show("FFmpeg installed. The next song uses it.");
     }
 
-    private async Task CheckFFmpegAsync() => _ffmpegStatus = await FFmpeg.CheckAsync();
+    private async Task CheckFFmpegAsync()
+    {
+        _checkingFFmpeg = true;
+        try
+        {
+            _ffmpegStatus = await FFmpeg.CheckAsync();
+            _ffmpegCheckedAt = Clock.GetLocalNow();
+        }
+        finally
+        {
+            _checkingFFmpeg = false;
+        }
+    }
+
+    private string CheckSummary(DateTimeOffset checkedAt)
+    {
+        var missing = new[] { (_ffmpegStatus.FFmpeg, "FFmpeg"), (_ffmpegStatus.FFprobe, "FFprobe") }
+            .Where(t => !t.Item1.IsUsable).Select(t => t.Item2).ToList();
+        var outcome = missing.Count switch
+        {
+            0 => "FFmpeg and FFprobe found.",
+            1 => $"{missing[0]} missing.",
+            _ => "FFmpeg and FFprobe missing.",
+        };
+        return $"Checked at {checkedAt:T}: {outcome}";
+    }
 
     // Qualified: the injected service is also called AppSettings on this page.
     private static IReadOnlyList<int> LeadInGraceChoices => KHost.UserInterface.Services.AppSettings.LeadInGraceChoices;
 
     private static string LeadInGraceLabel(int seconds) => seconds == 0 ? "Off" : $"{seconds} seconds";
+
+    private static IReadOnlyList<double> StopFadeChoices => KHost.UserInterface.Services.AppSettings.StopFadeChoices;
+
+    private static string StopFadeLabel(double seconds) => seconds == 0 ? "No fade" : SecondsLabel((int)seconds);
+
+    private static IReadOnlyList<double> AdDurationChoices => KHost.UserInterface.Services.AppSettings.AdDurationChoices;
+
+    private static string AdDurationLabel(double seconds) => $"{seconds:0} seconds";
+
+    // Every whole second the service accepts, so a stored value is always one of them.
+    private static IReadOnlyList<int> SegmentSecondsChoices => [.. Enumerable.Range(
+        KHost.UserInterface.Services.AppSettings.MinSegmentSeconds,
+        KHost.UserInterface.Services.AppSettings.MaxSegmentSeconds - KHost.UserInterface.Services.AppSettings.MinSegmentSeconds + 1)];
+
+    private static string SecondsLabel(int seconds) => seconds == 1 ? "1 second" : $"{seconds} seconds";
 
     private static IReadOnlyList<int> DynamicLeadInPauseChoices => KHost.UserInterface.Services.AppSettings.DynamicLeadInPauseChoices;
 

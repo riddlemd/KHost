@@ -43,6 +43,8 @@ public class AppSettingsPageNewVenueBackgroundsTests : BunitContext
         Assert.Equal(["Basic", "Advanced"], options.Select(o => o.GetAttribute("value")));
         Assert.Equal(["Basic Backgrounds", "Advanced Backgrounds"], options.Select(o => o.TextContent));
         Assert.Equal("Advanced", page.Find("select#new-venue-backgrounds").GetAttribute("value"));
+        Assert.StartsWith("Default Visualization", page.Find("select#new-venue-backgrounds").Closest(".kh-app-settings__row")!
+            .QuerySelector(".kh-app-settings__labelled")!.TextContent.Trim());
     }
 
     [Fact]

@@ -112,7 +112,37 @@ public class EditVenueDialogPlaceholderImageTests : BunitContext
         var cut = Render<EditVenueDialog>(ps => ps.Add(p => p.IsOpen, true).Add(p => p.Venue, (Venue?)null));
 
         Assert.Equal("Card", Picker(cut).GetAttribute("value"));
-        Assert.Equal("Fill", cut.Find("#venue-branding-scaling").GetAttribute("value"));
+        Assert.Equal(["Fill"], cut.FindAll("#venue-branding-scaling option").Where(o => o.HasAttribute("selected")).Select(o => o.GetAttribute("value")));
+    }
+
+    /// <summary>The dialog previews the picture as the screen draws it, as App Settings and the wizard do.</summary>
+    [Fact]
+    public void TheVenuesStill_IsPreviewedWithItsOwnScaling()
+    {
+        var cut = Render<EditVenueDialog>(ps => ps.Add(p => p.IsOpen, true).Add(p => p.Venue, new Venue
+        {
+            Name = "The Lounge",
+            Settings = new Venue.VenueSettings { BrandingImageMediaId = _card.Id, BrandingImageScaling = ImageScaling.Fill },
+        }));
+
+        var image = cut.Find(".kh-placeholder-image__image");
+        Assert.Equal($"/media/image/{_card.Id}", image.GetAttribute("src"));
+        Assert.Contains("kh-placeholder-image__image--fill", image.ClassList);
+        Assert.Equal(["Fill"], cut.FindAll("#venue-branding-scaling option").Where(o => o.HasAttribute("selected")).Select(o => o.GetAttribute("value")));
+    }
+
+    [Fact]
+    public void PickingAScaling_ReachesTheVenueThatIsSaved()
+    {
+        Venue? saved = null;
+        var cut = Render(venue => saved = venue);
+
+        Picker(cut).Focus();
+        cut.FindAll(".kh-combobox__option").Single(o => o.TextContent.Trim() == "Card").Click();
+        cut.Find("#venue-branding-scaling").Change("Stretch");
+        cut.Find("form").Submit();
+
+        Assert.Equal((_card.Id, ImageScaling.Stretch), (saved!.Settings.BrandingImageMediaId, saved.Settings.BrandingImageScaling));
     }
 
     private static AngleSharp.Dom.IElement Picker(IRenderedComponent<EditVenueDialog> cut)
