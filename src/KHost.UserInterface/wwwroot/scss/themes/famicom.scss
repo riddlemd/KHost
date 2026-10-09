@@ -1,5 +1,6 @@
 // Grey console plastic with Nintendo red. Primary is the light grey body, so buttons and borders
-// read as hardware; red is reserved for danger and accents.
+// read as hardware; red is reserved for danger and the logo, and the accent is the yellow that
+// marks out a tag without reading as an error.
 :root {
     --kh-primary: #8c8c8c;
     --kh-primary-hover: #a3a3a3;
@@ -7,12 +8,13 @@
     --kh-primary-glow: rgba(200, 200, 200, 0.45);
     --kh-primary-subtle: rgba(200, 200, 200, 0.14);
     --kh-primary-dim: rgba(200, 200, 200, 0.08);
-    --kh-accent: #e4000f;
-    --kh-accent-hover: #b80009;
-    --kh-accent-bright: #ff2233;
-    --kh-accent-glow: rgba(228, 0, 15, 0.45);
+    --kh-accent: #f5c400;
+    --kh-accent-hover: #d9ad00;
+    --kh-accent-bright: #ffd633;
+    --kh-accent-glow: rgba(245, 196, 0, 0.45);
     --kh-bg: #141414;
     --kh-button-primary-text: #1a1a1a;
+    --kh-button-accent-text: #1a1a1a;
     --kh-bg-card: #1f1f1f;
     --kh-bg-card-dark: #191919;
     --kh-bg-elevated: #2b2b2b;

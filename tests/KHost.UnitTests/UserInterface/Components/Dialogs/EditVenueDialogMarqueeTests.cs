@@ -37,6 +37,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
     public EditVenueDialogMarqueeTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(new List<MediaPool>());

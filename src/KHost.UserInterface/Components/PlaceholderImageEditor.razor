@@ -1,0 +1,42 @@
+@using KHost.Abstractions.Models
+@using KHost.UserInterface.Endpoints
+
+<div class="kh-placeholder-image">
+    <div class="kh-placeholder-image__preview">
+        @if (MediaId is { } id)
+        {
+            <img @ref="_image" class="kh-placeholder-image__image kh-placeholder-image__image--@ShownScaling.ToString().ToLowerInvariant()"
+                 style="@OriginalWidthStyle" @onload="OnImageLoadedAsync"
+                 src="@MediaImageEndpoints.PathFor(id)" alt="The chosen placeholder image" />
+        }
+        else
+        {
+            <span class="kh-placeholder-image__empty">No image: the screen stays blank</span>
+        }
+    </div>
+
+    <div class="kh-placeholder-image__field">
+        @if (ShowPickerLabel)
+        {
+            <label class="kh-form-label">Placeholder image</label>
+        }
+        <MediaPicker Types="[MediaType.Image]" MediaId="MediaId" MediaIdChanged="OnImageChangedAsync"
+                     Placeholder="None: leave the screen blank" BrowseId="@($"{IdPrefix}-browse")"
+                     BrowseTitle="Browse for a picture to add to the library" />
+    </div>
+
+    @if (MediaId is not null)
+    {
+        <div class="kh-placeholder-image__field">
+            <label for="@($"{IdPrefix}-scaling")" class="kh-form-label">How it fills the screen</label>
+            <select id="@($"{IdPrefix}-scaling")" class="kh-form-select" @onchange="OnScalingChangedAsync">
+                @* Bare options and a value set by hand: a caller may have no form to bind through. *@
+                <option value="" selected="@(Scaling is null)">Use the image's own</option>
+                @foreach (var scaling in Enum.GetValues<ImageScaling>())
+                {
+                    <option value="@scaling" selected="@(Scaling == scaling)">@ScalingLabel(scaling)</option>
+                }
+            </select>
+        </div>
+    }
+</div>

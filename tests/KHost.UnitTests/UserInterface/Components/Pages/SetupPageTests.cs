@@ -16,6 +16,7 @@ public class SetupPageTests : BunitContext
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IAppSettingsService _appSettings = Substitute.For<IAppSettingsService>();
     private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
+    private readonly IVisualiserPresetService _presets = Substitute.For<IVisualiserPresetService>();
 
     public SetupPageTests()
     {
@@ -26,6 +27,10 @@ public class SetupPageTests : BunitContext
         Services.AddSingleton(_venuesService);
         Services.AddSingleton(_appSettings);
         Services.AddSingleton(_passwordHasher);
+        Services.AddSingleton(_presets);
+        Services.AddSingleton(Substitute.For<IFlashService>());
+        Services.AddNewVenuesSection();
+        _presets.ReadAll().Returns([]);
 
         _venuesService.HasAnyAsync().Returns(false);
         _usersService.HasAdminWithPasswordAsync().Returns(false);
@@ -38,20 +43,36 @@ public class SetupPageTests : BunitContext
 
         var cut = Render<SetupPage>();
 
-        // Four steps (Admin, Venue, FFmpeg, Media): no Security step ever appears in the count.
-        Assert.Contains("Step 1 of 4", cut.Markup);
+        // Six steps (Admin, Backgrounds, Placeholder, Venue, FFmpeg, Media): no Security step ever appears in the count.
+        Assert.Contains("Step 1 of 6", cut.Markup);
         Assert.NotEmpty(cut.FindAll("#admin-username"));
     }
 
     [Fact]
-    public void RequireLoginIsOff_SkipsTheAdminStep_AndStartsAtVenue()
+    public void RequireLoginIsOff_SkipsTheAdminStep_AndStartsAtBackgrounds()
     {
         _appSettings.Current.Returns(new AppSettings { RequireLogin = false });
 
         var cut = Render<SetupPage>();
 
-        // Three steps (Venue, FFmpeg, Media): no Admin step either, since no sign-in needs one.
-        Assert.Contains("Step 1 of 3", cut.Markup);
+        // Five steps (Backgrounds, Placeholder, Venue, FFmpeg, Media): no Admin step either, since no sign-in needs one.
+        Assert.Contains("Step 1 of 5", cut.Markup);
+        Assert.NotEmpty(cut.FindAll(".kh-wizard-backgrounds"));
+    }
+
+    /// <summary>Backgrounds and Placeholder come before Venue so the venue made next starts on both.</summary>
+    [Fact]
+    public async Task Backgrounds_ThenPlaceholder_ThenTheVenueStep()
+    {
+        _appSettings.Current.Returns(new AppSettings { RequireLogin = false });
+        var cut = Render<SetupPage>();
+
+        await cut.Find(".kh-setup-wizard__actions button").ClickAsync(new());
+        Assert.Contains("Step 2 of 5", cut.Markup);
+        Assert.NotEmpty(cut.FindAll(".kh-placeholder-image"));
+
+        await cut.Find(".kh-setup-wizard__actions button").ClickAsync(new());
+        Assert.Contains("Step 3 of 5", cut.Markup);
         Assert.NotEmpty(cut.FindAll("#venue-name"));
     }
 
@@ -73,7 +94,7 @@ public class SetupPageTests : BunitContext
     }
 
     [Fact]
-    public void RequireLoginIsOn_WithAnAdminPasswordAlreadySet_ResumesAtVenue()
+    public void RequireLoginIsOn_WithAnAdminPasswordAlreadySet_ResumesAtBackgrounds()
     {
         _appSettings.Current.Returns(new AppSettings { RequireLogin = true });
         _usersService.HasAdminWithPasswordAsync().Returns(true);
@@ -81,7 +102,7 @@ public class SetupPageTests : BunitContext
 
         var cut = Render<SetupPage>();
 
-        Assert.NotEmpty(cut.FindAll("#venue-name"));
+        Assert.NotEmpty(cut.FindAll(".kh-wizard-backgrounds"));
     }
 
     [Fact]
@@ -93,7 +114,8 @@ public class SetupPageTests : BunitContext
 
         var cut = Render<SetupPage>();
 
-        // Three steps (Admin, FFmpeg, Media): the venue already made is not offered again.
+        // Three steps (Admin, FFmpeg, Media): the venue already made is not offered again, nor
+        // the Backgrounds and Placeholder choices that exist to start it.
         Assert.Contains("Step 1 of 3", cut.Markup);
         Assert.NotEmpty(cut.FindAll("#admin-username"));
     }

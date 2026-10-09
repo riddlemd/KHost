@@ -78,6 +78,18 @@ public sealed record AppSettings
     /// keeps what the room already hears.</remarks>
     public string? BreakMusicProvider { get; set; }
 
+    /// <summary>The shipped visualisation playlist a venue starts on when it is added.</summary>
+    /// <remarks>A venue already made keeps the playlist it names.</remarks>
+    public VenueBackgrounds NewVenueBackgrounds { get; set; } = VenueBackgrounds.Basic;
+
+    /// <summary>The library image a venue shows while nothing plays when it is added; null leaves
+    /// its screen blank.</summary>
+    /// <remarks>A venue already made keeps its own.</remarks>
+    public Guid? NewVenuePlaceholderImageId { get; set; }
+
+    /// <summary>How that image fills a new venue's screen; null takes the image's own answer.</summary>
+    public ImageScaling? NewVenuePlaceholderImageScaling { get; set; }
+
     /// <summary>The screen launched at startup is named this, so it reclaims its own window.</summary>
     public const string StartupScreenName = "Screen 1";
 
@@ -133,6 +145,15 @@ public interface IAppSettingsService
     /// <summary>Writes the overlay. Does not touch <see cref="AppSettings.RequireLogin"/> — that
     /// is a configuration-only flag, not something this page saves.</summary>
     Task<AppSettingsSaveResult> SaveAsync(AppSettings settings);
+
+    /// <summary>Saves <see cref="AppSettings.NewVenueBackgrounds"/> alone, keeping every other key in
+    /// the overlay as it is.</summary>
+    Task SaveNewVenueBackgroundsAsync(VenueBackgrounds backgrounds);
+
+    /// <summary>Saves <see cref="AppSettings.NewVenuePlaceholderImageId"/> and
+    /// <see cref="AppSettings.NewVenuePlaceholderImageScaling"/> alone, as
+    /// <see cref="SaveNewVenueBackgroundsAsync"/> does.</summary>
+    Task SaveNewVenuePlaceholderImageAsync(Guid? mediaId, ImageScaling? scaling);
 }
 
 public sealed record AppSettingsSaveResult(bool Saved, string? Error = null);

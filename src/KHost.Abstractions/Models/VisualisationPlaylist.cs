@@ -5,10 +5,10 @@ namespace KHost.Abstractions.Models;
 /// that names none shows black under the words.</remarks>
 public class VisualisationPlaylist : RepositoryModel
 {
-    /// <summary>Id of the built-in "Default Visualizations" playlist: every ambient scene, in the
-    /// order the page lists them. Every install has this row — a migration seeds it and the host
-    /// restores it if it is ever gone — and it cannot be deleted, though it can be renamed,
-    /// shuffled and its entries edited like any other.</summary>
+    /// <summary>Id of the built-in "Basic Backgrounds" playlist, the one a new venue starts on: the
+    /// ambient scenes drawn with shapes, in the order the page lists them. Every install has this
+    /// row — a migration seeds it and the host restores it if it is ever gone — and it cannot be
+    /// deleted, though it can be renamed, shuffled and its entries edited like any other.</summary>
     public static readonly Guid DefaultId = new("00000000-0000-0000-0000-000000000001");
 
     /// <summary>The name shown throughout the app.</summary>

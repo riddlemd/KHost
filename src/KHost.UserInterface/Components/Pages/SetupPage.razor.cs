@@ -14,11 +14,11 @@ public partial class SetupPage
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    internal enum SetupStep { Admin, Venue, FFmpeg, Media }
+    internal enum SetupStep { Admin, Backgrounds, Placeholder, Venue, FFmpeg, Media }
 
     // The list, not a count: whether Admin appears at all depends on Auth:RequireLogin, so every
     // other step finds its place by membership rather than by a hardcoded number.
-    private List<SetupStep> _steps = [SetupStep.Admin, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
+    private List<SetupStep> _steps = [SetupStep.Admin, SetupStep.Backgrounds, SetupStep.Placeholder, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
 
     private int _currentStep;
     private int _renderedStep = -1;
@@ -43,7 +43,7 @@ public partial class SetupPage
         // FFmpeg rather than Media: it proves nothing on disk, so a resumed setup checks again,
         // and a machine that has it just moves on.
         if (!requireLogin || adminExists)
-            _currentStep = _steps.IndexOf(_venueExists ? SetupStep.FFmpeg : SetupStep.Venue);
+            _currentStep = _steps.IndexOf(_venueExists ? SetupStep.FFmpeg : SetupStep.Backgrounds);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -57,11 +57,17 @@ public partial class SetupPage
 
     // A venue left by an earlier run drops its step: setup restarts at Admin whenever no admin
     // has a password, and re-running the venue step would create a second venue of the same name.
+    // Backgrounds and Placeholder go with it: those choices exist to start that first venue.
     private void BuildSteps(bool requireLogin)
     {
         _steps = [];
         if (requireLogin) _steps.Add(SetupStep.Admin);
-        if (!_venueExists) _steps.Add(SetupStep.Venue);
+        if (!_venueExists)
+        {
+            _steps.Add(SetupStep.Backgrounds);
+            _steps.Add(SetupStep.Placeholder);
+            _steps.Add(SetupStep.Venue);
+        }
         _steps.Add(SetupStep.FFmpeg);
         _steps.Add(SetupStep.Media);
     }

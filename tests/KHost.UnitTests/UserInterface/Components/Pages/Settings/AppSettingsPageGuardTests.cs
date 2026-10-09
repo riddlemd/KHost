@@ -20,6 +20,7 @@ public class AppSettingsPageGuardTests : BunitContext
     public AppSettingsPageGuardTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
         _settings.DefaultMediaDirectory.Returns("/karaoke");

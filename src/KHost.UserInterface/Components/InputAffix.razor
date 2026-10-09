@@ -1,0 +1,11 @@
+<span class="kh-input-affix @Class">
+    @if (!string.IsNullOrEmpty(Prefix))
+    {
+        <span class="kh-input-affix__text kh-input-affix__text--prefix" aria-hidden="true">@Prefix</span>
+    }
+    @ChildContent
+    @if (!string.IsNullOrEmpty(Suffix))
+    {
+        <span class="kh-input-affix__text kh-input-affix__text--suffix" aria-hidden="true">@Suffix</span>
+    }
+</span>

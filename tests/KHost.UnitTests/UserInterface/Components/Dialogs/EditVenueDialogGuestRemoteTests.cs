@@ -26,6 +26,7 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
     public EditVenueDialogGuestRemoteTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(new List<MediaPool>());

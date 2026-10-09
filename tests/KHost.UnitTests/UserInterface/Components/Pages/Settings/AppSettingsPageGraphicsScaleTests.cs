@@ -14,6 +14,7 @@ public class AppSettingsPageGraphicsScaleTests : BunitContext
     public AppSettingsPageGraphicsScaleTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
         _settings.DefaultMediaDirectory.Returns("/karaoke");

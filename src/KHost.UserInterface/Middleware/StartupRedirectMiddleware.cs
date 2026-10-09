@@ -19,7 +19,9 @@ public class StartupRedirectMiddleware(
         "/images",
         "/fonts",
         "/favicon",
-        "/_content"
+        "/_content",
+        // The setup wizard's own backgrounds step frames it, before setup is complete.
+        "/visualiser-preview.html"
     ];
 
     private static readonly string[] StaticFileExtensions =

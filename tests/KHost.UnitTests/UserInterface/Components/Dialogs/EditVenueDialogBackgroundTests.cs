@@ -8,6 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
+using KHost.DataAccess.Services;
+using KHost.UserInterface.Models;
+using KHost.UserInterface.Services;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
@@ -26,6 +29,7 @@ public class EditVenueDialogBackgroundTests : BunitContext
     public EditVenueDialogBackgroundTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(new List<MediaPool>());
@@ -90,6 +94,23 @@ public class EditVenueDialogBackgroundTests : BunitContext
         cut.Find("form").Submit();
 
         Assert.Null(saved!.Settings.VisualisationPlaylistId);
+    }
+
+    [Theory]
+    [InlineData(VenueBackgrounds.Basic, "Basic Backgrounds")]
+    [InlineData(VenueBackgrounds.Advanced, "Advanced Backgrounds")]
+    public void ANewVenue_StartsOnThePlaylistAppSettingsNames(VenueBackgrounds chosen, string expected)
+    {
+        _visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>
+        {
+            new() { Id = ShippedVisualisationPlaylists.BasicId, Name = "Basic Backgrounds" },
+            new() { Id = ShippedVisualisationPlaylists.AdvancedId, Name = "Advanced Backgrounds" },
+        });
+        Services.AddAppSettings(new AppSettings { NewVenueBackgrounds = chosen });
+
+        var cut = Render<EditVenueDialog>(ps => ps.Add(p => p.IsOpen, true).Add(p => p.Venue, (Venue?)null));
+
+        Assert.Equal(expected, VisualisationPicker(cut).GetAttribute("value"));
     }
 
     private static AngleSharp.Dom.IElement VisualisationPicker(IRenderedComponent<EditVenueDialog> cut)
