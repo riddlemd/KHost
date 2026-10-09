@@ -127,23 +127,41 @@ public class SelectedSingerInfoPanelEditPerformanceTests : BunitContext
         await _performances.Received(1).UpdateSettingsAsync(_first.Id, settings);
     }
 
-    /// <summary>The loaded turn still opens, read-only, so the host can see what it is set to and is
-    /// told where to change it.</summary>
-    [Fact]
-    public void TheLoadedTurn_StillOpensWithTheReasonInItsTooltip()
+    /// <summary>The song on screen, playing or paused, is changed with the song controls: its
+    /// Edit Performance is disabled with that reason in its tooltip, and the rest stay open.</summary>
+    [Theory]
+    [InlineData(PlaybackState.Playing)]
+    [InlineData(PlaybackState.Paused)]
+    public void TheSongOnScreen_IsDisabledWithTheReasonInItsTooltip(PlaybackState state)
     {
         _playback.CurrentPerformance.Returns(_first);
+        _playback.State.Returns(state);
 
         var actions = Render<SelectedSingerInfoPanel>().FindAll(EditAction);
 
-        Assert.False(actions[0].HasAttribute("disabled"));
+        Assert.True(actions[0].HasAttribute("disabled"));
         Assert.Contains("song controls", actions[0].GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
+        Assert.False(actions[1].HasAttribute("disabled"));
         Assert.DoesNotContain("song controls", actions[1].GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
+    }
 
-        actions[0].Click();
+    /// <summary>Not only the attribute: a click that reaches the handler anyway opens nothing.</summary>
+    [Fact]
+    public void TheSongOnScreen_OpensNoEditor_EvenIfClicked()
+    {
+        _playback.CurrentPerformance.Returns(_first);
 
-        _dialogs.Received(1).RequestEditPerformanceAsync(
-            _first, Arg.Any<Media?>(), Arg.Any<string?>(), Arg.Any<Func<PerformanceEdit, Task>>(),
-            Arg.Any<Action?>(), Arg.Any<Action?>());
+        Render<SelectedSingerInfoPanel>().FindAll(EditAction)[0].Click();
+
+        _dialogs.DidNotReceiveWithAnyArgs().RequestEditPerformanceAsync(default!, default, default, default!, default, default);
+    }
+
+    /// <summary>Once the song is off the screen its turn is editable again.</summary>
+    [Fact]
+    public void NothingOnScreen_LeavesEveryRowEditable()
+    {
+        _playback.CurrentPerformance.Returns((Performance?)null);
+
+        Assert.All(Render<SelectedSingerInfoPanel>().FindAll(EditAction), action => Assert.False(action.HasAttribute("disabled")));
     }
 }
