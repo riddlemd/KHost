@@ -105,8 +105,7 @@ internal static class Program
 
         var catalogPath = Path.GetFullPath(catalogOption);
         var catalog = Read(catalogPath);
-        var schema = File.Exists(catalogPath) ? CatalogSchemaLine.Read(File.ReadAllText(catalogPath)) : null;
-        var before = Serialize(catalog, schema);
+        var before = Serialize(catalog);
 
         CatalogMerge.Apply(catalog, new SyncFacts
         {
@@ -127,7 +126,7 @@ internal static class Program
             },
         });
 
-        var after = Serialize(catalog, schema);
+        var after = Serialize(catalog);
 
         if (before == after)
         {
@@ -158,16 +157,12 @@ internal static class Program
 
     // Nulls are omitted, not written: a neutral release carrying "rid": null is noise in a
     // document people review, and syncing one plugin would rewrite every other entry to add it.
-    private static string Serialize(PluginCatalog catalog, string? schema)
-    {
-        var options = new JsonSerializerOptions(JsonSerializerOptions.Web)
+    private static string Serialize(PluginCatalog catalog)
+        => JsonSerializer.Serialize(catalog, new JsonSerializerOptions(JsonSerializerOptions.Web)
         {
             WriteIndented = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
-
-        return CatalogSchemaLine.Prepend(JsonSerializer.Serialize(catalog, options) + Environment.NewLine, schema, options);
-    }
+        }) + Environment.NewLine;
 
     private static GitHubAsset? SelectAsset(GitHubRelease release, string? named)
     {
