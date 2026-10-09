@@ -99,6 +99,14 @@ public interface IPerformanceService : IRepositoryService<Performance>
     /// to change, and it writes its own values back over the row on the next adjustment.</remarks>
     Task<Performance?> UpdateSettingsAsync(Guid performanceId, PerformanceSettings settings);
 
+    /// <summary>Replaces what a queued turn draws under its words, held to the same ranges as a
+    /// playlist entry; null hands it back to the venue's playlist. Announces like any other update.</summary>
+    /// <returns>The saved performance, or null when there is no such performance or it is no longer
+    /// queued, in which case nothing is saved.</returns>
+    /// <remarks>Meant for a turn not yet loaded for playback: the screen decides a song's background
+    /// when it loads.</remarks>
+    Task<Performance?> UpdateBackgroundAsync(Guid performanceId, PerformanceBackground? background);
+
     /// <summary>Deletes every queued performance, for every singer. History is kept.</summary>
     Task DeleteAllQueuedAsync();
 }

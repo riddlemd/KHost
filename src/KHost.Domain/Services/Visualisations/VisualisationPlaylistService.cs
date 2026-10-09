@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Common.Repositories;
+using KHost.Common.Visualisations;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Visualisations;
@@ -110,21 +111,11 @@ public class VisualisationPlaylistService : BaseRepositoryService<VisualisationP
     }
 
     /// <summary>A copy with every setting inside its range, so a display never has to guess.</summary>
-    private static VisualisationEntry Held(VisualisationEntry entry) => new()
+    private static VisualisationEntry Held(VisualisationEntry entry)
     {
-        Id = entry.Id,
-        PresetSource = entry.PresetSource,
-        PresetName = entry.PresetSource == VisualiserPresetSource.Video ? string.Empty : entry.PresetName,
-        VideoMediaId = entry.PresetSource == VisualiserPresetSource.Video ? entry.VideoMediaId : null,
-        Brightness = Math.Clamp(entry.Brightness, VisualisationEntry.MinBrightness, VisualisationEntry.MaxBrightness),
-        Saturation = Math.Clamp(entry.Saturation, VisualisationEntry.MinSaturation, VisualisationEntry.MaxSaturation),
-        Sensitivity = Math.Clamp(entry.Sensitivity, VisualisationEntry.MinSensitivity, VisualisationEntry.MaxSensitivity),
-        BarCount = VisualisationEntry.BarCounts.MinBy(count => Math.Abs(count - entry.BarCount)),
-        ColourScheme = Enum.IsDefined(entry.ColourScheme) ? entry.ColourScheme : VisualiserColourScheme.Classic,
-        Colour = IsColour(entry.Colour) ? entry.Colour.ToLowerInvariant() : VisualisationEntry.DefaultColour,
-    };
+        var held = new VisualisationEntry { Id = entry.Id };
+        entry.CopyWithinRangesTo(held);
 
-    /// <summary>Whether a colour is <c>#rrggbb</c>, the one form a colour input and the screen share.</summary>
-    private static bool IsColour(string? colour)
-        => colour is { Length: 7 } && colour[0] == '#' && colour.Skip(1).All(Uri.IsHexDigit);
+        return held;
+    }
 }

@@ -333,6 +333,9 @@ namespace KHost.DataAccess.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Background")
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("BackingVolume")
                         .HasColumnType("INTEGER");
 

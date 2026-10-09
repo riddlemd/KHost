@@ -161,6 +161,50 @@ public class PerformanceEditTests : IDisposable
         Assert.Equal(70, read.BackingVolume);
     }
 
+    [Fact]
+    public async Task SaveAsync_BackgroundAlone_SavesItAndLeavesTheRestAsStored()
+    {
+        var row = await StoredAsync();
+        var raised = Count();
+
+        await new PerformanceEdit
+        {
+            BackgroundChanged = true,
+            Background = new PerformanceBackground { Type = PerformanceBackgroundType.Black },
+        }.SaveAsync(_service, row.Id);
+
+        var read = (await _repository.ReadAsync(row.Id))!;
+        Assert.Equal(PerformanceBackgroundType.Black, read.Background!.Type);
+        Assert.Equal(("flo", -2), (read.SungAs, read.Pitch));
+        Assert.Equal(1, raised());
+    }
+
+    [Fact]
+    public async Task SaveAsync_BackgroundChangedToNull_HandsTheTurnBackToTheVenuesPlaylist()
+    {
+        var row = await StoredAsync();
+        await _service.UpdateBackgroundAsync(row.Id, new PerformanceBackground { Type = PerformanceBackgroundType.Black });
+
+        await new PerformanceEdit { BackgroundChanged = true, Background = null }.SaveAsync(_service, row.Id);
+
+        Assert.Null((await _repository.ReadAsync(row.Id))!.Background);
+    }
+
+    [Fact]
+    public async Task SaveAsync_BackgroundNotChanged_LeavesTheStoredOneAlone()
+    {
+        var row = await StoredAsync();
+        await _service.UpdateBackgroundAsync(row.Id, new PerformanceBackground { Type = PerformanceBackgroundType.Black });
+
+        await new PerformanceEdit { SungAsChanged = true, SungAs = "DJ P", Background = null }.SaveAsync(_service, row.Id);
+
+        Assert.Equal(PerformanceBackgroundType.Black, (await _repository.ReadAsync(row.Id))!.Background!.Type);
+    }
+
+    [Fact]
+    public void IsEmpty_OnlyTheBackgroundChanged_IsFalse()
+        => Assert.False(new PerformanceEdit { BackgroundChanged = true }.IsEmpty);
+
     private Func<int> Count()
     {
         var raised = 0;

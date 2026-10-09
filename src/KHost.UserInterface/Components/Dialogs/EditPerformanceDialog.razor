@@ -48,6 +48,27 @@
         <SongControlList Style="@AppSettings.Current.SongControlStyle" Tracks="@_tracks" Values="@_values"
                          Disabled="@_loaded" />
 
+        @if (_queued)
+        {
+            <div class="@(_rootClassName)__background">
+                <label for="edit-performance-background" class="kh-form-label">Background</label>
+                <select id="edit-performance-background" class="kh-form-select" disabled="@_loaded"
+                        value="@_backgroundChoice" @onchange="ChooseBackground">
+                    <option value="@BackgroundChoice.Venue">Venue's playlist</option>
+                    <option value="@BackgroundChoice.Black">Black</option>
+                    <option value="@BackgroundChoice.Look">A look</option>
+                </select>
+                <p class="kh-note">
+                    Drawn on the screen under the words of a song with no picture of its own.
+                </p>
+
+                @if (_backgroundChoice == BackgroundChoice.Look)
+                {
+                    <VisualisationLookEditor Look="_look" Presets="_presets" Disabled="_loaded" />
+                }
+            </div>
+        }
+
         @if (_loaded)
         {
             <p class="kh-note @(_rootClassName)__locked">

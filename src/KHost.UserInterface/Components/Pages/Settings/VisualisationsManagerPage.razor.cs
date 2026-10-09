@@ -2,12 +2,10 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Visualisations;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.JSInterop;
 
 namespace KHost.UserInterface.Components.Pages.Settings;
 
@@ -21,12 +19,7 @@ public partial class VisualisationsManagerPage : IDisposable
     [Inject] private IDialogService Dialogs { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
-    [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMediaService Media { get; set; } = default!;
-    [Inject] private IVideoBackdropService Backdrops { get; set; } = default!;
-
-    /// <summary>The select's value for a video entry, whichever video it names.</summary>
-    internal static readonly string VideoKey = PresetKey(VisualiserPresetSource.Video, "");
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -39,15 +32,6 @@ public partial class VisualisationsManagerPage : IDisposable
     /// <summary>The library rows video entries name, by id; a row since gone is absent.</summary>
     private Dictionary<Guid, Media> _videos = [];
 
-    /// <summary>The preview's answer for one video: where it plays as it is, or null when it would
-    /// need encoding. Asked once per video picked, since asking reads the file.</summary>
-    private (Guid MediaId, string? Url)? _previewVideo;
-
-    private ElementReference _preview;
-
-    /// <summary>What the preview was last told, so a render that changed nothing sends nothing.</summary>
-    private string? _previewSent;
-
     private VisualisationPlaylist? Selected => _playlists.FirstOrDefault(p => p.Id == _selectedId);
 
     private VisualisationEntry? SelectedEntry
@@ -57,10 +41,6 @@ public partial class VisualisationsManagerPage : IDisposable
 
     private IReadOnlyList<VisualiserPreset> Imported
         => [.. _presets.Where(p => p.Source == VisualiserPresetSource.Imported)];
-
-    /// <summary>One string per preset for a select's value; the source first, since a name is
-    /// unique only within its source.</summary>
-    internal static string PresetKey(VisualiserPresetSource source, string name) => $"{(int)source}:{name}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -75,44 +55,6 @@ public partial class VisualisationsManagerPage : IDisposable
 
         _selectedId = _playlists.FirstOrDefault()?.Id;
         _selectedEntry = Selected is { Entries.Count: > 0 } ? 0 : -1;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (SelectedEntry is not { } entry)
-        {
-            _previewSent = null;
-            return;
-        }
-
-        if (entry is { PresetSource: VisualiserPresetSource.Video, VideoMediaId: { } videoId } && _previewVideo?.MediaId != videoId)
-        {
-            _previewVideo = (videoId, _videos.TryGetValue(videoId, out var video) ? await Backdrops.DirectUrlForAsync(video) : null);
-            // The note under the picker follows the answer, and the message below waits for it.
-            StateHasChanged();
-            return;
-        }
-
-        var message = new
-        {
-            videoUrl = PreviewVideoUrl(entry),
-            presetName = entry.PresetSource == VisualiserPresetSource.Bundled ? entry.PresetName : null,
-            presetUrl = entry.PresetSource == VisualiserPresetSource.Imported ? ImportedUrl(entry.PresetName) : null,
-            builtIn = entry.PresetSource == VisualiserPresetSource.BuiltIn ? entry.PresetName : null,
-            barCount = entry.BarCount,
-            colourScheme = entry.ColourScheme.ToString().ToLowerInvariant(),
-            colour = entry.Colour,
-            brightness = entry.Brightness,
-            saturation = entry.Saturation,
-            sensitivity = entry.Sensitivity,
-        };
-
-        var sent = System.Text.Json.JsonSerializer.Serialize(message);
-        if (sent == _previewSent) return;
-        _previewSent = sent;
-
-        try { await JS.InvokeVoidAsync("khVisualiserPreview.show", _preview, message); }
-        catch (JSDisconnectedException) { /* the circuit is going; nothing to preview on */ }
     }
 
     public void Dispose()
@@ -247,79 +189,14 @@ public partial class VisualisationsManagerPage : IDisposable
         await SaveEntriesAsync(playlist);
     }
 
-    private async Task SetPresetAsync(ChangeEventArgs e)
+    /// <summary>The editor changed the selected entry in place; a newly picked video is read for its
+    /// title first, so the list names it.</summary>
+    private async Task SaveLookAsync(IVisualisationLook look)
     {
-        if (Selected is not { } playlist || SelectedEntry is not { } entry || ParseKey(e.Value?.ToString()) is not { } preset) return;
+        if (Selected is not { } playlist) return;
 
-        entry.PresetSource = preset.Source;
-        entry.PresetName = preset.Name;
-
+        if (look.VideoMediaId is { } videoId && !_videos.ContainsKey(videoId)) await ReadVideosAsync();
         await SaveEntriesAsync(playlist);
-    }
-
-    private async Task SetVideoAsync(Guid? mediaId)
-    {
-        if (Selected is not { } playlist || SelectedEntry is not { PresetSource: VisualiserPresetSource.Video } entry) return;
-
-        entry.VideoMediaId = mediaId;
-        await ReadVideosAsync();
-        await SaveEntriesAsync(playlist);
-    }
-
-    /// <summary>A slider moving: shown in the preview at once, saved when it is let go.</summary>
-    private void Adjust(Setting setting, object? value)
-    {
-        if (SelectedEntry is { } entry && int.TryParse(value?.ToString(), out var percent))
-            Apply(entry, setting, percent);
-    }
-
-    private async Task CommitAsync(Setting setting, object? value)
-    {
-        if (Selected is not { } playlist || SelectedEntry is not { } entry || !int.TryParse(value?.ToString(), out var percent)) return;
-
-        Apply(entry, setting, percent);
-        await SaveEntriesAsync(playlist);
-    }
-
-    private async Task SetBarCountAsync(ChangeEventArgs e)
-    {
-        if (Selected is not { } playlist || SelectedEntry is not { } entry || !int.TryParse(e.Value?.ToString(), out var count)) return;
-
-        entry.BarCount = count;
-        await SaveEntriesAsync(playlist);
-    }
-
-    private async Task SetColourSchemeAsync(ChangeEventArgs e)
-    {
-        if (Selected is not { } playlist || SelectedEntry is not { } entry
-            || !Enum.TryParse<VisualiserColourScheme>(e.Value?.ToString(), out var scheme) || !Enum.IsDefined(scheme)) return;
-
-        entry.ColourScheme = scheme;
-        await SaveEntriesAsync(playlist);
-    }
-
-    private async Task SetColourAsync(ChangeEventArgs e)
-    {
-        if (Selected is not { } playlist || SelectedEntry is not { } entry || e.Value?.ToString() is not { } colour) return;
-
-        entry.Colour = colour;
-        await SaveEntriesAsync(playlist);
-    }
-
-    private static void Apply(VisualisationEntry entry, Setting setting, int percent)
-    {
-        switch (setting)
-        {
-            case Setting.Brightness:
-                entry.Brightness = Math.Clamp(percent, VisualisationEntry.MinBrightness, VisualisationEntry.MaxBrightness);
-                break;
-            case Setting.Saturation:
-                entry.Saturation = Math.Clamp(percent, VisualisationEntry.MinSaturation, VisualisationEntry.MaxSaturation);
-                break;
-            case Setting.Sensitivity:
-                entry.Sensitivity = Math.Clamp(percent, VisualisationEntry.MinSensitivity, VisualisationEntry.MaxSensitivity);
-                break;
-        }
     }
 
     private async Task SaveEntriesAsync(VisualisationPlaylist playlist)
@@ -382,31 +259,6 @@ public partial class VisualisationsManagerPage : IDisposable
         _videos = videos;
     }
 
-    private string? PreviewVideoUrl(VisualisationEntry entry)
-        => entry is { PresetSource: VisualiserPresetSource.Video, VideoMediaId: { } id } && _previewVideo is { } known && known.MediaId == id
-            ? known.Url
-            : null;
-
-    /// <summary>Whether the picked video is there but the preview cannot play it as it is.</summary>
-    private bool PreviewNeedsEncode(VisualisationEntry entry)
-        => entry is { PresetSource: VisualiserPresetSource.Video, VideoMediaId: { } id }
-           && _videos.ContainsKey(id)
-           && _previewVideo is { } known && known.MediaId == id && known.Url is null;
-
-    private bool IsAvailable(VisualisationEntry entry)
-        => entry.PresetSource == VisualiserPresetSource.Video || _presets.Any(p => p.Source == entry.PresetSource && p.Name == entry.PresetName);
-
-    private static string PresetKey(VisualisationEntry entry) => PresetKey(entry.PresetSource, entry.PresetName);
-
-    private static (VisualiserPresetSource Source, string Name)? ParseKey(string? key)
-    {
-        var colon = key?.IndexOf(':') ?? -1;
-        if (key is null || colon <= 0 || !int.TryParse(key[..colon], out var source) || !Enum.IsDefined((VisualiserPresetSource)source))
-            return null;
-
-        return ((VisualiserPresetSource)source, key[(colon + 1)..]);
-    }
-
     private string DescribePreset(VisualisationEntry entry)
         => entry.PresetSource == VisualiserPresetSource.Video
             ? entry.VideoMediaId is not { } id ? "No video picked"
@@ -421,29 +273,10 @@ public partial class VisualisationsManagerPage : IDisposable
            // A video plays as it is, deaf to the song.
            + (entry.PresetSource == VisualiserPresetSource.Video ? "" : $" · Sensitivity {entry.Sensitivity}%")
            + (entry.PresetSource != VisualiserPresetSource.BuiltIn ? ""
-               : (HasBars(entry) ? $" · {entry.BarCount} bars" : "") + entry.ColourScheme switch
+               : (VisualisationLookEditor.HasBars(entry) ? $" · {entry.BarCount} bars" : "") + entry.ColourScheme switch
                {
                    VisualiserColourScheme.Theme => " · Accent colour",
                    VisualiserColourScheme.Single => $" · {entry.Colour}",
                    _ => " · Classic colours",
                });
-
-    /// <summary>What the classic palette is for this entry: a calm scene's mix of colours, a retro
-    /// effect's own look, or a meter's green to red.</summary>
-    private static string ClassicWording(VisualisationEntry entry)
-        => VisualiserPresetService.IsAmbient(entry.PresetSource, entry.PresetName) ? "Classic, a soft mix of colours"
-           : VisualiserPresetService.IsRetro(entry.PresetSource, entry.PresetName) ? "Classic, the effect's own colours"
-           : "Classic, green to red";
-
-    /// <summary>Whether the entry draws bars, and so has a bar count to choose.</summary>
-    private static bool HasBars(VisualisationEntry entry)
-        => entry.PresetSource == VisualiserPresetSource.BuiltIn && entry.PresetName is "spectrum-bars" or "mirrored-bars";
-
-    /// <summary>The imported preset for the preview, versioned so a re-import reloads it.</summary>
-    private string? ImportedUrl(string name)
-        => _presets.FirstOrDefault(p => p.Source == VisualiserPresetSource.Imported && p.Name == name) is { } preset
-            ? $"{VisualiserPresetService.RoutePrefix.TrimStart('/')}{Uri.EscapeDataString(name)}?v={preset.ImportedUtc?.Ticks ?? 0}"
-            : null;
-
-    private enum Setting { Brightness, Saturation, Sensitivity }
 }

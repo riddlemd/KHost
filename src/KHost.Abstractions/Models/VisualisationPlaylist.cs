@@ -60,7 +60,7 @@ public enum VisualiserColourScheme
 /// <summary>One line in a <see cref="VisualisationPlaylist"/>: a preset and how it is drawn.</summary>
 /// <remarks>The same preset may appear in several entries, each tuned differently. The percentages
 /// are held to their ranges on save.</remarks>
-public class VisualisationEntry : RepositoryModel
+public class VisualisationEntry : RepositoryModel, IVisualisationLook
 {
     /// <summary>The lowest and highest <see cref="Brightness"/>.</summary>
     public const int MinBrightness = 25, MaxBrightness = 200;

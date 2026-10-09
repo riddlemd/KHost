@@ -252,7 +252,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     private string EditPerformanceTooltip(Performance performance)
         => PlaybackService.CurrentPerformance?.Id == performance.Id
             ? "This song is loaded. Change it with the song controls while it plays."
-            : "Change the name, key, tempo and levels this song will be sung at";
+            : "Change the name, key, tempo, levels and background this song will be sung with";
 
     private async Task ToggleIsRegularAsync()
     {
