@@ -205,7 +205,7 @@ public class VisualiserPresetServiceTests : IDisposable
     {
         var ambient = VisualiserPresetService.BuiltIns.Where(b => VisualiserPresetService.IsAmbient(VisualiserPresetSource.BuiltIn, b.Name)).ToList();
 
-        Assert.InRange(ambient.Count, 4, 5);
+        Assert.Equal(14, ambient.Count);
         Assert.Contains(VisualiserPresetService.BuiltIns, b => !VisualiserPresetService.IsAmbient(VisualiserPresetSource.BuiltIn, b.Name));
     }
 

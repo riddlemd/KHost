@@ -15,6 +15,7 @@ public class AppSettingsPageVideoEncoderTests : BunitContext
     public AppSettingsPageVideoEncoderTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
         _settings.DefaultMediaDirectory.Returns("/karaoke");

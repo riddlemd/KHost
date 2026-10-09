@@ -24,6 +24,7 @@ public class EditVenueDialogSectionsTests : BunitContext
     public EditVenueDialogSectionsTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddAppSettings();
 
         var mediaPools = Substitute.For<IMediaPoolService>();
         mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>()).Returns(new List<MediaPool>());

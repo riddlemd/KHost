@@ -1,0 +1,26 @@
+<div class="kh-setup-wizard__step">
+    <div class="kh-setup-wizard__header">
+        <h2>Choose a Placeholder Image</h2>
+        <p>Shown on the screen whenever nothing is playing: your logo, a welcome card, the house rules.</p>
+    </div>
+
+    <PlaceholderImageEditor IdPrefix="wizard-placeholder"
+                            MediaId="_mediaId" MediaIdChanged="id => _mediaId = id"
+                            Scaling="_scaling" ScalingChanged="s => _scaling = s" />
+
+    <p class="kh-note">
+        Optional. Every venue you add starts with this image. Change it later in App Settings, or per
+        venue in its own settings.
+    </p>
+
+    @if (!string.IsNullOrEmpty(_serverError))
+    {
+        <div class="kh-alert kh-alert--danger">@_serverError</div>
+    }
+
+    <div class="kh-setup-wizard__actions">
+        <button class="kh-button kh-button--primary" type="button" disabled="@_isSaving" @onclick="OnNextAsync">
+            <Icon Name="arrow-right" /> Next
+        </button>
+    </div>
+</div>

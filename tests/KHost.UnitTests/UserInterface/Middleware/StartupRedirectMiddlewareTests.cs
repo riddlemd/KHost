@@ -44,6 +44,7 @@ public class StartupRedirectMiddlewareTests
     [InlineData("/fonts/icons.woff2")]
     [InlineData("/favicon.ico")]
     [InlineData("/_content/pkg/x.css")]
+    [InlineData("/visualiser-preview.html")]
     public async Task InvokeAsync_SkipsRedirect_ForStaticContentPrefixes(string path)
     {
         var provider = MakeProvider(shouldRedirect: true);

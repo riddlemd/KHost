@@ -15,6 +15,7 @@ public class AppSettingsPageFFmpegTests : BunitContext
     public AppSettingsPageFFmpegTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => new AppSettings());
         _settings.DefaultMediaDirectory.Returns("/karaoke");

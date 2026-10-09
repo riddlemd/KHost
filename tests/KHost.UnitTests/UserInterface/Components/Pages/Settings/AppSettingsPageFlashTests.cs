@@ -18,6 +18,7 @@ public class AppSettingsPageFlashTests : BunitContext
     public AppSettingsPageFlashTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
         _settings.DefaultMediaDirectory.Returns("/karaoke");

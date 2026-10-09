@@ -23,6 +23,7 @@ public class EditVenueDialogPlaceholderImageTests : BunitContext
     public EditVenueDialogPlaceholderImageTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddAppSettings();
 
         var mediaPools = Substitute.For<IMediaPoolService>();
         mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>()).Returns(new List<MediaPool>());
@@ -97,6 +98,21 @@ public class EditVenueDialogPlaceholderImageTests : BunitContext
         cut.FindAll(".kh-combobox__option").Single(o => o.TextContent.Trim() == "Card").Click();
 
         Assert.NotNull(cut.Find("#venue-branding-scaling"));
+    }
+
+    [Fact]
+    public void ANewVenue_StartsWithTheImageAppSettingsNames()
+    {
+        Services.AddAppSettings(new KHost.UserInterface.Services.AppSettings
+        {
+            NewVenuePlaceholderImageId = _card.Id,
+            NewVenuePlaceholderImageScaling = ImageScaling.Fill,
+        });
+
+        var cut = Render<EditVenueDialog>(ps => ps.Add(p => p.IsOpen, true).Add(p => p.Venue, (Venue?)null));
+
+        Assert.Equal("Card", Picker(cut).GetAttribute("value"));
+        Assert.Equal("Fill", cut.Find("#venue-branding-scaling").GetAttribute("value"));
     }
 
     private static AngleSharp.Dom.IElement Picker(IRenderedComponent<EditVenueDialog> cut)

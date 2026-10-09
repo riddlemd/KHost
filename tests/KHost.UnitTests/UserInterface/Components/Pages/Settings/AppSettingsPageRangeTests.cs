@@ -12,6 +12,7 @@ public class AppSettingsPageRangeTests : BunitContext
     public AppSettingsPageRangeTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         var settings = Substitute.For<IAppSettingsService>();
         settings.Current.Returns(_ => new AppSettings());

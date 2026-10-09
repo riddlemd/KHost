@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using System.Text.Json;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
@@ -357,6 +358,105 @@ public class AppSettingsServiceTests : IDisposable
         // to render it, which would leave the panel empty.
         Assert.Equal(expected, service.Current.SongControlStyle);
     }
+
+    [Fact]
+    public async Task NewVenueBackgrounds_DefaultsToBasic_AndRoundTripsThroughTheOverlay()
+    {
+        var service = Service();
+        Assert.Equal(VenueBackgrounds.Basic, service.Current.NewVenueBackgrounds);
+
+        await service.SaveAsync(new AppSettings { NewVenueBackgrounds = VenueBackgrounds.Advanced });
+
+        Assert.Equal(VenueBackgrounds.Advanced, FromOverlay().Current.NewVenueBackgrounds);
+    }
+
+    [Theory]
+    [InlineData("advanced", VenueBackgrounds.Advanced)]
+    [InlineData("Basic", VenueBackgrounds.Basic)]
+    [InlineData("fancy", VenueBackgrounds.Basic)]
+    [InlineData("7", VenueBackgrounds.Basic)]
+    [InlineData("", VenueBackgrounds.Basic)]
+    public void NewVenueBackgrounds_ReadsAnythingItCannotNameAsBasic(string stored, VenueBackgrounds expected)
+        => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("Venues:NewVenueBackgrounds", stored)).Current.NewVenueBackgrounds);
+
+    /// <summary>The wizard saves this before the host has opened App Settings, so it must not pin
+    /// every other default into the overlay, nor lose what the overlay already holds.</summary>
+    [Fact]
+    public async Task SaveNewVenueBackgroundsAsync_WritesThatKeyAlone_KeepingTheRest()
+    {
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName),
+            """{ "MediaStream": { "SegmentSeconds": 4 } }""");
+
+        await Service().SaveNewVenueBackgroundsAsync(VenueBackgrounds.Advanced);
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(["MediaStream", "Venues"], overlay.RootElement.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(4, overlay.RootElement.GetProperty("MediaStream").GetProperty("SegmentSeconds").GetInt32());
+        Assert.Equal(VenueBackgrounds.Advanced, FromOverlay().Current.NewVenueBackgrounds);
+    }
+
+    [Fact]
+    public async Task NewVenuePlaceholderImageId_DefaultsToNone_AndRoundTripsThroughTheOverlay()
+    {
+        var image = Guid.NewGuid();
+        var service = Service();
+        Assert.Null(service.Current.NewVenuePlaceholderImageId);
+
+        await service.SaveAsync(new AppSettings { NewVenuePlaceholderImageId = image });
+
+        Assert.Equal(image, FromOverlay().Current.NewVenuePlaceholderImageId);
+    }
+
+    [Theory]
+    [InlineData("not-a-guid")]
+    [InlineData("")]
+    public void NewVenuePlaceholderImageId_ReadsAnythingThatIsNotAnIdAsNone(string stored)
+        => Assert.Null(Service(new KeyValuePair<string, string?>("Venues:NewVenuePlaceholderImageId", stored)).Current.NewVenuePlaceholderImageId);
+
+    /// <summary>Saved alone like the backgrounds, and none must clear an image saved before.</summary>
+    [Fact]
+    public async Task SaveNewVenuePlaceholderImageAsync_WritesItsKeysAlone_AndNoneClearsThem()
+    {
+        var image = Guid.NewGuid();
+        var service = Service();
+        await service.SaveNewVenueBackgroundsAsync(VenueBackgrounds.Advanced);
+
+        await service.SaveNewVenuePlaceholderImageAsync(image, ImageScaling.Fill);
+        var saved = FromOverlay().Current;
+        Assert.Equal((VenueBackgrounds.Advanced, image, ImageScaling.Fill),
+            (saved.NewVenueBackgrounds, saved.NewVenuePlaceholderImageId, saved.NewVenuePlaceholderImageScaling));
+
+        await service.SaveNewVenuePlaceholderImageAsync(null, null);
+        var cleared = FromOverlay().Current;
+        Assert.Equal((VenueBackgrounds.Advanced, (Guid?)null, (ImageScaling?)null),
+            (cleared.NewVenueBackgrounds, cleared.NewVenuePlaceholderImageId, cleared.NewVenuePlaceholderImageScaling));
+    }
+
+    [Fact]
+    public async Task NewVenuePlaceholderImageScaling_DefaultsToTheImagesOwn_AndRoundTripsThroughTheOverlay()
+    {
+        var service = Service();
+        Assert.Null(service.Current.NewVenuePlaceholderImageScaling);
+
+        await service.SaveAsync(new AppSettings { NewVenuePlaceholderImageScaling = ImageScaling.Stretch });
+
+        Assert.Equal(ImageScaling.Stretch, FromOverlay().Current.NewVenuePlaceholderImageScaling);
+    }
+
+    [Theory]
+    [InlineData("fill", ImageScaling.Fill)]
+    [InlineData("Original", ImageScaling.Original)]
+    [InlineData("zoom", null)]
+    [InlineData("9", null)]
+    [InlineData("", null)]
+    public void NewVenuePlaceholderImageScaling_ReadsAnythingItCannotNameAsTheImagesOwn(string stored, ImageScaling? expected)
+        => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("Venues:NewVenuePlaceholderImageScaling", stored)).Current.NewVenuePlaceholderImageScaling);
+
+    private AppSettingsService FromOverlay()
+        => new(new ConfigurationBuilder().AddJsonFile(Path.Combine(_directory, AppSettingsService.OverlayFileName)).Build(),
+            _ffmpeg, _breakMusic, _directory);
 
     [Fact]
     public void DefaultSearchMode_DefaultsToLocal_TodaysBehaviour()

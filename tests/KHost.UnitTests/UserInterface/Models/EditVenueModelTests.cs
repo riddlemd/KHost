@@ -18,7 +18,7 @@ public class EditVenueModelTests
         var source = new Venue { Name = "Round Trip Room", Settings = DistinctSettings() };
         var target = new Venue { Name = "Target Room" };
 
-        var model = EditVenueModel.From(source);
+        var model = EditVenueModel.From(source, new NewVenueDefaults(Guid.NewGuid(), Guid.NewGuid(), ImageScaling.Stretch));
         model.ApplyTo(target);
 
         foreach (var property in typeof(Venue.VenueSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance))
@@ -38,14 +38,27 @@ public class EditVenueModelTests
         Assert.Equal(source.Settings.QueueRotation!.StrategyId, target.Settings.QueueRotation!.StrategyId);
     }
 
-    /// <summary>A brand-new venue — the dialog's Add path — starts pointed at the built-in playlist
-    /// rather than black; an existing venue's own choice (including "none") is never overridden.</summary>
+    /// <summary>A brand-new venue — the dialog's Add path — starts on the playlist and placeholder
+    /// image it is handed rather than black and blank.</summary>
     [Fact]
-    public void From_ANewVenue_StartsOnTheDefaultVisualisationPlaylist()
+    public void From_ANewVenue_StartsOnTheDefaultsItIsHanded()
     {
-        var model = EditVenueModel.From(null);
+        var defaults = new NewVenueDefaults(Guid.NewGuid(), Guid.NewGuid(), ImageScaling.Fill);
 
-        Assert.Equal(VisualisationPlaylist.DefaultId, model.VisualisationPlaylistId);
+        var model = EditVenueModel.From(null, defaults);
+
+        Assert.Equal(
+            (defaults.VisualisationPlaylistId, defaults.PlaceholderImageMediaId, defaults.PlaceholderImageScaling),
+            (model.VisualisationPlaylistId, model.BrandingImageMediaId, model.BrandingImageScaling));
+    }
+
+    /// <summary>An existing venue's own choices, "none" included, are never overridden.</summary>
+    [Fact]
+    public void From_AnExistingVenueWithNoPlaylistOrImage_StaysOnNone()
+    {
+        var model = EditVenueModel.From(new Venue { Name = "Dark Room" }, new NewVenueDefaults(Guid.NewGuid(), Guid.NewGuid(), ImageScaling.Fill));
+
+        Assert.Equal((null, null, null), (model.VisualisationPlaylistId, model.BrandingImageMediaId, model.BrandingImageScaling));
     }
 
     /// <summary>Every VenueSettings field, given a value nothing in From/ApplyTo treats specially:

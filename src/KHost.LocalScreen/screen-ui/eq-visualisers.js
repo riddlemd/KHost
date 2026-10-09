@@ -1,6 +1,6 @@
 // The host's own drawings under the words: a spectrum analyser, the same mirrored, an
 // oscilloscope and a pair of VU meters, a set of calm ambient scenes and a set of old-screen (retro)
-// effects. Canvas 2D, no third-party code. visualiser.js decides when one is up and hands each frame
+// effects. Canvas 2D (the soft-field scenes through a WebGL 1 shader), no third-party code. visualiser.js decides when one is up and hands each frame
 // what it heard; this only turns that into a picture.
 //
 // The analysers sit low on the screen, under where the words usually are, so the picture behind a
@@ -21,6 +21,15 @@ const EQ_VISUALISER_STYLES = [
     { name: 'ambient-embers', title: 'Rising embers' },
     { name: 'ambient-rings', title: 'Pulse rings' },
     { name: 'ambient-beams', title: 'Sweeping beams' },
+    { name: 'ambient-clouds', title: 'Cumulus drift' },
+    { name: 'ambient-nebula', title: 'Emission nebula' },
+    { name: 'ambient-aurora', title: 'Aurora curtains' },
+    { name: 'ambient-smoke', title: 'Rising smoke' },
+    { name: 'ambient-ink', title: 'Ink in water' },
+    { name: 'ambient-gasgiant', title: 'Gas giant' },
+    { name: 'ambient-haze', title: 'Stage haze' },
+    { name: 'ambient-storm', title: 'Thunderhead' },
+    { name: 'ambient-silk', title: 'Silk ribbons' },
     { name: 'retro-static', title: 'TV static' },
     { name: 'retro-vhs', title: 'VHS tracking' },
     { name: 'retro-crt', title: 'CRT glow' },
@@ -71,6 +80,36 @@ const AMBIENT_SEED = 0x4b486f73;
 
 /// Classic, for a scene: a soft spread of colours rather than a meter's green to red.
 const AMBIENT_CLASSIC = ['#2ec4b6', '#6c63ff', '#d6589b', '#f0a04b', '#3a86ff'];
+
+/// Field scenes (clouds, gas, nebulas) are a fragment shader per pixel, which a 2D context cannot
+/// draw at frame rate. They render at most this wide and are scaled up: they hold no fine detail.
+const AMBIENT_FIELD_WIDTH = 640;
+
+/// The most a field scene puts out on any channel: a field covers every pixel at once, so this is
+/// its counterpart to AMBIENT_MAX_ALPHA.
+const AMBIENT_FIELD_PEAK = 0.8;
+
+/// Thunderhead: a beat may light the cloud at most every GAP frames (and only CHANCE of the time),
+/// a passage with no beat gets one every IDLE. Each swells over RISE frames and dies over FALL.
+const AMBIENT_FLASH_GAP = 45;
+const AMBIENT_FLASH_IDLE = 240;
+const AMBIENT_FLASH_CHANCE = 0.6;
+const AMBIENT_FLASH_RISE = 6;
+const AMBIENT_FLASH_FALL = 40;
+
+/// Classic, for a field scene: its own three colours, in the slots a one-colour palette fills with
+/// the colour, a lighter shade and a darker one.
+const AMBIENT_FIELD_CLASSIC = {
+    'ambient-clouds': ['#d96b5c', '#fff0e6', '#1f2459'],
+    'ambient-nebula': ['#d92990', '#ff9a4d', '#148ccc'],
+    'ambient-aurora': ['#1aff8c', '#c2ffe0', '#9940ff'],
+    'ambient-smoke': ['#9c2bd1', '#d9ccf2', '#597399'],
+    'ambient-ink': ['#0d80b3', '#f2bf66', '#f02190'],
+    'ambient-gasgiant': ['#8c4729', '#ebcc9e', '#592e1f'],
+    'ambient-haze': ['#ff5a8c', '#5ac8ff', '#8c5aff'],
+    'ambient-storm': ['#5c668f', '#99a6ff', '#45336a'],
+    'ambient-silk': ['#e0508f', '#f2b04a', '#4a7af2'],
+};
 
 /// The bar counts an entry may ask for; anything else is taken as the nearest.
 const EQ_BAR_COUNTS = [16, 32, 64];
@@ -386,14 +425,252 @@ function ambientStepEnergy(state, loudness, bass) {
     return state;
 }
 
+/// What every field scene's shader starts with: its inputs and a value-noise toolkit. `T` is the
+/// scene's own clock in seconds, `L` and `Bs` its eased loudness and bass, `C0`–`C2` its palette
+/// (main, light, dark) and `F` a flash (x, y, strength), lit only by the thunderhead.
+const AMBIENT_FIELD_HEAD = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec2 R; uniform float T; uniform float L; uniform float Bs;
+uniform vec3 C0; uniform vec3 C1; uniform vec3 C2; uniform vec3 F;
+float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);
+  return mix(mix(h21(i),h21(i+vec2(1.,0.)),u.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),u.x),u.y);}
+float fbm(vec2 p){float v=0.,a=.5;mat2 m=mat2(1.6,1.2,-1.2,1.6);
+  for(int i=0;i<6;i++){v+=a*noise(p);p=m*p;a*=.5;}return v;}
+float stars(vec2 p,float t){vec2 s=p*40.;vec2 id=floor(s);float h=h21(id);
+  vec2 o=fract(s)-.5-(vec2(h21(id+3.1),h21(id+7.7))-.5)*.7;
+  return step(.94,h)*(1.-smoothstep(0.,.18,length(o)))*(.55+.45*sin(t*1.7+h*60.));}
+`;
+
+// smoothstep's edges must rise: GLSL ES leaves a falling pair undefined, and drivers disagree.
+const AMBIENT_FIELD_MAIN = `
+void main(){
+  vec2 uv=gl_FragCoord.xy/R; vec2 p=(gl_FragCoord.xy-.5*R)/R.y;
+  vec3 c=scene(uv,p,T)*${AMBIENT_FIELD_PEAK.toFixed(2)};
+  c*=1.-.35*dot(p*.9,p*.9);
+  c+=(h21(gl_FragCoord.xy+fract(T))-.5)/255.;
+  gl_FragColor=vec4(clamp(c,0.,1.),1.);
+}`;
+
+/// Each field scene's `scene(uv, p, t)`: `uv` runs 0 to 1 up the screen, `p` is centred and a
+/// screen high, so a scene keeps its shape at any aspect.
+const AMBIENT_FIELDS = {
+    // Lit cumulus crossing a dusk sky; the tops catch more light as the music swells.
+    'ambient-clouds': `vec3 scene(vec2 uv,vec2 p,float t){
+  vec3 sky=mix(C0,C2,smoothstep(-.1,.9,uv.y));
+  sky=mix(sky,C2*.25,smoothstep(.7,1.2,uv.y));
+  vec2 q=p*1.6+vec2(t*.025,0.);
+  vec2 w=vec2(fbm(q+t*.01),fbm(q+vec2(5.2,1.3)));
+  float f=fbm(q+w*.6), f2=fbm(q+w*.6+vec2(.04,-.06));
+  float d=smoothstep(.42,.78,f);
+  float lit=clamp((f-f2)*6.+.5,0.,1.);
+  vec3 cl=mix(mix(C2,C0,.3),C1*(.85+.15*L),lit);
+  return mix(sky,cl,d*.92)*.8;}`,
+
+    // Gas folding round a bright core over a slow star field; the core breathes with the bass.
+    'ambient-nebula': `vec3 scene(vec2 uv,vec2 p,float t){
+  float a=t*.015; mat2 m=mat2(cos(a),-sin(a),sin(a),cos(a));
+  vec2 q=m*p*1.4;
+  vec2 w=vec2(fbm(q*1.4+vec2(0.,t*.025)),fbm(q*1.4+vec2(3.1,-t*.02)));
+  float f=fbm(q*2.+w*2.2), g=fbm(q*3.1-w*1.6+7.3);
+  vec3 c=C2*.02;
+  c+=C0*pow(f,3.)*2.4;
+  c+=C2*pow(g,3.)*2.2*w.x;
+  c+=C1*pow(f*g,2.5)*2.5;
+  c+=mix(C1,vec3(1.),.4)*exp(-dot(p,p)*4.)*(.15+.45*Bs)*f;
+  c+=stars(p,t)*(.6+.4*L)*(1.-clamp(f*1.5,0.,1.)*.6);
+  return c;}`,
+
+    // Three curtains rippling across a polar sky; they reach higher on loud passages.
+    'ambient-aurora': `vec3 scene(vec2 uv,vec2 p,float t){
+  vec3 c=mix(vec3(.01,.02,.04),C2*.1,uv.y);
+  c+=stars(p,t)*.5;
+  for(int i=0;i<3;i++){float fi=float(i);
+    float y0=-.15+fi*.12+.12*sin(p.x*1.3+t*.15+fi*2.)+.15*fbm(vec2(p.x*1.5+t*.04,fi*3.));
+    float d=p.y-y0;
+    float rays=.4+.6*fbm(vec2(p.x*14.+fi*5.+fbm(vec2(p.x*3.,t*.1))*4.,t*.15));
+    float band=smoothstep(-.02,.03,d)*exp(-max(d,0.)*(3.6-L*1.4))*rays;
+    vec3 col=mix(mix(C1,C0,smoothstep(0.,.06,d)),C2,clamp(d*2.+fi*.25,0.,1.));
+    c+=col*band*(.5+.3*Bs);}
+  return c;}`,
+
+    // Pale smoke curling up through a backlight that swells with the kick.
+    'ambient-smoke': `vec3 scene(vec2 uv,vec2 p,float t){
+  vec2 q=vec2(p.x*1.8,p.y*1.2-t*.08);
+  vec2 w=vec2(fbm(q*1.4+vec2(t*.03,0.)),fbm(q*1.4+vec2(4.,t*.02)));
+  float f=fbm(q+w*2.2);
+  float s=smoothstep(.35,.9,f)*(1.-smoothstep(-.4,1.15,uv.y));
+  vec3 back=mix(vec3(.02,.02,.04),C0*.45*(.5+.9*Bs),exp(-uv.y*3.));
+  return back+mix(C2,C1,w.x)*s*.85;}`,
+
+    // Plumes unfurling like ink dropped in a tank; the light veins brighten with the level.
+    'ambient-ink': `vec3 scene(vec2 uv,vec2 p,float t){
+  vec2 q=p*1.2;
+  vec2 a=vec2(fbm(q+vec2(0.,t*.04)),fbm(q+vec2(5.2,1.3)-t*.03));
+  vec2 b=vec2(fbm(q+3.*a+vec2(1.7,9.2)+t*.05),fbm(q+3.*a+vec2(8.3,2.8)));
+  float f=fbm(q+3.*b);
+  vec3 c=mix(C0*.06,C0*.7,clamp(f*f*3.,0.,1.));
+  c=mix(c,C2*.8,clamp(length(a)*.6-.2,0.,1.)*.7);
+  c=mix(c,C1,clamp(b.x*b.x*(1.1+L),0.,1.)*.35);
+  return c*(f*1.3+.15);}`,
+
+    // A banded atmosphere seen close, jets shearing past one slow storm eye.
+    'ambient-gasgiant': `vec3 scene(vec2 uv,vec2 p,float t){
+  vec2 c0=vec2(.42,-.16); vec2 d=p-c0; float r=length(d*vec2(1.,1.9));
+  float ang=2.8*exp(-r*5.)+.2*sin(t*.1);
+  vec2 q=c0+mat2(cos(ang),-sin(ang),sin(ang),cos(ang))*d;
+  q.x+=t*.02+.25*sin(q.y*7.+t*.05);
+  float w=fbm(vec2(q.x*2.,q.y*7.)+vec2(t*.01,0.));
+  float tb=fbm(vec2(q.x*5.,q.y*16.)+w*2.5);
+  float band=.5+.5*sin(q.y*9.+w*2.2+tb*1.2);
+  vec3 c=mix(C0,C1,band);
+  c=mix(c,C2,smoothstep(.55,.8,tb)*.6);
+  c=mix(c,min(C0*1.4,vec3(1.)),exp(-r*r*40.)*.7);
+  return c*(.5+.25*L*band);}`,
+
+    // Coloured spots drifting through rolling fog; they flare with the bass.
+    'ambient-haze': `vec3 scene(vec2 uv,vec2 p,float t){
+  float fog=fbm(p*2.+vec2(t*.04,t*.015))*.7+fbm(p*5.-vec2(t*.06,0.))*.3;
+  vec3 l=vec3(0.);
+  for(int i=0;i<4;i++){float fi=float(i);
+    vec2 c=vec2(sin(t*.07+fi*1.9)*.8,cos(t*.05+fi*2.3)*.35+.1);
+    vec3 col=fi<.5?C0:(fi<1.5?C1:(fi<2.5?C2:mix(C0,C1,.5)));
+    l+=col*exp(-length(p-c)*(3.2-Bs*1.1))*(.7+.6*L);}
+  return l*fog*1.3+vec3(.01,.01,.02);}`,
+
+    // Storm cloud lit from inside wherever F says, only where the cloud is thick.
+    'ambient-storm': `vec3 scene(vec2 uv,vec2 p,float t){
+  vec2 q=p*1.4+vec2(t*.02,0.);
+  vec2 w=vec2(fbm(q+t*.015),fbm(q+vec2(3.,7.)));
+  float f=fbm(q+w), f2=fbm(q+w+vec2(0.,.08));
+  vec3 c=mix(C2*.15,C0*.5,smoothstep(.3,.8,f));
+  c+=C2*.3*clamp((f-f2)*5.,0.,1.);
+  c+=C1*F.z*exp(-length(p-F.xy)*2.5)*1.6*smoothstep(.25,.75,f);
+  return c;}`,
+
+    // Five satin ribbons flowing across; they thicken and shine on peaks.
+    'ambient-silk': `vec3 scene(vec2 uv,vec2 p,float t){
+  vec3 c=mix(C2*.12,C0*.08,uv.x);
+  for(int i=0;i<5;i++){float fi=float(i);
+    float y=.3*sin(p.x*(1.1+fi*.2)+t*(.15+fi*.03)+fi*1.3)+.08*sin(p.x*3.+t*.4+fi)-.35+fi*.17;
+    float d=p.y-y;
+    float w=.06+.03*sin(t*.2+fi)+.02*Bs;
+    float band=exp(-d*d/(w*w));
+    float k=mod(fi,3.);
+    c=mix(c,(k<.5?C0:(k<1.5?C1:C2))*.75,band*.55);
+    c+=pow(band,6.)*.25*(.6+L);}
+  return c;}`,
+};
+
+/// Whether a style is a field scene, drawn by a shader rather than by shapes.
+function isFieldStyle(name) {
+    return Object.prototype.hasOwnProperty.call(AMBIENT_FIELDS, name);
+}
+
+/// A field scene's palette as three [r, g, b] in 0–1: its own classic colours, or the accent or the
+/// single colour with its lighter and darker shade.
+function ambientFieldColours(style, scheme, colour) {
+    const rgb = scheme === 'theme' || scheme === 'single'
+        ? ambientPalette(scheme, colour)
+        : AMBIENT_FIELD_CLASSIC[style].map(eqParseColour);
+    return rgb.map((c) => c.map((v) => v / 255));
+}
+
+/// A WebGL 1 context on an off-page canvas that draws the field scenes, or null where there is
+/// none. Its own canvas: the 2D canvas the scene lands on can never hold a WebGL context too.
+function createAmbientFieldRenderer(createCanvas) {
+    const canvas = createCanvas(1, 1);
+    const gl = canvas && canvas.getContext
+        ? canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: true })
+        : null;
+    if (!gl) return null;
+
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const programs = new Map();
+
+    function compile(type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+        console.error(`field shader: ${gl.getShaderInfoLog(shader)}`);
+        return null;
+    }
+
+    /// The style's linked program and its uniforms, built once; null (cached, so a broken shader
+    /// is reported once) when it does not compile.
+    function program(style) {
+        if (programs.has(style)) return programs.get(style);
+        const vertex = compile(gl.VERTEX_SHADER, 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}');
+        const fragment = compile(gl.FRAGMENT_SHADER, AMBIENT_FIELD_HEAD + AMBIENT_FIELDS[style] + AMBIENT_FIELD_MAIN);
+        let built = null;
+        if (vertex && fragment) {
+            const linked = gl.createProgram();
+            gl.attachShader(linked, vertex);
+            gl.attachShader(linked, fragment);
+            gl.bindAttribLocation(linked, 0, 'a');
+            gl.linkProgram(linked);
+            if (gl.getProgramParameter(linked, gl.LINK_STATUS)) {
+                const uniforms = {};
+                for (const name of ['R', 'T', 'L', 'Bs', 'C0', 'C1', 'C2', 'F']) uniforms[name] = gl.getUniformLocation(linked, name);
+                built = { linked, uniforms };
+            } else console.error(`field shader: ${gl.getProgramInfoLog(linked)}`);
+        }
+        programs.set(style, built);
+        return built;
+    }
+
+    return {
+        /// Whether the GPU took the context away; a lost renderer is made again.
+        get lost() { return gl.isContextLost(); },
+
+        /// One frame of `style` at width × height, as the canvas to copy from, or null when it
+        /// cannot be drawn. `t` in seconds, `level` and `bass` 0–1, `colours` three [r, g, b] in
+        /// 0–1, `flash` [x, y, strength].
+        draw(style, width, height, { t, level, bass, colours, flash }) {
+            if (gl.isContextLost()) return null;
+            const built = program(style);
+            if (!built) return null;
+            if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+
+            const u = built.uniforms;
+            gl.viewport(0, 0, width, height);
+            gl.useProgram(built.linked);
+            gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+            gl.uniform2f(u.R, width, height);
+            gl.uniform1f(u.T, t);
+            gl.uniform1f(u.L, level);
+            gl.uniform1f(u.Bs, bass);
+            gl.uniform3fv(u.C0, colours[0]);
+            gl.uniform3fv(u.C1, colours[1]);
+            gl.uniform3fv(u.C2, colours[2]);
+            gl.uniform3fv(u.F, flash);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+            return canvas;
+        },
+    };
+}
+
 /// One style drawn on `canvas`'s 2D context. `canvas.width`/`height` are the drawing buffer, sized
 /// by the caller. `seed` lays out the ambient and retro scenes; the same seed draws the same frames.
-/// `createCanvas(width, height)` makes the off-page canvas the retro grain is held on.
+/// `createCanvas(width, height)` makes the off-page canvases: the retro grain's, and the one the
+/// field scenes' WebGL context draws on.
 function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroCanvas } = {}) {
     const ctx = canvas.getContext('2d');
     // Outlives a style switch: making the grain is the one costly step, and it depends only on the
     // seed and the colour.
     let grain = null;
+    // Undefined until a field scene first needs it, null where WebGL cannot be had: outlives a style
+    // switch for the same reason, compiled shaders being the costly part.
+    let field;
     let style = null;
     let barCount = EQ_DEFAULT_BAR_COUNT;
     let scheme = 'classic';
@@ -587,6 +864,8 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
                 hue: random() * 4, twinkle: random() * Math.PI * 2,
             }));
             Object.assign(scene, { glitch: null, lastGlitch: -RETRO_GLITCH_IDLE, glitchCount: 0 });
+        } else if (isFieldStyle(style)) {
+            Object.assign(scene, { items: [], clock: random() * 200, flash: null, lastFlash: -AMBIENT_FLASH_IDLE });
         } else scene.items = [];
         scene.lastTile = 0;
     }
@@ -923,6 +1202,43 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         });
     }
 
+    /// The thunderhead's lightning this frame as [x, y, strength] in the shader's centred units: a
+    /// beat may start one (never sooner than AMBIENT_FLASH_GAP after the last), a long quiet starts
+    /// one anyway, and each swells and dies over frames so it reads as a glow, never a strobe.
+    function stepFlash(e) {
+        const since = scene.frame - scene.lastFlash;
+        if ((e.beat && since >= AMBIENT_FLASH_GAP && scene.random() < AMBIENT_FLASH_CHANCE) || since >= AMBIENT_FLASH_IDLE) {
+            scene.flash = { born: scene.frame, x: scene.random() * 1.6 - 0.8, y: scene.random() * 0.5 - 0.1 };
+            scene.lastFlash = scene.frame;
+        }
+        if (!scene.flash) return [0, 0, 0];
+
+        const age = scene.frame - scene.flash.born;
+        const strength = age < AMBIENT_FLASH_RISE
+            ? (age + 1) / AMBIENT_FLASH_RISE
+            : Math.max(0, 1 - (age - AMBIENT_FLASH_RISE) / AMBIENT_FLASH_FALL);
+        const at = [scene.flash.x, scene.flash.y, strength * (0.6 + 0.4 * e.bass)];
+        if (strength === 0) scene.flash = null;
+        return at;
+    }
+
+    /// A field scene, drawn small by the shader and stretched over the canvas. Black where WebGL
+    /// cannot be had or the shader will not build.
+    function drawField(e, t) {
+        const w = canvas.width, h = canvas.height;
+        if (!(w > 0 && h > 0)) return;
+        if (field === undefined || (field && field.lost)) field = createAmbientFieldRenderer(createCanvas);
+
+        const flash = style === 'ambient-storm' ? stepFlash(e) : [0, 0, 0];
+        if (!field) return;
+
+        const width = Math.min(w, AMBIENT_FIELD_WIDTH), height = Math.max(1, Math.round((width * h) / w));
+        const drawn = field.draw(style, width, height, {
+            t: scene.clock + t, level: e.level, bass: e.bass, colours: ambientFieldColours(style, scheme, colour), flash,
+        });
+        if (drawn) ctx.drawImage(drawn, 0, 0, width, height, 0, 0, w, h);
+    }
+
     /// One frame of a calm scene: its motion steps one frame whatever the music, and the music only
     /// nudges how fast and how bright.
     function drawScene(feed) {
@@ -936,6 +1252,7 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         else if (style === 'ambient-embers') drawEmbers(e, t, palette);
         else if (style === 'ambient-rings') drawRings(e, t, palette);
         else if (style === 'ambient-beams') drawBeams(e, t, palette);
+        else if (isFieldStyle(style)) drawField(e, t);
         else if (style === 'retro-static') drawStatic(e, t, palette);
         else if (style === 'retro-vhs') drawVhs(e, t, palette);
         else if (style === 'retro-crt') drawCrt(e, t, palette);

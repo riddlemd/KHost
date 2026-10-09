@@ -22,39 +22,81 @@ public class DatabaseInitializerTests
 
 
     [Fact]
-    public async Task EnsureDefaultVisualisationPlaylistAsync_DoesNothing_WhenTheRowIsThere()
+    public async Task EnsureShippedVisualisationPlaylistsAsync_DoesNothing_WhenBothRowsAreThere()
     {
-        _visualisationPlaylistService.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId)
-            .Returns(new VisualisationPlaylist { Id = VisualisationPlaylist.DefaultId, Name = "Default Visualizations" });
+        StubPlaylist(ShippedVisualisationPlaylists.BasicId);
+        StubPlaylist(ShippedVisualisationPlaylists.AdvancedId);
         var sut = CreateSut();
 
-        await sut.EnsureDefaultVisualisationPlaylistAsync();
+        await sut.EnsureShippedVisualisationPlaylistsAsync();
 
         await _visualisationPlaylistService.DidNotReceive().CreateAsync(Arg.Any<VisualisationPlaylist>());
     }
 
     [Fact]
-    public async Task EnsureDefaultVisualisationPlaylistAsync_RecreatesItFromTheLiveAmbientSet_WhenTheRowIsGone()
+    public async Task EnsureShippedVisualisationPlaylistsAsync_RecreatesBasicFromTheLiveShapeScenes_WhenItIsGone()
     {
-        _visualisationPlaylistService.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId).Returns((VisualisationPlaylist?)null);
+        StubPlaylist(ShippedVisualisationPlaylists.AdvancedId);
+        StubLiveAmbientSet();
+        var sut = CreateSut();
+
+        await sut.EnsureShippedVisualisationPlaylistsAsync();
+
+        await _visualisationPlaylistService.Received(1).CreateAsync(Arg.Any<VisualisationPlaylist>());
+        await _visualisationPlaylistService.Received(1).CreateAsync(
+            Arg.Is<VisualisationPlaylist>(p => p.Id == ShippedVisualisationPlaylists.BasicId && p.Name == "Basic Backgrounds"));
+        await _visualisationPlaylistService.Received(1).ReplaceEntriesAsync(ShippedVisualisationPlaylists.BasicId,
+            Arg.Is<IReadOnlyList<VisualisationEntry>>(entries => entries.Select(e => e.PresetName).SequenceEqual(new[] { "ambient-gradient", "ambient-bokeh" })));
+    }
+
+    [Fact]
+    public async Task EnsureShippedVisualisationPlaylistsAsync_RecreatesAdvancedFromTheLiveShaderScenes_WhenItIsGone()
+    {
+        StubPlaylist(ShippedVisualisationPlaylists.BasicId);
+        StubLiveAmbientSet();
+        var sut = CreateSut();
+
+        await sut.EnsureShippedVisualisationPlaylistsAsync();
+
+        await _visualisationPlaylistService.Received(1).CreateAsync(Arg.Any<VisualisationPlaylist>());
+        await _visualisationPlaylistService.Received(1).CreateAsync(
+            Arg.Is<VisualisationPlaylist>(p => p.Id == ShippedVisualisationPlaylists.AdvancedId && p.Name == "Advanced Backgrounds"));
+        await _visualisationPlaylistService.Received(1).ReplaceEntriesAsync(ShippedVisualisationPlaylists.AdvancedId,
+            Arg.Is<IReadOnlyList<VisualisationEntry>>(entries => entries.Select(e => e.PresetName).SequenceEqual(new[] { "ambient-clouds", "ambient-nebula" })
+                && entries.All(e => e.PresetSource == VisualiserPresetSource.BuiltIn)));
+    }
+
+    /// <summary>The screen draws a field scene by the name the host sends, so the advanced set must
+    /// name exactly the scenes the screen draws with a shader.</summary>
+    [Fact]
+    public void AdvancedScenes_AreTheFieldScenesTheScreenShips()
+    {
+        var script = File.ReadAllText(Path.Combine(KHost.UnitTests.Domain.Services.Visualisations.VisualiserPresetServiceTests.RepositoryRoot(),
+            "src", "KHost.LocalScreen", "screen-ui", "eq-visualisers.js"));
+        var fields = script[script.IndexOf("const AMBIENT_FIELDS = {", StringComparison.Ordinal)..];
+        fields = fields[..fields.IndexOf("\n};", StringComparison.Ordinal)];
+        var names = System.Text.RegularExpressions.Regex.Matches(fields, @"^    '([^']+)':", System.Text.RegularExpressions.RegexOptions.Multiline)
+            .Select(m => m.Groups[1].Value);
+
+        Assert.Equal(names, ShippedVisualisationPlaylists.AdvancedScenes);
+    }
+
+    private void StubPlaylist(Guid id)
+        => _visualisationPlaylistService.ReadWithEntriesAsync(id).Returns(new VisualisationPlaylist { Id = id, Name = "Kept" });
+
+    private void StubLiveAmbientSet()
+    {
         _visualiserPresetService.ReadAll().Returns(
         [
             new VisualiserPreset { Name = "spectrum-bars", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "ambient-gradient", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "ambient-clouds", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "ambient-bokeh", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "ambient-nebula", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "retro-static", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "Rovastar - Oozing Resistance", Source = VisualiserPresetSource.Bundled },
         ]);
         _visualisationPlaylistService.CreateAsync(Arg.Any<VisualisationPlaylist>()).Returns(c => c.Arg<VisualisationPlaylist>());
-        var sut = CreateSut();
-
-        await sut.EnsureDefaultVisualisationPlaylistAsync();
-
-        await _visualisationPlaylistService.Received(1).CreateAsync(
-            Arg.Is<VisualisationPlaylist>(p => p.Id == VisualisationPlaylist.DefaultId && p.Name == "Default Visualizations"));
-        var expected = new[] { "ambient-gradient", "ambient-bokeh" };
-        await _visualisationPlaylistService.Received(1).ReplaceEntriesAsync(VisualisationPlaylist.DefaultId,
-            Arg.Is<IReadOnlyList<VisualisationEntry>>(entries => entries.Select(e => e.PresetName).SequenceEqual(expected)));
     }
 
     [Fact]
@@ -171,8 +213,8 @@ public class DatabaseInitializerTests
                 await seed.SaveChangesAsync();
             }
 
-            _visualisationPlaylistService.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId)
-                .Returns(new VisualisationPlaylist { Id = VisualisationPlaylist.DefaultId, Name = "Default Visualizations" });
+            StubPlaylist(ShippedVisualisationPlaylists.BasicId);
+            StubPlaylist(ShippedVisualisationPlaylists.AdvancedId);
             var sut = CreateSut(factory);
 
             await sut.InitializeAsync();

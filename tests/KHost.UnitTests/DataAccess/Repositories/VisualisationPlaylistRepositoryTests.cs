@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Repositories;
+using KHost.DataAccess.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,7 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"khost-visualisations-{Guid.NewGuid():N}.db");
     private readonly IDbContextFactory<DefaultContext> _factory;
     private readonly VisualisationPlaylistRepository _repository;
+    private readonly List<string> _extraPaths = [];
 
     public VisualisationPlaylistRepositoryTests()
     {
@@ -33,8 +35,20 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         _repository = new VisualisationPlaylistRepository(_factory, NullLogger<BaseRepository<VisualisationPlaylist>>.Instance);
     }
 
+    /// <summary>A database of its own, migrated to just before the advanced playlist, deleted with the test's.</summary>
+    private async Task<DefaultContext> MigratedToBeforeAdvancedAsync()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"khost-visualisations-advanced-{Guid.NewGuid():N}.db");
+        _extraPaths.Add(path);
+        var context = new DefaultContext(new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path};Pooling=False").Options);
+        await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261009024846_AddPerformanceBackground");
+        Assert.Equal("Default Visualizations", (await context.VisualisationPlaylists.AsNoTracking().SingleAsync()).Name);
+        return context;
+    }
+
     public void Dispose()
     {
+        foreach (var path in _extraPaths) try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { }
         try { if (File.Exists(_dbPath)) File.Delete(_dbPath); } catch (IOException) { }
         GC.SuppressFinalize(this);
     }
@@ -55,12 +69,53 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         var playlist = await _repository.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId);
 
         Assert.NotNull(playlist);
-        Assert.Equal(("Default Visualizations", false), (playlist!.Name, playlist.Shuffle));
+        Assert.Equal(("Basic Backgrounds", false), (playlist!.Name, playlist.Shuffle));
         Assert.Equal(
             ["ambient-gradient", "ambient-bokeh", "ambient-embers", "ambient-rings", "ambient-beams"],
             playlist.Entries.Select(e => e.PresetName));
         Assert.Equal([0, 1, 2, 3, 4], playlist.Entries.Select(e => e.Position));
         Assert.All(playlist.Entries, e => Assert.Equal(VisualiserPresetSource.BuiltIn, e.PresetSource));
+    }
+
+    [Fact]
+    public async Task Migrate_AFreshDatabase_SeedsTheAdvancedPlaylistWithTheShaderScenesInOrder()
+    {
+        var playlist = await _repository.ReadWithEntriesAsync(ShippedVisualisationPlaylists.AdvancedId);
+
+        Assert.NotNull(playlist);
+        Assert.Equal(("Advanced Backgrounds", "advanced backgrounds", false), (playlist!.Name, playlist.NameFolded, playlist.Shuffle));
+        Assert.Equal(ShippedVisualisationPlaylists.AdvancedScenes, playlist.Entries.Select(e => e.PresetName));
+        Assert.Equal(Enumerable.Range(0, 9), playlist.Entries.Select(e => e.Position));
+        Assert.All(playlist.Entries, e => Assert.Equal(
+            (VisualiserPresetSource.BuiltIn, 100, 100, 100, 32, "#33ccff", VisualiserColourScheme.Classic),
+            (e.PresetSource, e.Brightness, e.Saturation, e.Sensitivity, e.BarCount, e.Colour, e.ColourScheme)));
+    }
+
+    /// <summary>An install from before the advanced playlist: the shipped name moves to Basic
+    /// Backgrounds, and Advanced Backgrounds arrives beside it.</summary>
+    [Fact]
+    public async Task Migrate_ADatabaseFromBeforeTheAdvancedPlaylist_RenamesTheDefaultAndAddsAdvanced()
+    {
+        await using var context = await MigratedToBeforeAdvancedAsync();
+
+        await context.Database.MigrateAsync();
+
+        var basic = await context.VisualisationPlaylists.SingleAsync(p => p.Id == ShippedVisualisationPlaylists.BasicId);
+        Assert.Equal(("Basic Backgrounds", "basic backgrounds"), (basic.Name, basic.NameFolded));
+        Assert.Equal(9, await context.Set<VisualisationEntry>().CountAsync(e => e.VisualisationPlaylistId == ShippedVisualisationPlaylists.AdvancedId));
+    }
+
+    [Fact]
+    public async Task Migrate_ADatabaseWhoseHostRenamedTheDefault_KeepsTheirName()
+    {
+        await using var context = await MigratedToBeforeAdvancedAsync();
+        await context.Database.ExecuteSqlRawAsync(
+            """UPDATE "VisualisationPlaylists" SET "Name" = 'Our Room', "NameFolded" = 'our room' WHERE "Id" = '00000000-0000-0000-0000-000000000001'""");
+
+        await context.Database.MigrateAsync();
+
+        var basic = await context.VisualisationPlaylists.SingleAsync(p => p.Id == ShippedVisualisationPlaylists.BasicId);
+        Assert.Equal("Our Room", basic.Name);
     }
 
     /// <summary>A database that predates this migration gets the row on its next upgrade, same as a
@@ -243,8 +298,8 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
 
         var all = await _repository.ReadAllWithEntriesAsync();
 
-        // "Default Visualizations" is the migration-seeded playlist, folding between the two.
-        Assert.Equal(["alpha", "Default Visualizations", "Zed"], all.Select(p => p.Name));
+        // Both shipped playlists are migration-seeded, folding between the two.
+        Assert.Equal(["Advanced Backgrounds", "alpha", "Basic Backgrounds", "Zed"], all.Select(p => p.Name));
         Assert.Equal(["Z1", "Z2"], all.Single(p => p.Name == "Zed").Entries.Select(e => e.PresetName));
         Assert.Empty(all.Single(p => p.Name == "alpha").Entries);
     }

@@ -1,0 +1,33 @@
+// The box takes the control's look and the input inside gives its own up, so the text and the value
+// read as one field and the focus ring goes round both.
+.kh-input-affix {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 0.75rem;
+    min-height: var(--kh-control-height);
+    background-color: var(--kh-bg-input);
+    border: 1px solid var(--kh-border);
+    border-radius: var(--kh-radius);
+    transition: border-color var(--kh-transition);
+
+    &:focus-within {
+        border-color: var(--kh-border-bright);
+    }
+
+    ::deep .kh-form-control {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: 100%;
+        min-height: 0;
+        padding: 0.5rem 0;
+        border: none;
+        background-color: transparent;
+    }
+
+    &__text {
+        flex: 0 0 auto;
+        color: var(--kh-text-muted);
+        user-select: none;
+    }
+}

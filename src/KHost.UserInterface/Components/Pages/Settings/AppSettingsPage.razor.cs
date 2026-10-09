@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using KHost.Domain.Services.VideoEncoding;
+using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
@@ -164,6 +165,10 @@ public partial class AppSettingsPage : IDisposable
         [VideoEncoderPreference.Auto, VideoEncoderPreference.Hardware, VideoEncoderPreference.Software];
 
     private static string VideoEncoderLabel(VideoEncoderPreference preference) => preference.ToString();
+
+    private static IReadOnlyList<VenueBackgrounds> VenueBackgroundsChoices => [VenueBackgrounds.Basic, VenueBackgrounds.Advanced];
+
+    private static string VenueBackgroundsLabel(VenueBackgrounds backgrounds) => $"{backgrounds} Backgrounds";
 
     private static string GraphicsScaleLabel(int height) => height switch
     {

@@ -1,6 +1,7 @@
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -60,6 +61,21 @@ internal static class AppSettingsPageServices
     }
 
     public static IMediaProvider FakeLocalProvider() => FakeProvider(KHost.UserInterface.Services.AppSettings.LocalSearchMode, "Local");
+
+    /// <summary>What the page's New venues section injects (its image picker), for fixtures testing
+    /// something else on it. The library holds <paramref name="images"/>, none by default.</summary>
+    public static IMediaService AddNewVenuesSection(this IServiceCollection services, params Media[] images)
+    {
+        var media = Substitute.For<IMediaService>();
+        media.ReadAllByTypesAsync(Arg.Any<MediaType[]>()).Returns(images);
+        var uploader = Substitute.For<IMediaUploader>();
+        uploader.ExtensionsFor(Arg.Any<IEnumerable<MediaType>>()).Returns([".png"]);
+
+        services.AddSingleton(media);
+        services.AddSingleton(uploader);
+
+        return media;
+    }
 
     public static IFFmpegService AddFFmpegSection(this IServiceCollection services, FFmpegStatus? status = null)
     {

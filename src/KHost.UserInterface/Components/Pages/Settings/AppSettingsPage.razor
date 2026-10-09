@@ -41,53 +41,30 @@
                                 <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.StopFadeSeconds"
                                              min="@MinStopFadeSeconds" max="@MaxStopFadeSeconds" step="0.5" />
                             </SettingRow>
-                            <SettingRow Label="HLS segment length (seconds)" Applies="applies immediately">
-                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds"
-                                             min="@MinSegmentSeconds" max="@MaxSegmentSeconds" step="1" />
+                            <SettingRow Label="Default backing vocals volume" Applies="applies immediately">
+                                <InputAffix Suffix="%">
+                                    <InputNumber id="backing-vocal-volume" class="kh-form-control kh-app-settings__number"
+                                                 @bind-Value="_model.BackingVocalVolume" min="0" max="100" step="5" />
+                                </InputAffix>
                             </SettingRow>
-                            <SettingRow Label="CD+G scaling" Applies="applies from the next song">
-                                <Note>
-                                    <span class="kh-note">
-                                        Sharpens CD+G graphics by scaling them up before they're sent to the
-                                        display. Higher sizes cost more processing.
-                                    </span>
-                                </Note>
-                                <ChildContent>
-                                    <ChoiceSelect TValue="int" Id="graphics-scale" Choices="GraphicsScaleChoices"
-                                                  Value="_model.GraphicsScaleHeight" ValueChanged="v => _model.GraphicsScaleHeight = v"
-                                                  Label="GraphicsScaleLabel" />
-                                </ChildContent>
-                            </SettingRow>
+                        </div>
+                    </section>
 
-                            <SettingRow Label="Video encoder" Applies="applies from the next song">
-                                <Note>
-                                    <span class="kh-note">
-                                        Hardware encoding uses the graphics chip and frees the processor. Auto
-                                        uses it when this machine has one that works.
-                                    </span>
-                                </Note>
-                                <ChildContent>
-                                    <ChoiceSelect TValue="VideoEncoderPreference" Id="video-encoder" Choices="VideoEncoderChoices"
-                                                  Value="_model.VideoEncoder" ValueChanged="v => _model.VideoEncoder = v"
-                                                  Label="VideoEncoderLabel" />
-                                </ChildContent>
-                            </SettingRow>
-                            <SettingRow Label="Song controls" Applies="applies immediately">
-                                <select class="kh-form-select kh-app-settings__number" @bind="_model.SongControlStyle">
-                                    <option value="@SongControlStyle.Sliders">Sliders</option>
-                                    <option value="@SongControlStyle.Dials">Dials</option>
-                                </select>
-                            </SettingRow>
-                            <SettingRow Label="Default backing vocals volume (%)" Applies="applies immediately">
-                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.BackingVocalVolume" min="0" max="100" step="5" />
-                            </SettingRow>
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="chat-quote-fill" />
+                            <span class="kh-card__title">Lyrics</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <p class="kh-note kh-app-settings__intro">
+                                Only for songs with timed lyrics, whose words the screen draws or burns in. CD+G and
+                                video files carry their words in the picture, which these never change.
+                            </p>
                             <SettingRow Label="Lead-in grace" Applies="applies from the next song">
                                 <Note>
                                     <span class="kh-note">
                                         Holds the start of a song whose words begin almost at once, so the singer
                                         is led in. Songs with their own intro are not delayed beyond it.
-                                        Only affects lyrics the screen draws itself; CD+G and video files
-                                        carry their words in the picture and are never held.
                                     </span>
                                 </Note>
                                 <ChildContent>
@@ -100,8 +77,7 @@
                                 <Note>
                                     <span class="kh-note">
                                         Runs a marker into the first line of a page and into a line after a long
-                                        pause, where the song's timing gives none. Only for words the screen draws
-                                        or burns in from timed lyrics, not CD+G or video.
+                                        pause, where the song's timing gives none.
                                     </span>
                                 </Note>
                                 <ChildContent>
@@ -124,8 +100,7 @@
                                 <Note>
                                     <span class="kh-note">
                                         Makes duet singers and sung and unsung words easier to tell apart for
-                                        colour-blind viewers, by separating colours that would look alike. Only
-                                        for timed lyrics, not CD+G or video.
+                                        colour-blind viewers, by separating colours that would look alike.
                                     </span>
                                 </Note>
                                 <ChildContent>
@@ -159,6 +134,45 @@
 
                     <section class="kh-app-settings__panel kh-card">
                         <div class="kh-card__header">
+                            <Icon Name="stars" />
+                            <span class="kh-card__title">New venues</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="Backgrounds" Applies="applies to the next venue added">
+                                <Note>
+                                    <span class="kh-note">
+                                        The visualisation playlist under the words at a venue you add. Advanced
+                                        draws clouds, gas and nebulas and needs a screen that runs WebGL; without
+                                        it the screen shows black. Each venue can change its own in its settings.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="VenueBackgrounds" Id="new-venue-backgrounds" Choices="VenueBackgroundsChoices"
+                                                  Value="_model.NewVenueBackgrounds" ValueChanged="v => _model.NewVenueBackgrounds = v"
+                                                  Label="VenueBackgroundsLabel" />
+                                </ChildContent>
+                            </SettingRow>
+                            @* Stacked, not a SettingRow: a preview and a picker need the panel's whole width. *@
+                            <div class="kh-app-settings__stacked">
+                                <span class="kh-app-settings__labelled">
+                                    Placeholder image
+                                    <span class="kh-app-settings__apply">applies to the next venue added</span>
+                                    <span class="kh-note">
+                                        Shown on a new venue's screen whenever nothing is playing. None leaves
+                                        it blank. Each venue can change its own in its settings.
+                                    </span>
+                                </span>
+                                <PlaceholderImageEditor IdPrefix="new-venue-placeholder" ShowPickerLabel="false"
+                                                        MediaId="_model.NewVenuePlaceholderImageId"
+                                                        MediaIdChanged="id => _model.NewVenuePlaceholderImageId = id"
+                                                        Scaling="_model.NewVenuePlaceholderImageScaling"
+                                                        ScalingChanged="s => _model.NewVenuePlaceholderImageScaling = s" />
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
                             <Icon Name="megaphone-fill" />
                             <span class="kh-card__title">Ads</span>
                         </div>
@@ -166,6 +180,35 @@
                             <SettingRow Label="Default ad duration (seconds)" Applies="applies immediately">
                                 <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.AdDefaultDurationSeconds"
                                              min="@MinAdDurationSeconds" max="@MaxAdDurationSeconds" step="1" />
+                            </SettingRow>
+                        </div>
+                    </section>
+
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="window" />
+                            <span class="kh-card__title">Console</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="Song controls" Applies="applies immediately">
+                                <select class="kh-form-select kh-app-settings__number" @bind="_model.SongControlStyle">
+                                    <option value="@SongControlStyle.Sliders">Sliders</option>
+                                    <option value="@SongControlStyle.Dials">Dials</option>
+                                </select>
+                            </SettingRow>
+                            <SettingRow Label="Default search mode" Applies="applies the next time the panel starts">
+                                <Note>
+                                    <span class="kh-note">
+                                        What Song Search starts in. "Remember the last one used" keeps whatever
+                                        was picked last on this machine; a provider no longer loaded falls back
+                                        to Local.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="string" Id="default-search-mode" Choices="SearchModeChoices"
+                                                  Value="_model.DefaultSearchMode" ValueChanged="v => _model.DefaultSearchMode = v"
+                                                  Label="SearchModeLabel" />
+                                </ChildContent>
                             </SettingRow>
                         </div>
                     </section>
@@ -185,14 +228,26 @@
                             <SettingRow Label="User groups rows per page" Applies="applies when the list next loads">
                                 <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UserGroupsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
                             </SettingRow>
-                            <SettingRow Label="Tips rows per page" Applies="applies when the list next loads">
-                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.TipsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
-                            </SettingRow>
                             <SettingRow Label="Venues rows per page" Applies="applies when the list next loads">
                                 <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.VenuesPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
                             </SettingRow>
+                            <SettingRow Label="Tips rows per page" Applies="applies when the list next loads">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.TipsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
+                            </SettingRow>
                             <SettingRow Label="Performance history rows per page" Applies="applies when the dialog next opens">
                                 <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.PerformanceHistoryPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
+                            </SettingRow>
+                        </div>
+                    </section>
+
+                    <section class="kh-app-settings__panel kh-card">
+                        <div class="kh-card__header">
+                            <Icon Name="folder-fill" />
+                            <span class="kh-card__title">Media</span>
+                        </div>
+                        <div class="kh-card__body">
+                            <SettingRow Label="@($"Media directory (blank = {_defaultMediaDirectory})")" Applies="applies to plugin downloads immediately">
+                                <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
                             </SettingRow>
                         </div>
                     </section>
@@ -241,35 +296,39 @@
 
                     <section class="kh-app-settings__panel kh-card">
                         <div class="kh-card__header">
-                            <Icon Name="folder-fill" />
-                            <span class="kh-card__title">Media</span>
+                            <Icon Name="film" />
+                            <span class="kh-card__title">Video</span>
                         </div>
                         <div class="kh-card__body">
-                            <SettingRow Label="@($"Media directory (blank = {_defaultMediaDirectory})")" Applies="applies to plugin downloads immediately">
-                                <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
-                            </SettingRow>
-                        </div>
-                    </section>
-
-                    <section class="kh-app-settings__panel kh-card">
-                        <div class="kh-card__header">
-                            <Icon Name="search" />
-                            <span class="kh-card__title">Search</span>
-                        </div>
-                        <div class="kh-card__body">
-                            <SettingRow Label="Default search mode" Applies="applies the next time the panel starts">
+                            <SettingRow Label="Video encoder" Applies="applies from the next song">
                                 <Note>
                                     <span class="kh-note">
-                                        What Song Search starts in. "Remember the last one used" keeps whatever
-                                        was picked last on this machine; a provider no longer loaded falls back
-                                        to Local.
+                                        Hardware encoding uses the graphics chip and frees the processor. Auto
+                                        uses it when this machine has one that works.
                                     </span>
                                 </Note>
                                 <ChildContent>
-                                    <ChoiceSelect TValue="string" Id="default-search-mode" Choices="SearchModeChoices"
-                                                  Value="_model.DefaultSearchMode" ValueChanged="v => _model.DefaultSearchMode = v"
-                                                  Label="SearchModeLabel" />
+                                    <ChoiceSelect TValue="VideoEncoderPreference" Id="video-encoder" Choices="VideoEncoderChoices"
+                                                  Value="_model.VideoEncoder" ValueChanged="v => _model.VideoEncoder = v"
+                                                  Label="VideoEncoderLabel" />
                                 </ChildContent>
+                            </SettingRow>
+                            <SettingRow Label="CD+G scaling" Applies="applies from the next song">
+                                <Note>
+                                    <span class="kh-note">
+                                        Sharpens CD+G graphics by scaling them up before they're sent to the
+                                        display. Higher sizes cost more processing.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="int" Id="graphics-scale" Choices="GraphicsScaleChoices"
+                                                  Value="_model.GraphicsScaleHeight" ValueChanged="v => _model.GraphicsScaleHeight = v"
+                                                  Label="GraphicsScaleLabel" />
+                                </ChildContent>
+                            </SettingRow>
+                            <SettingRow Label="HLS segment length (seconds)" Applies="applies immediately">
+                                <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds"
+                                             min="@MinSegmentSeconds" max="@MaxSegmentSeconds" step="1" />
                             </SettingRow>
                         </div>
                     </section>
