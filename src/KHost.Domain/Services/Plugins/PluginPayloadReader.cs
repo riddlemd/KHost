@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Models;
+using KHost.Common.Plugins;
 using System.IO.Compression;
 using System.Text.Json;
 
@@ -14,13 +15,19 @@ public class PluginPayloadReader : IPluginPayloadReader
     public const long MaxExpandedBytes = 256L * 1024 * 1024;
 
     public PluginPayloadContents Unpack(string zipPath, string destination, Guid? expectedId = null)
+        => Read(zipPath, destination, expectedId, requireThisHostsApi: true);
+
+    public PluginPayloadContents UnpackForCatalog(string zipPath, string destination)
+        => Read(zipPath, destination, expectedId: null, requireThisHostsApi: false);
+
+    private static PluginPayloadContents Read(string zipPath, string destination, Guid? expectedId, bool requireThisHostsApi)
     {
         Extract(zipPath, destination);
 
         var root = FindManifestRoot(destination)
             ?? throw new InvalidOperationException($"The download contains no {PluginLoader.ManifestFileName}.");
 
-        return new PluginPayloadContents { Root = root, Manifest = Validate(root, expectedId) };
+        return new PluginPayloadContents { Root = root, Manifest = Validate(root, expectedId, requireThisHostsApi) };
     }
 
     private static void Extract(string zipPath, string destination)
@@ -49,7 +56,7 @@ public class PluginPayloadReader : IPluginPayloadReader
             : null;
     }
 
-    private static PluginManifest Validate(string root, Guid? expectedId)
+    private static PluginManifest Validate(string root, Guid? expectedId, bool requireThisHostsApi)
     {
         var manifestPath = Path.Combine(root, PluginLoader.ManifestFileName);
 
@@ -59,8 +66,11 @@ public class PluginPayloadReader : IPluginPayloadReader
         if (expectedId is { } expected && manifest.Id != expected)
             throw new InvalidOperationException($"The download declares plugin id {manifest.Id}, but the catalog lists {expected}.");
 
-        if (manifest.ApiVersion != PluginApi.CurrentVersion)
-            throw new InvalidOperationException($"Requires plugin API v{manifest.ApiVersion}; this host supports v{PluginApi.CurrentVersion}.");
+        if (requireThisHostsApi && PluginApiRange.ThisHost.DescribeRefusal(manifest.ApiVersion) is { } refusal)
+            throw new InvalidOperationException(refusal);
+
+        if (manifest.ApiVersion < 1)
+            throw new InvalidOperationException($"Declares plugin API {manifest.ApiVersion}; plugin API versions start at 1.");
 
         // The manifest came off the network and the loader hands EntryAssembly straight to
         // LoadFromAssemblyPath, so a traversing name would load an assembly from outside the folder.

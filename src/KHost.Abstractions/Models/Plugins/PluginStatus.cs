@@ -9,7 +9,7 @@ public enum PluginStatus
     Enabled,
     /// <summary>Loaded into the process and its extensions registered.</summary>
     Loaded,
-    /// <summary>Built against an unsupported plugin API version; never loaded.</summary>
+    /// <summary>Built against a plugin API outside the range this host runs; never loaded.</summary>
     Incompatible,
     /// <summary>Bad manifest, missing assembly, or a load/scan failure; see Error.</summary>
     Errored,

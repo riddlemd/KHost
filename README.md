@@ -55,7 +55,7 @@ A plugin runs in-process and can add:
 - **buttons** on its row on the Plugins page, and tables and prompts reached from them.
 
 Hosts install plugins from the **Available** tab on the Plugins page, which reads the published
-[`plugin-catalog.json`](plugin-catalog.json). The catalog is the trust root: a release is offered
+`plugins.json` in [riddlemd/KHost.Releases](https://github.com/riddlemd/KHost.Releases). The catalog is the trust root: a release is offered
 only over https with a `sha256`, and the download is hashed and checked before anything is written.
 An install is staged and applied on the next start, never into a running host.
 

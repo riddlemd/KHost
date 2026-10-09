@@ -1,10 +1,19 @@
 namespace KHost.Abstractions.Models.Plugins;
 
-/// <summary>The plugin API version this host understands.</summary>
+/// <summary>The range of plugin API versions this host runs.</summary>
+/// <remarks>A plugin declares the version it was built against in
+/// <see cref="PluginManifest.ApiVersion"/>; this host runs, installs and offers it only when that
+/// value lies between <see cref="MinimumVersion"/> and <see cref="CurrentVersion"/>, both
+/// inclusive.</remarks>
 public static class PluginApi
 {
-    /// <summary>Bumped only on breaking changes to the plugin-facing contracts. A manifest whose
-    /// <see cref="PluginManifest.ApiVersion"/> does not match this exactly is refused, and its
-    /// catalog release is never offered to this host.</summary>
-    public const int CurrentVersion = 8;
+    /// <summary>The newest plugin API this host offers. It moves whenever the contracts gain
+    /// anything a plugin could call or implement, so a plugin built against something newer is
+    /// refused with a reason rather than failing at run time.</summary>
+    public const int CurrentVersion = 1;
+
+    /// <summary>The oldest plugin API this host still runs. It moves only on a break: a change to
+    /// something a plugin calls or implements, or a removal. A break moves
+    /// <see cref="CurrentVersion"/> too.</summary>
+    public const int MinimumVersion = 1;
 }

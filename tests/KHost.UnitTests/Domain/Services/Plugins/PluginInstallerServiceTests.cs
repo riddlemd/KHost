@@ -122,19 +122,19 @@ public class PluginInstallerServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(1)]
+    [InlineData(PluginApi.CurrentVersion + 1, "Needs a newer KHost")]
     // The stale direction is the one a check written as "newer than the host" waves through, and a
     // payload is the last place to catch it: past here the plugin is on disk and loads in-process.
-    [InlineData(-1)]
-    public async Task InstallAsync_ManifestTargetsAnotherApiVersion_Fails(int offset)
+    [InlineData(PluginApi.MinimumVersion - 1, "it needs an update")]
+    public async Task InstallAsync_ManifestBuiltAgainstAnApiOutOfRange_Fails(int apiVersion, string reason)
     {
-        var zip = BuildZip(apiVersion: PluginApi.CurrentVersion + offset);
+        var zip = BuildZip(apiVersion: apiVersion);
         var service = BuildService(zip);
 
         var result = await service.InstallAsync(Entry(), Release(Sha256(zip)));
 
         Assert.Equal(PluginInstallState.Failed, result.State);
-        Assert.Contains("plugin API", result.Error);
+        Assert.Contains(reason, result.Error);
         Assert.Empty(service.Staged().Installs);
     }
 

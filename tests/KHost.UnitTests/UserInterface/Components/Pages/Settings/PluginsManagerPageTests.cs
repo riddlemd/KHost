@@ -476,13 +476,26 @@ public class PluginsManagerPageTests : BunitContext
     }
 
     [Fact]
-    public void AvailableRow_EveryReleaseTargetsAnotherApi_SaysSoInTheTooltip()
+    public void AvailableRow_EveryReleaseBuiltForANewerApi_TooltipSaysKHostNeedsTheUpdate()
     {
         Arrange(Plugin(PluginStatus.Loaded), enabled: true);
 
         var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Future", CatalogRelease("1.0.0", apiVersion: 99)));
 
-        Assert.Contains("plugin API", cut.Find(AvailableBadgeSelector).GetAttribute("title"));
+        Assert.StartsWith("Needs a newer KHost", cut.Find(AvailableBadgeSelector).GetAttribute("title"));
+    }
+
+    [Fact]
+    public void AvailableRow_EveryReleaseBuiltForAnOlderApi_TooltipSaysThePluginNeedsTheUpdate()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Stale", CatalogRelease("1.0.0", apiVersion: PluginApi.MinimumVersion - 1)));
+
+        var badge = cut.Find(AvailableBadgeSelector);
+
+        Assert.Equal("Not compatible", badge.TextContent.Trim());
+        Assert.EndsWith("it needs an update.", badge.GetAttribute("title"));
     }
 
     [Fact]
