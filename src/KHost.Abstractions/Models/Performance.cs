@@ -43,6 +43,10 @@ public class Performance : RepositoryModel
     /// <remarks>Shown to the host, never announced or drawn on a screen.</remarks>
     public string? SingerNotes { get; set; }
 
+    /// <summary>What this turn draws under its words; null draws the venue's visualisation playlist.</summary>
+    /// <remarks>Held to the same ranges as a playlist entry on save. Fixed once the song is loaded.</remarks>
+    public PerformanceBackground? Background { get; set; }
+
     /// <summary>When this turn was created, UTC.</summary>
     public DateTime CreatedDate { get; set; }
 }

@@ -8,6 +8,7 @@ using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Visualisations;
 using KHost.UnitTests.DataAccess;
+using KHost.UserInterface.Components;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components.Forms;
@@ -104,7 +105,7 @@ public class VisualisationsManagerPageTests : BunitContext
         var entry = Assert.Single((await StoredAsync()).Entries);
         var first = _presets.ReadAll()[0];
         Assert.Equal((first.Name, first.Source), (entry.PresetName, entry.PresetSource));
-        Assert.Equal(VisualisationsManagerPage.PresetKey(first.Source, first.Name), cut.Find("#visualisation-preset").GetAttribute("value"));
+        Assert.Equal(VisualisationLookEditor.PresetKey(first.Source, first.Name), cut.Find("#visualisation-preset").GetAttribute("value"));
     }
 
     [Fact]
@@ -438,9 +439,9 @@ public class VisualisationsManagerPageTests : BunitContext
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
         cut.Find("#visualisation-add-entry").Click();
-        cut.Find("#visualisation-preset").Change(VisualisationsManagerPage.VideoKey);
+        cut.Find("#visualisation-preset").Change(VisualisationLookEditor.VideoKey);
 
-        cut.Find(".kh-visualisations__video .kh-combobox__input").Focus();
+        cut.Find(".kh-visualisation-look__video .kh-combobox__input").Focus();
         cut.FindAll(".kh-combobox__option").Single(o => o.TextContent.Trim() == "Waves").Click();
 
         cut.WaitForAssertion(() => Assert.Equal(_waves.Id, Assert.Single(StoredAsync().GetAwaiter().GetResult().Entries).VideoMediaId));
@@ -461,7 +462,7 @@ public class VisualisationsManagerPageTests : BunitContext
     {
         var cut = await WithVideoAsync();
 
-        Assert.Equal(VisualisationsManagerPage.VideoKey, cut.Find("#visualisation-preset").GetAttribute("value"));
+        Assert.Equal(VisualisationLookEditor.VideoKey, cut.Find("#visualisation-preset").GetAttribute("value"));
         Assert.Empty(cut.FindAll("#visualisation-preset option[value=\"3:\"] ~ option[value=\"3:\"]"));
     }
 
@@ -474,7 +475,7 @@ public class VisualisationsManagerPageTests : BunitContext
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal((VisualiserPresetSource.Bundled, "_Mig_049", (Guid?)null), (entry.PresetSource, entry.PresetName, entry.VideoMediaId));
-        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".kh-visualisations__video")));
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".kh-visualisation-look__video")));
     }
 
     /// <summary>A video plays as it is: nothing about bars, palette or the music applies.</summary>
@@ -483,9 +484,9 @@ public class VisualisationsManagerPageTests : BunitContext
     {
         var cut = await WithBuiltInAsync("spectrum-bars");
 
-        cut.Find("#visualisation-preset").Change(VisualisationsManagerPage.VideoKey);
+        cut.Find("#visualisation-preset").Change(VisualisationLookEditor.VideoKey);
 
-        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".kh-visualisations__video")));
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".kh-visualisation-look__video")));
         Assert.Empty(cut.FindAll("#visualisation-bars"));
         Assert.Empty(cut.FindAll("#visualisation-palette"));
         Assert.Empty(cut.FindAll("#visualisation-sensitivity"));
@@ -501,7 +502,7 @@ public class VisualisationsManagerPageTests : BunitContext
         cut.WaitForAssertion(() => Assert.Contains(JSInterop.Invocations, call =>
             call.Identifier == "khVisualiserPreview.show"
             && call.Arguments[1]!.ToString()!.Contains("videoUrl = http://host:5251/media/backdrops/abc,")));
-        Assert.Empty(cut.FindAll(".kh-visualisations__video-note"));
+        Assert.Empty(cut.FindAll(".kh-visualisation-look__video-note"));
     }
 
     [Fact]
@@ -511,7 +512,7 @@ public class VisualisationsManagerPageTests : BunitContext
 
         var cut = await WithVideoAsync();
 
-        cut.WaitForAssertion(() => Assert.Contains("MP4 (H.264)", cut.Find(".kh-visualisations__video + .kh-note").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("MP4 (H.264)", cut.Find(".kh-visualisation-look__video + .kh-note").TextContent));
         Assert.DoesNotContain(JSInterop.Invocations, call =>
             call.Identifier == "khVisualiserPreview.show" && call.Arguments[1]!.ToString()!.Contains("videoUrl = http"));
     }

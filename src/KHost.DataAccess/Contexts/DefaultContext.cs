@@ -316,6 +316,16 @@ internal class DefaultContext : DbContext
                         v => v == null ? 0 : v.Aggregate(0, (hash, pair) => hash ^ HashCode.Combine(pair.Key, pair.Value)),
                         v => v == null ? null : new Dictionary<string, int>(v)));
 
+            // Compared by its JSON for the same reason: a tracked row edited in place must be saved.
+            entity.Property(e => e.Background)
+                .HasConversion(
+                    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => v == null ? null : JsonSerializer.Deserialize<PerformanceBackground>(v, (JsonSerializerOptions?)null),
+                    new ValueComparer<PerformanceBackground?>(
+                        (a, b) => JsonSerializer.Serialize(a, (JsonSerializerOptions?)null) == JsonSerializer.Serialize(b, (JsonSerializerOptions?)null),
+                        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null).GetHashCode(),
+                        v => v == null ? null : JsonSerializer.Deserialize<PerformanceBackground>(JsonSerializer.Serialize(v, (JsonSerializerOptions?)null), (JsonSerializerOptions?)null)));
+
             // Indexed, deliberately without foreign keys: deleting a song, a singer or a venue
             // must leave the record of who sang what standing rather than cascade it away.
             entity.HasIndex(e => e.SingerId);

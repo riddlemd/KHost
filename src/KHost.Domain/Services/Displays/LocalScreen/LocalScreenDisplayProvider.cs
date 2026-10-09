@@ -668,14 +668,19 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     }
 
     /// <summary>On only for a performance with timed words and nothing of its own to show under them
-    /// (<see cref="SongBackdrops.ForPlaying"/> answering black), at a venue whose visualisation
-    /// playlist has an entry to draw.</summary>
-    /// <remarks>Any preset the timing names is ignored: the playlist's entry applies. An ad reads no
-    /// words (<see cref="SendTimedLyricsAsync"/>), so it never gets one.</remarks>
+    /// (<see cref="SongBackdrops.ForPlaying"/> answering black): the performance's own background
+    /// when it names one, else an entry from the venue's visualisation playlist.</summary>
+    /// <remarks>Any preset the timing names is ignored. A background that is black draws nothing; a
+    /// look that does not resolve draws the venue's playlist. An ad reads no words
+    /// (<see cref="SendTimedLyricsAsync"/>), so it never gets one.</remarks>
     private async Task<SetVisualiserCommand> DecideVisualiserAsync(PlaybackProgram.Playing song, DisplayLoad load)
     {
-        if ((await ReadVenueSettingsAsync())?.VisualisationPlaylistId is not { } playlistId) return VisualiserOff;
-        if (_services?.GetService<IVisualisationPlaylistService>() is not { } playlists) return VisualiserOff;
+        var playlistId = (await ReadVenueSettingsAsync())?.VisualisationPlaylistId;
+        var background = await ReadBackgroundAsync(song);
+
+        // Ahead of the probe below: a venue with no playlist and a song with no look of its own
+        // draws nothing, and must not cost a read of the file.
+        if (playlistId is null && background is not { Type: PerformanceBackgroundType.Look }) return VisualiserOff;
 
         var lyrics = ReferenceEquals(song, _lyricsFor) ? _lyrics : null;
         if (lyrics is not { Pages.Count: > 0 }) return VisualiserOff;
@@ -684,20 +689,60 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         var backdrop = SongBackdrops.ForPlaying(hasTimedLyrics: true, path, await PlaysOwnPictureAsync(path, load));
         if (backdrop != SongBackdrop.Black) return VisualiserOff;
 
+        if (background is { Type: PerformanceBackgroundType.Black }) return VisualiserOff;
+
+        if (background is { Type: PerformanceBackgroundType.Look }
+            && LookForSong(song, background, () => LevelsUrlFor(path, load)) is { } own)
+            return own;
+
+        if (playlistId is not { } venuePlaylistId) return VisualiserOff;
+        if (_services?.GetService<IVisualisationPlaylistService>() is not { } playlists) return VisualiserOff;
+
         // Picked only once the song is known to draw one, so a video does not use up a turn.
-        if (await EntryForSongAsync(playlists, playlistId) is not { } entry) return VisualiserOff;
+        if (await EntryForSongAsync(playlists, venuePlaylistId) is not { } entry) return VisualiserOff;
 
         // Never through the levels: a video is drawn muted and does not follow the song.
-        if (entry.PresetSource == VisualiserPresetSource.Video) return VideoVisualiserFor(song, entry) ?? VisualiserOff;
+        if (entry.PresetSource == VisualiserPresetSource.Video) return VideoVisualiserFor(song, entry, entry.Id) ?? VisualiserOff;
 
         return VisualiserFor(entry, song.Media.Title, () => LevelsUrlFor(path, load)) ?? VisualiserOff;
     }
+
+    /// <summary>The performance's own background, read afresh: the program carries the row as it was
+    /// at load. Null when it names none, or it cannot be read.</summary>
+    private async Task<PerformanceBackground?> ReadBackgroundAsync(PlaybackProgram.Playing song)
+    {
+        if (song.Performance is not { } performance || _services?.GetService<IPerformanceService>() is not { } performances)
+            return null;
+
+        return (await performances.ReadAsync(performance.Id))?.Background;
+    }
+
+    /// <summary>The command that draws the performance's own look; null when it does not resolve,
+    /// so the venue's playlist draws instead. A video whose URL is still being found is drawn as
+    /// off meanwhile, not handed to the playlist.</summary>
+    private SetVisualiserCommand? LookForSong(PlaybackProgram.Playing song, PerformanceBackground look, Func<string?> levelsUrl)
+    {
+        if (look.PresetSource != VisualiserPresetSource.Video) return VisualiserFor(look, song.Media.Title, levelsUrl);
+
+        // Known not to play, or naming none: the playlist answers, and keeps its own pick.
+        if (look.VideoMediaId is not { } mediaId || _visualiserVideo is { Url: null } known && known.MediaId == mediaId)
+            return null;
+
+        var pick = LookPick(song);
+        _visualiserPick = pick;
+        return VideoVisualiserFor(song, look, pick.EntryId) ?? VisualiserOff;
+    }
+
+    /// <summary>The pick a performance's own look is kept under: no playlist has an empty id, so it
+    /// never matches a playlist's entry, and a late video URL for it is still this song's.</summary>
+    private static (Guid PlaylistId, Guid EntryId) LookPick(PlaybackProgram.Playing song)
+        => (Guid.Empty, song.Performance!.Id);
 
     /// <summary>The command that draws <paramref name="entry"/>; null when its preset cannot be
     /// found, which leaves whatever was under it.</summary>
     /// <remarks><paramref name="levelsUrl"/> is asked only once the preset resolves: it may start a
     /// read of the song's levels.</remarks>
-    private SetVisualiserCommand? VisualiserFor(VisualisationEntry entry, string drawnFor, Func<string?> levelsUrl)
+    private SetVisualiserCommand? VisualiserFor(IVisualisationLook entry, string drawnFor, Func<string?> levelsUrl)
     {
         string? name = null, url = null, builtIn = null;
         if (entry.PresetSource == VisualiserPresetSource.BuiltIn)
@@ -748,7 +793,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <remarks>The first ask for a song is answered off the load path: an encode can take seconds,
     /// and the song must not wait on its decoration. <see cref="ResolveVideoAsync"/> decides again
     /// once it is known.</remarks>
-    private SetVisualiserCommand? VideoVisualiserFor(PlaybackProgram.Playing song, VisualisationEntry entry)
+    private SetVisualiserCommand? VideoVisualiserFor(PlaybackProgram.Playing song, IVisualisationLook entry, Guid pickId)
     {
         if (entry.VideoMediaId is not { } mediaId)
         {
@@ -772,7 +817,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         if (_visualiserVideoPending != mediaId)
         {
             _visualiserVideoPending = mediaId;
-            _ = Task.Run(() => ResolveVideoAsync(song, entry.Id, mediaId));
+            _ = Task.Run(() => ResolveVideoAsync(song, pickId, mediaId));
         }
 
         return null;
@@ -815,7 +860,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             if (_visualiserVideoPending == mediaId) _visualiserVideoPending = null;
             _visualiserVideo = (mediaId, url);
 
-            if (url is null || _visualiserPick?.EntryId != entryId || _visualiserLoad is not { } loaded) return;
+            if (_visualiserPick?.EntryId != entryId || _visualiserLoad is not { } loaded) return;
+
+            // A playlist's video that cannot play stays black; a performance's own falls back to the playlist.
+            if (url is null && _visualiserPick?.PlaylistId != Guid.Empty) return;
 
             // Decided whole again rather than sent as found: the venue or the entry may have moved.
             await SendAsync(await DecideVisualiserAsync(song, loaded));
