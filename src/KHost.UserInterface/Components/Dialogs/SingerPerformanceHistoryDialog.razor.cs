@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Visualisations;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -88,6 +89,11 @@ public partial class SingerPerformanceHistoryDialog
             // Copied: the new row is saved and played on its own, so sharing one dictionary with
             // the old row would let a change to either move the other.
             VoiceVolumes = sung.VoiceVolumes is null ? null : new(sung.VoiceVolumes),
+            // Only at the venue it was sung at: another room's look may name a preset or video
+            // chosen for that room, so elsewhere the turn takes this venue's playlist.
+            Background = sung.VenueId is { } venueId && venueId == VenuesService.SelectedVenueId
+                ? VisualisationLooks.BackgroundWithinRanges(sung.Background)
+                : null,
         });
 
         // Stay open when the duplicate warning was declined, so the choice isn't lost.

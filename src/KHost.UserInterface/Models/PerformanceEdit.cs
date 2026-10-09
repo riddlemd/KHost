@@ -16,7 +16,13 @@ public sealed record PerformanceEdit
     /// <summary>Key, tempo and levels; null when none of them moved.</summary>
     public PerformanceSettings? Settings { get; init; }
 
-    public bool IsEmpty => !SungAsChanged && Settings is null;
+    /// <summary>Set when what the turn draws under its words was chosen again.</summary>
+    public bool BackgroundChanged { get; init; }
+
+    /// <summary>The new background; null draws the venue's visualisation playlist.</summary>
+    public PerformanceBackground? Background { get; init; }
+
+    public bool IsEmpty => !SungAsChanged && Settings is null && !BackgroundChanged;
 
     /// <summary>Writes each changed part through the service that owns it, one announcement each.</summary>
     public async Task SaveAsync(IPerformanceService performances, Guid performanceId)
@@ -31,5 +37,8 @@ public sealed record PerformanceEdit
 
         if (Settings is { } settings)
             await performances.UpdateSettingsAsync(performanceId, settings);
+
+        if (BackgroundChanged)
+            await performances.UpdateBackgroundAsync(performanceId, Background);
     }
 }

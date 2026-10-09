@@ -55,6 +55,9 @@ public class SingerPerformanceHistoryDialogEditPerformanceTests : BunitContext
         Services.AddSingleton(venues);
         Services.AddSingleton(tracks);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
+        var presets = Substitute.For<IVisualiserPresetService>();
+        presets.ReadAll().Returns([]);
+        Services.AddSingleton(presets);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 

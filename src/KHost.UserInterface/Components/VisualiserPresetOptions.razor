@@ -5,7 +5,7 @@
     <optgroup label="Built-in">
         @foreach (var preset in Analysers)
         {
-            <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
+            <option value="@VisualisationLookEditor.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
         }
     </optgroup>
 }
@@ -14,7 +14,7 @@
     <optgroup label="Ambient">
         @foreach (var preset in Ambient)
         {
-            <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
+            <option value="@VisualisationLookEditor.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
         }
     </optgroup>
 }
@@ -23,14 +23,14 @@
     <optgroup label="Retro">
         @foreach (var preset in Retro)
         {
-            <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
+            <option value="@VisualisationLookEditor.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
         }
     </optgroup>
 }
 <optgroup label="MilkDrop presets">
     @foreach (var preset in Presets.Where(p => p.Source == VisualiserPresetSource.Bundled))
     {
-        <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@preset.Name</option>
+        <option value="@VisualisationLookEditor.PresetKey(preset.Source, preset.Name)">@preset.Name</option>
     }
 </optgroup>
 @if (Presets.Any(p => p.Source == VisualiserPresetSource.Imported))
@@ -38,7 +38,7 @@
     <optgroup label="Imported">
         @foreach (var preset in Presets.Where(p => p.Source == VisualiserPresetSource.Imported))
         {
-            <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@preset.Name</option>
+            <option value="@VisualisationLookEditor.PresetKey(preset.Source, preset.Name)">@preset.Name</option>
         }
     </optgroup>
 }

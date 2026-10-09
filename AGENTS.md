@@ -231,7 +231,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 - `KHost.Abstractions` and `KHost.Common` are **NuGet packages**; a plugin takes a `PackageReference`, never a `ProjectReference` into this repo.
 - `<ContractsVersion>` in `Directory.Build.props` versions both. Bump it on any shape change, additions included; 0.x while the contracts move.
-- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (both at **1**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
+- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (**1** and **2**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
   - `CurrentVersion` moves on any **addition** a plugin could call or implement (a new interface, member, model field, enum value), so a plugin built against it is refused by an older host with a reason, not a run-time `MissingMethodException`.
   - `MinimumVersion` moves only on a **break**: changing a method a plugin **calls or implements**, including adding an optional parameter (the default compiles into the call site; a changed implemented signature is a `TypeLoadException` at load), or removing anything. A break moves `CurrentVersion` too.
   - Not a break: a new interface member with a **default body** (still an addition).
@@ -271,6 +271,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 - A MilkDrop preset (butterchurn, WebGL 2) drawn by the **local screen** under a song's words in place of black. Nothing else gets one: burned-in words (Cast, any display that cannot draw) stay on black; a song with its own picture keeps it.
 - **Rule: `SongBackdrops.ForPlaying` answers `Black`**, and the venue names a visualisation playlist (`VisualisationPlaylistId`, null when unset, no backfill) with at least one entry.
+  - **A performance may name its own background** (`Performance.Background`, null = the venue's playlist): `Black` draws nothing; a `Look` (any preset, built-in or video, with an entry's settings) draws in the playlist's place without taking its turn, even at a venue with no playlist, and one that does not resolve falls back to the playlist. Read fresh at each decision (the program's copy is a load-time snapshot); edited only before load (Edit Performance, like key/tempo); copied on re-queue only from a turn sung at the selected venue. `Common/Visualisations/VisualisationLooks` holds the range rules for both shapes. The next-singer card never uses it.
   - `LocalScreenDisplayProvider` decides after every load, on a venue edit, and on `VisualisationPlaylistsChanged` / `VisualiserPresetsChanged`; sends `SetVisualiserCommand` (IPC only, not a contract).
   - A stems load has no picture; a stream from a non-audio file asks `ISourcePictureProbe` once per song.
   - Idle and an ad still send it off; the screen takes it down itself once a stop has faded out.

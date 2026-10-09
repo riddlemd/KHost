@@ -8,6 +8,7 @@ using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using KHost.Common.Media;
+using KHost.Common.Visualisations;
 
 namespace KHost.Domain.Services;
 
@@ -128,6 +129,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         // Stamped at enqueue: the performance belongs to the venue it was sung at, so it must not
         // follow the host to whatever venue is selected when the history is read back.
         performance.VenueId ??= _venuesService.SelectedVenueId;
+
+        performance.Background = VisualisationLooks.BackgroundWithinRanges(performance.Background);
 
         // Here rather than left to each caller: history sorts on this, so an unstamped row sinks
         // below every real one and the singer's newest performance is the one they cannot find.
@@ -307,6 +310,33 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogInformation("Settings saved on performance {PerformanceId}: key {Pitch:+#;-#;0}, tempo {Tempo:+#;-#;0}%",
             performanceId, performance.Pitch, performance.Tempo);
+
+        AnnounceChange();
+
+        return performance;
+    }
+
+    public async Task<Performance?> UpdateBackgroundAsync(Guid performanceId, PerformanceBackground? background)
+    {
+        if (await Repository.ReadAsync(performanceId) is not { } performance)
+        {
+            Logger.LogWarning("Performance {PerformanceId} not found; background left unsaved", performanceId);
+            return null;
+        }
+
+        // A sung turn is history: nothing will draw it again, and a re-queue copies what it was.
+        if (performance.QueuePosition is null)
+        {
+            Logger.LogWarning("Performance {PerformanceId} is not queued; background left unsaved", performanceId);
+            return null;
+        }
+
+        performance.Background = VisualisationLooks.BackgroundWithinRanges(background);
+
+        await Repository.UpdateAsync(performance);
+
+        Logger.LogInformation("Background saved on performance {PerformanceId}: {Background}",
+            performanceId, performance.Background?.Type.ToString() ?? "the venue's playlist");
 
         AnnounceChange();
 

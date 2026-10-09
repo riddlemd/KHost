@@ -51,52 +51,6 @@
         margin-top: 0.75rem;
     }
 
-    &__slider {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        flex: 0 1 16rem;
-        min-width: 0;
-    }
-
-    &__range {
-        flex: 1 1 auto;
-        min-width: 0;
-        accent-color: var(--kh-primary);
-    }
-
-    &__choice {
-        flex: 0 1 16rem;
-        min-width: 0;
-    }
-
-    &__colour {
-        flex: 0 0 4rem;
-        height: 2.25rem;
-        padding: 0.125rem;
-    }
-
-    &__value {
-        flex: 0 0 3rem;
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-    }
-
-    // The screen's own shape, so the preview frames the picture as the room sees it.
-    &__preview {
-        display: block;
-        width: 100%;
-        aspect-ratio: 16 / 9;
-        border: 1px solid var(--kh-border);
-        border-radius: var(--kh-radius);
-        background: #000;
-    }
-
-    // Its note sits against the picker it explains, not a field's gap away.
-    &__video:has(+ .kh-note) {
-        margin-bottom: 0;
-    }
-
     &__import {
         cursor: pointer;
     }

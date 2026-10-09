@@ -1,6 +1,7 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
@@ -26,6 +27,8 @@ public class EditPerformanceDialogTests : BunitContext
     private readonly IAppSettingsService _appSettings = Substitute.For<IAppSettingsService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
+    private readonly IVisualiserPresetService _presets = Substitute.For<IVisualiserPresetService>();
+    private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly AppSettings _settings = new() { BackingVocalVolume = 80 };
     private readonly Venue _venue = new() { Name = "Bar", Settings = new() { AllowAliases = true } };
 
@@ -58,6 +61,15 @@ public class EditPerformanceDialogTests : BunitContext
         Services.AddSingleton(_appSettings);
         Services.AddSingleton(_playback);
         Services.AddSingleton(_venues);
+
+        _presets.ReadAll().Returns(
+        [
+            new VisualiserPreset { Name = "Rovastar - Oozing Resistance", Source = VisualiserPresetSource.Bundled },
+            new VisualiserPreset { Name = "_Mig_049", Source = VisualiserPresetSource.Bundled },
+        ]);
+        Services.AddSingleton(_presets);
+        Services.AddSingleton(Substitute.For<IMediaService>());
+        Services.AddSingleton(Substitute.For<IVideoBackdropService>());
     }
 
     [Fact]
@@ -351,6 +363,120 @@ public class EditPerformanceDialogTests : BunitContext
 
         Assert.Equal(2, host.FindAll(Dials).Count);
         Assert.All(host.FindAll(Dials), dial => Assert.True(dial.HasAttribute("disabled")));
+    }
+
+    // --- background ---
+
+    private const string Background = "#edit-performance-background";
+
+    /// <summary>A sung turn is history: nothing will draw it again, so there is nothing to choose.</summary>
+    [Fact]
+    public async Task Opening_ATurnAlreadySung_OffersNoBackground()
+    {
+        var host = await OpenAsync();
+
+        Assert.Empty(host.FindAll(Background));
+    }
+
+    [Fact]
+    public async Task Opening_AQueuedTurnWithNone_StartsOnTheVenuesPlaylistWithNoEditor()
+    {
+        _performance.QueuePosition = 2;
+
+        var host = await OpenAsync();
+
+        Assert.Equal("Venue", host.Find(Background).GetAttribute("value"));
+        Assert.Empty(host.FindAll(".kh-visualisation-look"));
+    }
+
+    [Fact]
+    public async Task Opening_AQueuedTurnWithALook_ShowsItInTheEditor()
+    {
+        _performance.QueuePosition = 2;
+        _performance.Background = new PerformanceBackground { Type = PerformanceBackgroundType.Look, PresetName = "_Mig_049", Brightness = 140 };
+
+        var host = await OpenAsync();
+
+        Assert.Equal("Look", host.Find(Background).GetAttribute("value"));
+        Assert.Equal("0:_Mig_049", host.Find("#visualisation-preset").GetAttribute("value"));
+        Assert.Equal("140", host.Find("#visualisation-brightness").GetAttribute("value"));
+    }
+
+    [Fact]
+    public async Task Saving_Black_SavesBlackThroughTheService()
+    {
+        _performance.QueuePosition = 2;
+        var host = await OpenAsync();
+
+        host.Find(Background).Change("Black");
+        host.Find(Save).Click();
+
+        host.WaitForAssertion(() => Assert.NotNull(_saved));
+        Assert.True(_saved!.BackgroundChanged);
+        await _saved.SaveAsync(_performances, _performance.Id);
+        await _performances.Received(1).UpdateBackgroundAsync(_performance.Id,
+            Arg.Is<PerformanceBackground?>(b => b != null && b.Type == PerformanceBackgroundType.Black));
+    }
+
+    [Fact]
+    public async Task Saving_ALook_SavesItAsEditedThroughTheService()
+    {
+        _performance.QueuePosition = 2;
+        var host = await OpenAsync();
+
+        host.Find(Background).Change("Look");
+        host.Find("#visualisation-preset").Change("0:_Mig_049");
+        host.Find("#visualisation-brightness").Change("150");
+        host.Find(Save).Click();
+
+        host.WaitForAssertion(() => Assert.NotNull(_saved));
+        await _saved!.SaveAsync(_performances, _performance.Id);
+        await _performances.Received(1).UpdateBackgroundAsync(_performance.Id,
+            Arg.Is<PerformanceBackground?>(b => b != null && b.Type == PerformanceBackgroundType.Look
+                && b.PresetName == "_Mig_049" && b.Brightness == 150));
+    }
+
+    [Fact]
+    public async Task Saving_TheVenuesPlaylistOverBlack_SavesNullThroughTheService()
+    {
+        _performance.QueuePosition = 2;
+        _performance.Background = new PerformanceBackground { Type = PerformanceBackgroundType.Black };
+        var host = await OpenAsync();
+
+        host.Find(Background).Change("Venue");
+        host.Find(Save).Click();
+
+        host.WaitForAssertion(() => Assert.NotNull(_saved));
+        Assert.True(_saved!.BackgroundChanged);
+        await _saved.SaveAsync(_performances, _performance.Id);
+        await _performances.Received(1).UpdateBackgroundAsync(_performance.Id, null);
+    }
+
+    /// <summary>Reopening a look and saving writes nothing about it, so the queue is not told it moved.</summary>
+    [Fact]
+    public async Task Saving_TheLookAsOpened_ChangesNoBackground()
+    {
+        _performance.QueuePosition = 2;
+        _performance.Background = new PerformanceBackground { Type = PerformanceBackgroundType.Look, PresetName = "_Mig_049" };
+        var host = await OpenAsync();
+
+        host.Find(Save).Click();
+
+        host.WaitForAssertion(() => Assert.NotNull(_saved));
+        Assert.False(_saved!.BackgroundChanged);
+    }
+
+    [Fact]
+    public async Task Opening_TheLoadedTurn_DisablesTheBackground()
+    {
+        _performance.QueuePosition = 2;
+        _performance.Background = new PerformanceBackground { Type = PerformanceBackgroundType.Look, PresetName = "_Mig_049" };
+        _playback.CurrentPerformance.Returns(_performance);
+
+        var host = await OpenAsync();
+
+        Assert.True(host.Find(Background).HasAttribute("disabled"));
+        Assert.True(host.Find("fieldset.kh-visualisation-look").HasAttribute("disabled"));
     }
 
     private async Task<IRenderedComponent<DialogHost>> OpenAsync()
