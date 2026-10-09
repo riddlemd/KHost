@@ -9,7 +9,9 @@ public sealed record Options
 
           --tag <v1.2.0>          A specific release; default is the latest.
           --asset <name.zip>      Which asset to publish, when a release carries more than one zip.
-          --catalog <path>        Catalog file to update (default plugin-catalog.json).
+          --catalog <path>        Catalog file to update. Default: plugins.json in the KHost.Releases
+                                  checkout beside this repo (../../KHost.Releases/main, then
+                                  ../KHost.Releases, from the repo root).
           --capabilities <a,b>    What the plugin provides; the manifest does not carry this.
           --rid <win|macos|linux>   Platform this build is for; omit for a build that runs anywhere.
           --include-prerelease    Allow a release marked prerelease.
@@ -21,7 +23,8 @@ public sealed record Options
 
     public string? Asset { get; init; }
 
-    public string CatalogPath { get; init; } = "plugin-catalog.json";
+    /// <summary>Null when not given: the KHost.Releases checkout beside this repo is looked for.</summary>
+    public string? CatalogPath { get; init; }
 
     public IReadOnlyList<string> Capabilities { get; init; } = [];
 
@@ -37,7 +40,7 @@ public sealed record Options
             return null;
 
         string? tag = null, asset = null, capabilities = null, rid = null;
-        var catalog = "plugin-catalog.json";
+        string? catalog = null;
         var includePrerelease = false;
 
         for (var i = 1; i < args.Length; i++)

@@ -14,7 +14,7 @@ public class PluginCatalogExtensionsTests
     }
 
     [Fact]
-    public void LatestCompatible_NewerReleaseTargetsAnotherApi_ReturnsCompatibleOne()
+    public void LatestCompatible_NewerReleaseBuiltForANewerApi_ReturnsTheOneInRange()
     {
         var entry = EntryWith(Release("1.0.0"), Release("2.0.0", apiVersion: PluginApi.CurrentVersion + 1));
 
@@ -22,12 +22,60 @@ public class PluginCatalogExtensionsTests
     }
 
     [Fact]
-    public void LatestCompatible_EveryReleaseTargetsAnotherApi_ReturnsNull()
+    public void LatestCompatible_NewerReleaseBuiltForAnOlderApi_ReturnsTheOneInRange()
     {
-        var entry = EntryWith(Release("1.0.0", apiVersion: PluginApi.CurrentVersion + 1));
+        var entry = EntryWith(Release("1.0.0"), Release("2.0.0", apiVersion: PluginApi.MinimumVersion - 1));
 
-        Assert.Null(entry.LatestCompatibleRelease());
+        Assert.Equal("1.0.0", entry.LatestCompatibleRelease()?.Version);
     }
+
+    [Theory]
+    [InlineData(PluginApi.CurrentVersion + 1)]
+    [InlineData(PluginApi.MinimumVersion - 1)]
+    public void LatestCompatible_EveryReleaseOutOfRange_ReturnsNull(int apiVersion)
+        => Assert.Null(EntryWith(Release("1.0.0", apiVersion: apiVersion)).LatestCompatibleRelease());
+
+    [Fact]
+    public void LatestCompatible_SeveralApisInRange_ReturnsTheHighestPluginVersion()
+    {
+        // Plugin version decides, not plugin API: a newer release may be built against an older API.
+        var entry = EntryWith(
+            Release("3.0.0", apiVersion: 3),
+            Release("4.0.0", apiVersion: 4),
+            Release("5.0.0", apiVersion: 2),
+            Release("6.0.0", apiVersion: 5));
+
+        Assert.Equal("5.0.0", entry.LatestCompatibleRelease(new PluginApiRange(2, 4))?.Version);
+    }
+
+    [Fact]
+    public void LatestCompatible_ReleasesAtBothEndsOfTheRange_AreBothCandidates()
+    {
+        var range = new PluginApiRange(2, 4);
+
+        Assert.Equal("2.0.0", EntryWith(Release("1.0.0", apiVersion: 4), Release("2.0.0", apiVersion: 2)).LatestCompatibleRelease(range)?.Version);
+        Assert.Equal("2.0.0", EntryWith(Release("1.0.0", apiVersion: 2), Release("2.0.0", apiVersion: 4)).LatestCompatibleRelease(range)?.Version);
+    }
+
+    [Fact]
+    public void DescribeApiRefusal_NewestApiAboveTheRange_SaysKHostNeedsTheUpdate()
+    {
+        var entry = EntryWith(Release("1.0.0", apiVersion: PluginApi.MinimumVersion - 1), Release("2.0.0", apiVersion: PluginApi.CurrentVersion + 1));
+
+        Assert.StartsWith("Needs a newer KHost", entry.DescribeApiRefusal());
+    }
+
+    [Fact]
+    public void DescribeApiRefusal_EveryReleaseBelowTheRange_SaysThePluginNeedsTheUpdate()
+        => Assert.EndsWith("it needs an update.", EntryWith(Release("1.0.0", apiVersion: PluginApi.MinimumVersion - 1)).DescribeApiRefusal());
+
+    [Fact]
+    public void DescribeApiRefusal_AReleaseInRange_IsNull()
+        => Assert.Null(EntryWith(Release("1.0.0", apiVersion: PluginApi.CurrentVersion + 1), Release("0.9.0")).DescribeApiRefusal());
+
+    [Fact]
+    public void DescribeApiRefusal_NoReleases_IsNull()
+        => Assert.Null(EntryWith().DescribeApiRefusal());
 
     [Fact]
     public void LatestCompatible_NewestReleaseHasNoChecksum_SkipsIt()
@@ -56,9 +104,17 @@ public class PluginCatalogExtensionsTests
         Assert.Null(entry.LatestCompatibleRelease());
     }
 
-    [Fact]
-    public void HasReleaseForThisHost_EveryReleaseTargetsAnotherApi_IsFalse()
-        => Assert.False(EntryWith(Release("1.0.0", apiVersion: PluginApi.CurrentVersion + 1)).HasReleaseForThisHost());
+    [Theory]
+    [InlineData(PluginApi.CurrentVersion + 1)]
+    [InlineData(PluginApi.MinimumVersion - 1)]
+    public void HasReleaseForThisHost_EveryReleaseOutOfRange_IsFalse(int apiVersion)
+        => Assert.False(EntryWith(Release("1.0.0", apiVersion: apiVersion)).HasReleaseForThisHost());
+
+    [Theory]
+    [InlineData(PluginApi.CurrentVersion + 1)]
+    [InlineData(PluginApi.MinimumVersion - 1)]
+    public void HasReleaseForThisPlatform_NeutralBuildOutOfRange_IsFalse(int apiVersion)
+        => Assert.False(EntryWith(Release("1.0.0", apiVersion: apiVersion)).HasReleaseForThisPlatform());
 
     [Fact]
     public void HasReleaseForThisHost_NoReleases_IsFalse()

@@ -8,7 +8,7 @@ Projects (`src/`):
 - `Domain` (services) / `DataAccess` (EF Core 10 + SQLite).
 - `UserInterface` (Blazor Server) and `LocalScreen` (Photino video output).
 - `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager — keep it textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire).
-- `tools/`: `KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries.
+- `tools/`: `KHost.CatalogSync`, the CLI that writes entries into the plugin catalog (`plugins.json` in `riddlemd/KHost.Releases`).
 - `build/`: `KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time.
 - `tests/`: `KHost.UnitTests` — hermetic, no skips. `KHost.IntegrationTests` — needs ffmpeg/ffprobe; the OS secret-store tests skip on any other platform, and each hardware video encoder's tests skip on a machine that cannot run that encoder.
 
@@ -21,7 +21,7 @@ dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"    # build (redirected 
 dotnet test tests/KHost.UnitTests                           # --filter "FullyQualifiedName~Name" to narrow
 dotnet test tests/KHost.IntegrationTests                    # drives real ffmpeg; fails without it (KHOST_SKIP_ENVIRONMENT_TESTS=1 to accept)
 
-dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's GitHub release to plugin-catalog.json
+dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's GitHub release to KHost.Releases/plugins.json
 
 ./build/pack-contracts.sh                                   # pack Abstractions + Common to the local NuGet feed
 ./build/check-secrets-drift.sh                               # diff src/KHost.Secrets/Interop against the pinned upstream commit; needs network
@@ -231,9 +231,11 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 - `KHost.Abstractions` and `KHost.Common` are **NuGet packages**; a plugin takes a `PackageReference`, never a `ProjectReference` into this repo.
 - `<ContractsVersion>` in `Directory.Build.props` versions both. Bump it on any shape change, additions included; 0.x while the contracts move.
-- `PluginApi.CurrentVersion` (at **8**) is the runtime gate checked against a manifest; it moves only on a break.
-  - A break: changing a method a plugin **calls or implements**, including adding an optional parameter (the default compiles into the call site; a changed implemented signature is a `TypeLoadException` at load).
-  - Not a break: a new interface member with a **default body**.
+- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (both at **1**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
+  - `CurrentVersion` moves on any **addition** a plugin could call or implement (a new interface, member, model field, enum value), so a plugin built against it is refused by an older host with a reason, not a run-time `MissingMethodException`.
+  - `MinimumVersion` moves only on a **break**: changing a method a plugin **calls or implements**, including adding an optional parameter (the default compiles into the call site; a changed implemented signature is a `TypeLoadException` at load), or removing anything. A break moves `CurrentVersion` too.
+  - Not a break: a new interface member with a **default body** (still an addition).
+  - Contract enums stay **append-only** with explicit values: a plugin compiles them as numbers.
   - Do not reason from the published catalog about who implements what — the hand-installed plugin is the one running.
   - Widening a method silently changes what `Received(1).Foo(id)` asserts in a plugin's tests: assert the argument, not the bare call.
 - A plugin excludes their runtime assets: `<PackageReference Include="KHost.Abstractions" ExcludeAssets="runtime" />`. The host has both in its default context and `PluginLoadContext.Load` returns null for them. A plugin's *test* project takes them normally.
@@ -243,21 +245,23 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 ## Plugin catalog and installs
 
-- The Plugins page's Available tab installs from `plugin-catalog.json` (repo root, served raw from `main`; `PluginCatalog:Url`).
-- The catalog is the **trust root** (a plugin runs in-process with host access). A release is offered only over https with a `sha256`. The download is hashed; every zip entry is checked for escapes *before* any is written; the manifest must declare the same id and `ApiVersion == PluginApi.CurrentVersion`. `EntryAssembly` must resolve inside the plugin folder (`PluginLoader` passes it straight to `LoadFromAssemblyPath`).
+- The Plugins page's Available tab installs from `plugins.json` in the public repo **`riddlemd/KHost.Releases`** (served raw from `main`; `PluginCatalog:Url`). Format is `PluginCatalog` (`schemaVersion` 1); that repo's CI checks it — this repo holds no catalog and no catalog test.
+- The catalog is the **trust root** (a plugin runs in-process with host access). A release is offered only over https with a `sha256`. The download is hashed; every zip entry is checked for escapes *before* any is written; the manifest must declare the same id and an `apiVersion` in this host's range. `EntryAssembly` must resolve inside the plugin folder (`PluginLoader` passes it straight to `LoadFromAssemblyPath`).
 - Presentation metadata (repository, author, capabilities) goes in the catalog, not `PluginManifest` — the manifest is MIT and a new field breaks every external plugin's build (same argument as `MediaSearchEntity`).
 - Nothing installs into a running host. `IPluginStagingArea` parks payloads in `plugins-staging/`, a **sibling** of `plugins/` (`PluginLoader.Discover` treats every subdirectory of `plugins/` as a plugin).
   - `<id>/` staged install; `<folder>.remove` pending removal; `<id>.failed/` a payload the last start could not apply, with `error.txt` beside it (stops retries); `.work/` download scratch (inside staging so the final `Directory.Move` never crosses a volume).
   - Installs keyed by id, removals by folder name (two folders may carry one id): an install replaces the plugin wherever it sits; a removal targets one row.
   - A marker naming anything but a direct child of `plugins/` is ignored.
 - `ApplyPending()` runs from `AddPlugins` before `Discover`: no DI, no logger, and a failure must never stop startup. It maps id → folders by reading each manifest, so an update replaces a hand-dropped plugin under any folder name and every duplicate copy.
-- **The catalog lists only what the current host can install.** When `PluginApi.CurrentVersion` moves, rebuild and re-release every entry on the old version and **remove** the superseded entry (`LatestCompatibleRelease` matches the api version *exactly*). Removal is the one hand-made catalog edit.
-- **Add a release with the tool, never by hand**: `dotnet run --project tools/KHost.CatalogSync -- <owner/repo> [--rid win] [--capabilities "a,b"]`. It fetches **unauthenticated**, hashes the download, unpacks through the host's `IPluginPayloadReader`, writes the entry from the manifest. `PublishedCatalogTests` checks shape only — a wrong hand-typed hash surfaces only when a host install fails.
+- **Entries are never removed.** The catalog serves every host, old and new; superseded releases stay so each host picks the newest it runs.
+- **Selection** (`LatestCompatibleRelease`): the highest plugin version whose `apiVersion` is in `[MinimumVersion, CurrentVersion]`, installable, for this platform; platform second.
+- **Add a release with the tool, never by hand**: `dotnet run --project tools/KHost.CatalogSync -- <owner/repo> [--rid win] [--capabilities "a,b"] [--catalog <path>]`. Default catalog: `../../KHost.Releases/main/plugins.json` from this repo's root, then `../KHost.Releases/plugins.json`; neither → it fails and asks for `--catalog`. Commit the change in KHost.Releases.
+  - It fetches **unauthenticated**, hashes the download, unpacks through the host's `IPluginPayloadReader.UnpackForCatalog` (every check but the API range: it lists builds for every host), writes the entry from the manifest, and prints whether this host's range covers it. The install path (`Unpack`) keeps the range check.
 - Network access is unauthenticated on purpose: the host sends no credentials, so a private repo's release is a 404. Checking with `gh` or any authenticated client proves nothing.
-- GitHub's per-asset `sha256` is **cross-checked, never copied**; the catalog's hash is the one the sync run computed.
+- GitHub's per-asset `sha256` is **cross-checked, never copied**; the catalog's hash is the one the sync run computed. A wrong hand-typed hash surfaces only when a host install fails.
 - A release zip holds `manifest.json` at its root (or in one wrapping folder), the entry assembly, and its `.deps.json` (read by `AssemblyDependencyResolver`). No `.pdb`, no contract assemblies (see **The published contracts**).
-- `Rid` is blank for a build that runs anywhere — the goal. Name a platform only when an OS API forces it (the Spotify provider's WinRT path). Selection: version first, platform second.
-- `LatestCompatible()` null has three causes; do not conflate them. Wrong plugin API or no build for this platform → "Not compatible" (tooltip says which via `HasReleaseForThisHost()` / `HasReleaseForThisPlatform()`). No https URL and checksum → "Not verifiable".
+- `Rid` is blank for a build that runs anywhere — the goal. Name a platform only when an OS API forces it (the Spotify provider's WinRT path).
+- `LatestCompatible()` null has three causes; do not conflate them. Out of API range or no build for this platform → "Not compatible" (tooltip: `DescribeApiRefusal()` says whether KHost or the plugin needs the update, else the platform). No https URL and checksum → "Not verifiable".
 - Fetch the catalog only when the Available tab opens, never at startup. A failed fetch keeps the cached copy and shows the error. An unknown `schemaVersion` rejects the whole document.
 
 ## What is playing between singers
