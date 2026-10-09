@@ -11,14 +11,14 @@ internal sealed class SqliteTestDatabase : IDbContextFactory<DefaultContext>, ID
     private readonly SqliteConnection _connection;
     private readonly DbContextOptions<DefaultContext> _options;
 
-    public SqliteTestDatabase()
+    public SqliteTestDatabase(Action<DbContextOptionsBuilder<DefaultContext>>? configure = null)
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
 
-        _options = new DbContextOptionsBuilder<DefaultContext>()
-            .UseSqlite(_connection)
-            .Options;
+        var builder = new DbContextOptionsBuilder<DefaultContext>().UseSqlite(_connection);
+        configure?.Invoke(builder);
+        _options = builder.Options;
 
         using var context = CreateDbContext();
         context.Database.EnsureCreated();

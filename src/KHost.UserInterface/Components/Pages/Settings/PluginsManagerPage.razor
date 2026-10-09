@@ -16,7 +16,7 @@
                 </button>
             </div>
             <PluginRestartBanner RestartRequired="PluginsService.RestartRequired" Waiting="WaitingOnRestart.ToList()"
-                                 StagingIsEmpty="_staging.IsEmpty" StagingSummary="StagingSummary" />
+                                 StagingIsEmpty="_staging.IsEmpty" StagingSummary="@StagingSummary" />
             <div class="kh-plugins-manager__tabs" role="tablist">
                 <button type="button" role="tab" class="kh-plugins-manager__tab @(_tab == Tab.Installed ? "kh-plugins-manager__tab--active" : null)"
                         aria-selected="@(_tab == Tab.Installed ? "true" : "false")"
