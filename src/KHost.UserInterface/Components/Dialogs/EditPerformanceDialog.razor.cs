@@ -1,7 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Common.Media;
+using KHost.Common.Visualisations;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -9,8 +11,9 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace KHost.UserInterface.Components.Dialogs;
 
-/// <summary>Edits one turn — the name it is announced under, and the key, tempo and levels it is
-/// sung at — whether it is still waiting or already in the singer's history.</summary>
+/// <summary>Edits one turn — the name it is announced under, the key, tempo and levels it is sung
+/// at and, while it is still waiting, what is drawn under its words — whether it is still waiting
+/// or already in the singer's history.</summary>
 /// <remarks>Hands back a <see cref="PerformanceEdit"/> carrying only what moved; the caller saves it
 /// with <see cref="PerformanceEdit.SaveAsync"/>.</remarks>
 public partial class EditPerformanceDialog
@@ -21,6 +24,7 @@ public partial class EditPerformanceDialog
     [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
     [Inject] private IPlaybackService PlaybackService { get; set; } = default!;
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IVisualiserPresetService VisualiserPresets { get; set; } = default!;
 
     private SongControlValues _values = new();
     private SongControlValues _opened = new();
@@ -34,6 +38,17 @@ public partial class EditPerformanceDialog
     /// <summary>The turn is loaded for playback: playback resolved its name at load and holds its
     /// values, writing them back over the row on its next change, so nothing here may be saved.</summary>
     private bool _loaded;
+
+    /// <summary>Still waiting to be sung: only a queued turn has a background left to draw.</summary>
+    private bool _queued;
+
+    private BackgroundChoice _backgroundChoice;
+
+    /// <summary>The look "A look" draws, kept while another choice is shown so switching back
+    /// finds it as it was left.</summary>
+    private PerformanceBackground _look = new() { Type = PerformanceBackgroundType.Look };
+
+    private IReadOnlyList<VisualiserPreset> _presets = [];
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Performance? Performance { get; set; }
@@ -58,6 +73,8 @@ public partial class EditPerformanceDialog
         if (Performance is not { } performance) return;
 
         _loaded = IsLoaded(performance);
+        _queued = performance.QueuePosition is not null;
+        if (_queued) OpenBackground(performance.Background);
         _alias = new AliasModel { SungAs = performance.SungAs };
         _editContext = new EditContext(_alias);
 
@@ -106,6 +123,9 @@ public partial class EditPerformanceDialog
 
         var edit = new PerformanceEdit { Settings = ChangedSettings(performance) };
 
+        if (_queued && ChosenBackground() is var background && !SameBackground(background, performance.Background))
+            edit = edit with { BackgroundChanged = true, Background = background };
+
         // Blank is stored as null, not "": every reader takes an empty name as "use the singer's
         // own", and null is the answer a row that was never given one carries.
         var typed = Normalise(_alias.SungAs);
@@ -138,6 +158,40 @@ public partial class EditPerformanceDialog
         };
     }
 
+    private void OpenBackground(PerformanceBackground? background)
+    {
+        _presets = VisualiserPresets.ReadAll();
+        _backgroundChoice = background?.Type switch
+        {
+            PerformanceBackgroundType.Black => BackgroundChoice.Black,
+            PerformanceBackgroundType.Look => BackgroundChoice.Look,
+            _ => BackgroundChoice.Venue,
+        };
+
+        if (background is { Type: PerformanceBackgroundType.Look })
+            background.CopyWithinRangesTo(_look);
+        // Starts on the first preset, as a new playlist entry does.
+        else if (_presets.FirstOrDefault() is { } preset)
+            (_look.PresetSource, _look.PresetName) = (preset.Source, preset.Name);
+    }
+
+    private void ChooseBackground(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<BackgroundChoice>(e.Value?.ToString(), out var choice) && Enum.IsDefined(choice))
+            _backgroundChoice = choice;
+    }
+
+    private PerformanceBackground? ChosenBackground() => _backgroundChoice switch
+    {
+        BackgroundChoice.Black => new PerformanceBackground { Type = PerformanceBackgroundType.Black },
+        BackgroundChoice.Look => VisualisationLooks.BackgroundWithinRanges(_look),
+        _ => null,
+    };
+
+    /// <summary>Compared as stored, so reopening and saving an unchanged look writes nothing.</summary>
+    private static bool SameBackground(PerformanceBackground? a, PerformanceBackground? b)
+        => JsonSerializer.Serialize(VisualisationLooks.BackgroundWithinRanges(a)) == JsonSerializer.Serialize(VisualisationLooks.BackgroundWithinRanges(b));
+
     private bool IsLoaded(Performance performance) => PlaybackService.CurrentPerformance?.Id == performance.Id;
 
     private static string? Normalise(string? name)
@@ -157,6 +211,8 @@ public partial class EditPerformanceDialog
         IsOpen = false;
         await OnClose.InvokeAsync();
     }
+
+    private enum BackgroundChoice { Venue, Black, Look }
 
     private sealed class AliasModel
     {

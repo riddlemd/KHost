@@ -66,7 +66,7 @@ under KHost's `plugins/`, enable it on the Plugins page and restart.
 
 Each plugin's manifest carries an `apiVersion`, the plugin API it was built against. A host runs,
 installs and offers it only when that falls between the host's `PluginApi.MinimumVersion` and
-`PluginApi.CurrentVersion` (both currently 1); otherwise the Plugins page says which side needs
+`PluginApi.CurrentVersion` (currently 1 and 2); otherwise the Plugins page says which side needs
 updating.
 
 A plugin builds against two NuGet packages, **`KHost.Abstractions`** (the interfaces and models)
