@@ -43,7 +43,12 @@ public class LocalScreenVisualiserTests
     private readonly ISourcePictureProbe _probe = Substitute.For<ISourcePictureProbe>();
     private readonly ISongLevelsService _levels = Substitute.For<ISongLevelsService>();
     private readonly IStemStreamService _stems = Substitute.For<IStemStreamService>();
+    private readonly IMediaService _library = Substitute.For<IMediaService>();
+    private readonly IVideoBackdropService _backdrops = Substitute.For<IVideoBackdropService>();
     private int _reads;
+
+    private static readonly Guid VideoId = Guid.NewGuid();
+    private const string VideoUrl = "http://host:5251/media/backdrops/abc";
 
     private static readonly DisplayLoad Stems = new() { Stems = [new(0, AudioTrackRole.Music, "http://host/m.ogg", 100)] };
     private static readonly DisplayLoad Stream = new() { StreamUrl = "http://host/s.m3u8" };
@@ -71,7 +76,9 @@ public class LocalScreenVisualiserTests
             .AddSingleton<IVisualisationPlaylistService>(new VisualisationPlaylistService(
                 NullLogger<VisualisationPlaylistService>.Instance, _playlists, _broker, _random))
             .AddSingleton(_presets)
-            .AddSingleton(_streamOptions);
+            .AddSingleton(_streamOptions)
+            .AddSingleton(_library)
+            .AddSingleton(_backdrops);
 
         if (withProbe) services.AddSingleton(_probe);
 
@@ -94,6 +101,18 @@ public class LocalScreenVisualiserTests
         _playback.CurrentProgram.Returns(song);
 
         return song;
+    }
+
+    /// <summary>Makes the playlist's first entry a library video.</summary>
+    private void FirstEntryIsAVideo(MediaType type = MediaType.Video)
+    {
+        var entry = _playlist.Entries[0];
+        entry.PresetSource = VisualiserPresetSource.Video;
+        entry.PresetName = "";
+        entry.VideoMediaId = VideoId;
+        entry.Brightness = 70;
+        entry.Saturation = 40;
+        _library.ReadAsync(VideoId).Returns(new Media { Title = "Waves", FilePath = "/videos/waves.mkv", Type = type });
     }
 
     private List<SetVisualiserCommand> Sent()
@@ -678,6 +697,131 @@ public class LocalScreenVisualiserTests
         Assert.True(await WaitUntilAsync(() => _levels.ReceivedCalls().Any(call => call.GetMethodInfo().Name == nameof(ISongLevelsService.Clear))));
     }
 
+    /// <summary>An encode takes seconds; the song does not wait for it.</summary>
+    [Fact]
+    public async Task LoadAsync_AVideoEntry_SendsOffAtOnceThenTheVideoOnceItsUrlIsKnown()
+    {
+        var url = new TaskCompletionSource<string?>();
+        _backdrops.UrlForAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(url.Task);
+        FirstEntryIsAVideo();
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+        Assert.False(Last().Enabled);
+
+        url.SetResult(VideoUrl);
+
+        Assert.True(await WaitUntilAsync(() => Last().VideoUrl == VideoUrl));
+        var sent = Last();
+        Assert.True(sent.Enabled);
+        Assert.Equal((70, 40), (sent.Brightness, sent.Saturation));
+        Assert.Equal((null, null, null, null), (sent.PresetName, sent.PresetUrl, sent.BuiltIn, sent.LevelsUrl));
+        _levels.DidNotReceive().Begin(Arg.Any<IReadOnlyList<SongLevelsInput>>());
+        await _backdrops.Received(1).UrlForAsync(Arg.Is<Media>(m => m.FilePath == "/videos/waves.mkv"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_AVideoWhoseSongEndsBeforeItsUrl_SendsNoVideo()
+    {
+        var url = new TaskCompletionSource<string?>();
+        _backdrops.UrlForAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(url.Task);
+        FirstEntryIsAVideo();
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+        await provider.LoadAsync(Stems);
+
+        _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
+        url.SetResult(VideoUrl);
+
+        Assert.False(await WaitUntilAsync(() => Sent().Any(command => command.VideoUrl is not null), attempts: 30));
+    }
+
+    /// <summary>An edit that drops the video entry mid-encode moves the song on; the late URL is not drawn.</summary>
+    [Fact]
+    public async Task LoadAsync_AVideoEntryReplacedBeforeItsUrl_SendsNothingMore()
+    {
+        var url = new TaskCompletionSource<string?>();
+        _backdrops.UrlForAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(url.Task);
+        FirstEntryIsAVideo();
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+        await provider.LoadAsync(Stems);
+
+        _playlist = new VisualisationPlaylist { Id = PlaylistId, Name = "Night", Entries = [_playlist.Entries[1]] };
+        _broker.Announce(new VisualisationPlaylistsChanged());
+        Assert.True(await WaitUntilAsync(() => Last().PresetName == "_Mig_049"));
+        var before = Sent().Count;
+
+        url.SetResult(VideoUrl);
+
+        Assert.False(await WaitUntilAsync(() => Sent().Count != before, attempts: 30));
+    }
+
+    /// <summary>A key change or rejoin reloads the same song; the video is not looked up again.</summary>
+    [Fact]
+    public async Task LoadAsync_TheSameVideoSongAgain_SendsTheVideoWithoutAskingAgain()
+    {
+        _backdrops.UrlForAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(VideoUrl);
+        FirstEntryIsAVideo();
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+        await provider.LoadAsync(Stems);
+        Assert.True(await WaitUntilAsync(() => Last().VideoUrl == VideoUrl));
+
+        await provider.LoadAsync(Stream);
+
+        Assert.Equal(VideoUrl, Last().VideoUrl);
+        await _backdrops.Received(1).UrlForAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_AVideoTheScreenCannotPlay_LeavesBlackAndDoesNotAskAgain()
+    {
+        _backdrops.UrlForAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns((string?)null);
+        FirstEntryIsAVideo();
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+        await provider.LoadAsync(Stems);
+        Assert.True(await WaitUntilAsync(() => _backdrops.ReceivedCalls().Any()));
+
+        // Past the resolve, which answers under the same lock a load takes.
+        await Task.Delay(100);
+        await provider.LoadAsync(Stream);
+
+        Assert.All(Sent(), command => Assert.False(command.Enabled));
+        await _backdrops.Received(1).UrlForAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_AVideoEntryNamingARowThatIsNotAVideo_LeavesBlackWithoutAskingForIt()
+    {
+        FirstEntryIsAVideo(MediaType.Karaoke);
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.True(await WaitUntilAsync(() => _library.ReceivedCalls().Any()));
+        await Task.Delay(100);
+        Assert.Empty(_backdrops.ReceivedCalls());
+        Assert.All(Sent(), command => Assert.False(command.Enabled));
+    }
+
+    [Fact]
+    public async Task LoadAsync_AVideoEntryNamingNoVideo_LeavesBlack()
+    {
+        FirstEntryIsAVideo();
+        _playlist.Entries[0].VideoMediaId = null;
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.False(Last().Enabled);
+        Assert.Empty(_library.ReceivedCalls());
+    }
+
     /// <summary>Hands out queued values, so a shuffle's picks are known in advance.</summary>
     private sealed class SequenceRandom : Random
     {
@@ -686,9 +830,9 @@ public class LocalScreenVisualiserTests
         public override int Next(int maxValue) => Values.Count > 0 ? Math.Min(Values.Dequeue(), maxValue - 1) : 0;
     }
 
-    private static async Task<bool> WaitUntilAsync(Func<bool> condition)
+    private static async Task<bool> WaitUntilAsync(Func<bool> condition, int attempts = 500)
     {
-        for (var attempt = 0; attempt < 500; attempt++)
+        for (var attempt = 0; attempt < attempts; attempt++)
         {
             if (condition()) return true;
             await Task.Delay(10);

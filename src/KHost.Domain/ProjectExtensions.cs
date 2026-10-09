@@ -141,6 +141,9 @@ namespace KHost.Domain
             // must never bind it, and it must not appear on the Plugins page.
             serviceCollection.AddSingleton<ISourcePictureProbe, FfprobeSourcePictureProbe>();
             serviceCollection.AddSingleton<ISongLevelsService, FfmpegSongLevelsService>();
+            serviceCollection.AddSingleton<IVideoBackdropProbe, FfprobeVideoBackdropProbe>();
+            serviceCollection.AddSingleton<IVideoBackdropEncoder, FfmpegVideoBackdropEncoder>();
+            serviceCollection.AddSingleton<IVideoBackdropService, VideoBackdropService>();
             serviceCollection.AddSingleton<LocalScreenDisplayProvider>();
             serviceCollection.AddSingleton<IDisplayProvider>(
                 provider => provider.GetRequiredService<LocalScreenDisplayProvider>());

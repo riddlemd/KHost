@@ -92,6 +92,11 @@
         background: #000;
     }
 
+    // Its note sits against the picker it explains, not a field's gap away.
+    &__video:has(+ .kh-note) {
+        margin-bottom: 0;
+    }
+
     &__import {
         cursor: pointer;
     }

@@ -26,18 +26,22 @@ public class VisualisationPlaylist : RepositoryModel
     public List<VisualisationEntry> Entries { get; set; } = [];
 }
 
-/// <summary>Where a visualiser preset comes from.</summary>
+/// <summary>Where a visualiser preset comes from, or that an entry draws a video instead.</summary>
 public enum VisualiserPresetSource
 {
     /// <summary>One of the presets the host ships.</summary>
-    Bundled,
+    Bundled = 0,
 
     /// <summary>A preset file the host imported for itself.</summary>
-    Imported,
+    Imported = 1,
 
     /// <summary>One of the host's own drawings (a spectrum analyser, meters), drawn without a
     /// preset; <see cref="VisualisationEntry.BarCount"/> and the colour settings apply to these only.</summary>
-    BuiltIn,
+    BuiltIn = 2,
+
+    /// <summary>A video from the library, named by <see cref="VisualisationEntry.VideoMediaId"/>, drawn
+    /// muted and looping; the bar count, colour and sensitivity settings do not apply.</summary>
+    Video = 3,
 }
 
 /// <summary>How a built-in visualisation is coloured.</summary>
@@ -82,12 +86,18 @@ public class VisualisationEntry : RepositoryModel
     /// <summary>Play order within the playlist; ignored when it shuffles.</summary>
     public int Position { get; set; }
 
-    /// <summary>Whether <see cref="PresetName"/> names a shipped preset or an imported one.</summary>
+    /// <summary>What the entry draws: a shipped or imported preset or a built-in, named by
+    /// <see cref="PresetName"/>, or a library video, named by <see cref="VideoMediaId"/>.</summary>
     public VisualiserPresetSource PresetSource { get; set; }
 
     /// <summary>The preset's name, as <see cref="VisualiserPreset.Name"/> gives it.</summary>
     /// <remarks>A name that no longer resolves — an imported preset since deleted — draws black.</remarks>
     public string PresetName { get; set; } = string.Empty;
+
+    /// <summary>The library video a <see cref="VisualiserPresetSource.Video"/> entry draws; null for any
+    /// other source.</summary>
+    /// <remarks>A video since removed from the library, or one a display cannot play, draws black.</remarks>
+    public Guid? VideoMediaId { get; set; }
 
     /// <summary>Percent of the preset's own brightness; 100 draws it as made.</summary>
     public int Brightness { get; set; } = 100;

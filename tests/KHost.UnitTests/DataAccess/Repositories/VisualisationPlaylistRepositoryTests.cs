@@ -140,6 +140,23 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
             (entry.PresetSource, entry.PresetName, entry.BarCount, entry.ColourScheme, entry.Colour));
     }
 
+    [Fact]
+    public async Task ReplaceEntriesAsync_KeepsAVideosMediaId()
+    {
+        var video = Guid.NewGuid();
+        var playlist = await _repository.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+
+        await _repository.ReplaceEntriesAsync(playlist.Id,
+        [
+            new() { PresetSource = VisualiserPresetSource.Video, VideoMediaId = video },
+            new() { PresetName = "A" },
+        ]);
+
+        var entries = (await _repository.ReadWithEntriesAsync(playlist.Id))!.Entries;
+        Assert.Equal([(VisualiserPresetSource.Video, (Guid?)video), (VisualiserPresetSource.Bundled, null)],
+            entries.Select(e => (e.PresetSource, e.VideoMediaId)));
+    }
+
     /// <summary>An entry saved before the built-in options existed reads as a fresh entry would.</summary>
     [Fact]
     public async Task Migrate_AnEntryFromBeforeTheBuiltIns_TakesTheDefaults()

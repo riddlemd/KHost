@@ -114,7 +114,8 @@ public class VisualisationPlaylistService : BaseRepositoryService<VisualisationP
     {
         Id = entry.Id,
         PresetSource = entry.PresetSource,
-        PresetName = entry.PresetName,
+        PresetName = entry.PresetSource == VisualiserPresetSource.Video ? string.Empty : entry.PresetName,
+        VideoMediaId = entry.PresetSource == VisualiserPresetSource.Video ? entry.VideoMediaId : null,
         Brightness = Math.Clamp(entry.Brightness, VisualisationEntry.MinBrightness, VisualisationEntry.MaxBrightness),
         Saturation = Math.Clamp(entry.Saturation, VisualisationEntry.MinSaturation, VisualisationEntry.MaxSaturation),
         Sensitivity = Math.Clamp(entry.Sensitivity, VisualisationEntry.MinSensitivity, VisualisationEntry.MaxSensitivity),

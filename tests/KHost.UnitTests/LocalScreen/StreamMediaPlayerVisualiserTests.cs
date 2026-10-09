@@ -68,4 +68,17 @@ public class StreamMediaPlayerVisualiserTests
 
         Assert.Equal(url, message.GetProperty("levels").GetString());
     }
+
+    [Theory]
+    [InlineData("http://host/media/backdrops/abc")]
+    [InlineData(null)]
+    public void SetVisualiser_PassesOnTheVideoToPlay(string? url)
+    {
+        _player.SetVisualiser(new SetVisualiserCommand { Enabled = true, VideoUrl = url, Brightness = 70 });
+
+        var message = JsonDocument.Parse(Assert.Single(_sentToPage)).RootElement;
+
+        Assert.Equal(url, message.GetProperty("videoUrl").GetString());
+        Assert.Equal(70, message.GetProperty("brightness").GetInt32());
+    }
 }

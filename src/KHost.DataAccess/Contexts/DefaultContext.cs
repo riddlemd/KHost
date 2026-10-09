@@ -158,8 +158,8 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<VisualisationEntry>(entity =>
         {
-            // No foreign key to a preset: an imported one is a file, and deleting it leaves the
-            // entry naming nothing, which draws black rather than vanishing from the host's list.
+            // No foreign key to a preset or a video: deleting either leaves the entry naming
+            // nothing, which draws black rather than vanishing from the host's list.
             entity.Property(e => e.PresetName)
                 .IsRequired()
                 .HasMaxLength(255);
