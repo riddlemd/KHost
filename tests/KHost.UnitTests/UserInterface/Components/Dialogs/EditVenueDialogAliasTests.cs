@@ -24,6 +24,7 @@ public class EditVenueDialogAliasTests : BunitContext
     public EditVenueDialogAliasTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(new List<MediaPool>());

@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
@@ -19,6 +20,7 @@ public partial class EditVenueDialog
 
     [Inject] private IVisualisationPlaylistService VisualisationPlaylists { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
 
     private bool _isNew;
     private EditVenueModel _model = new();
@@ -46,7 +48,7 @@ public partial class EditVenueDialog
     protected override async Task OnInitializedAsync()
     {
         _isNew = Venue is null;
-        _model = EditVenueModel.From(Venue);
+        _model = EditVenueModel.From(Venue, NewVenueDefaults.From(AppSettings.Current));
         _editContext = new EditContext(_model);
 
         // Read when the dialog opens, not held, since a new playlist would be missing.

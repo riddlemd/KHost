@@ -62,4 +62,14 @@ public class SettingsButtonMenuTests : BunitContext
 
         Assert.Contains(MenuItems(), i => i.TextContent.Contains("About"));
     }
+
+    /// <summary>The main page is the Hosting Dashboard, not "Controls" or "Console".</summary>
+    [Fact]
+    public void TheMenu_LeadsWithTheHostingDashboard()
+    {
+        _permissions.IsAdminAsync().Returns(false);
+        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(false);
+
+        Assert.Equal("Hosting Dashboard", MenuItems()[0].TextContent.Trim());
+    }
 }

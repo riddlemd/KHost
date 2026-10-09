@@ -30,6 +30,7 @@ public class AppSettingsPageLayoutTests : BunitContext
     public AppSettingsPageLayoutTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
         _settings.DefaultMediaDirectory.Returns("/karaoke");
@@ -69,19 +70,59 @@ public class AppSettingsPageLayoutTests : BunitContext
         var grid = page.Find(".kh-app-settings__grid");
         var panels = grid.QuerySelectorAll(":scope > .kh-app-settings__panel");
 
-        // Screens, Playback, Break music, Ads, Pagination, FFmpeg, Media, Search: one panel each, not folded
+        // Screens, Playback, Lyrics, Break music, New venues, Ads, Hosting Dashboard, Pagination, Media, FFmpeg, Video: one panel each, not folded
         // two-to-a-card, and every one is a direct child of the grid so the CSS grid actually
         // lays them out rather than a wrapper it never sees. No Security panel: sign-in is a
         // config-only flag now, not something this page saves.
-        Assert.Equal(8, panels.Length);
+        Assert.Equal(11, panels.Length);
         Assert.All(panels, panel => Assert.Contains("kh-card", panel.ClassList));
 
         var titles = panels
             .Select(panel => panel.QuerySelector(".kh-card__title")?.TextContent.Trim())
             .ToList();
         Assert.Equal(
-            ["Screens", "Playback", "Break music", "Ads", "Pagination", "FFmpeg", "Media", "Search"],
+            ["Screens", "Playback", "Lyrics", "Break music", "New venues", "Ads", "Hosting Dashboard", "Pagination", "Media", "FFmpeg", "Video"],
             titles);
+    }
+
+    /// <summary>Every lyric setting reaches timed lyrics alone, so the panel says so once, above its
+    /// rows, rather than in each row's note.</summary>
+    [Fact]
+    public void Lyrics_SaysOnceAboveItsRows_ThatOnlyTimedLyricsAreAffected()
+    {
+        var page = Render<AppSettingsPage>();
+        var lyrics = page.FindAll(".kh-app-settings__panel").Single(p => p.QuerySelector(".kh-card__title")!.TextContent.Trim() == "Lyrics");
+        var body = lyrics.QuerySelector(".kh-card__body")!;
+
+        Assert.Contains("timed lyrics", body.FirstElementChild!.TextContent);
+        Assert.Contains("kh-app-settings__intro", body.FirstElementChild.ClassList);
+        var notes = body.QuerySelectorAll(".kh-app-settings__description .kh-note");
+        Assert.NotEmpty(notes);
+        Assert.All(notes, note => Assert.DoesNotContain("CD+G", note.TextContent));
+    }
+
+    /// <summary>The unit sits in the box beside the value, not in the label.</summary>
+    [Fact]
+    public void BackingVocalVolume_CarriesItsPercentInTheBox_NotTheLabel()
+    {
+        var page = Render<AppSettingsPage>();
+        var input = page.Find("input#backing-vocal-volume");
+        var row = input.Closest(".kh-app-settings__row")!;
+
+        Assert.Equal("%", input.Closest(".kh-input-affix")!.QuerySelector(".kh-input-affix__text--suffix")!.TextContent);
+        Assert.DoesNotContain("(%)", row.QuerySelector(".kh-app-settings__labelled")!.TextContent);
+        Assert.Contains("Default backing vocals volume", row.TextContent);
+    }
+
+    /// <summary>The label names the setting; what blank means is the note's job.</summary>
+    [Fact]
+    public void MediaDirectory_SaysWhatBlankMeansUnderTheRow_NotInTheLabel()
+    {
+        var page = Render<AppSettingsPage>();
+        var row = page.Find("input#media-directory").Closest(".kh-app-settings__row")!;
+
+        Assert.DoesNotContain("blank", row.QuerySelector(".kh-app-settings__labelled")!.TextContent);
+        Assert.Contains("/karaoke", row.NextElementSibling!.QuerySelector(".kh-note")!.TextContent);
     }
 
     [Fact]

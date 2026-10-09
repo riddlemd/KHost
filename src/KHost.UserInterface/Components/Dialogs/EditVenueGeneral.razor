@@ -2,23 +2,12 @@
 
 <VenueSettingsSection Title="General">
 
-    <div class="kh-venue-settings__row">
-        <label class="kh-form-label">Placeholder image</label>
-        <MediaPicker Types="[MediaType.Image]" @bind-MediaId="Model.BrandingImageMediaId"
-                     Placeholder="None: leave the screen blank" BrowseId="venue-branding-browse"
-                     BrowseTitle="Browse for a picture to add to the library" />
+    @* Stacked, not a row: the preview and picker need the dialog's whole width. *@
+    <div class="kh-venue-settings__field">
+        <PlaceholderImageEditor IdPrefix="venue-branding"
+                                MediaId="Model.BrandingImageMediaId" MediaIdChanged="id => Model.BrandingImageMediaId = id"
+                                Scaling="Model.BrandingImageScaling" ScalingChanged="s => Model.BrandingImageScaling = s" />
     </div>
-
-    @if (Model.BrandingImageMediaId is not null)
-    {
-        <div class="kh-venue-settings__row">
-            <label for="venue-branding-scaling" class="kh-form-label">How it fills the screen</label>
-            <InputSelect id="venue-branding-scaling" class="kh-form-select"
-                         @bind-Value="Model.BrandingImageScaling">
-                <ImageScalingOptions IncludeUseOwn="true" />
-            </InputSelect>
-        </div>
-    }
 
     <div class="kh-venue-settings__row">
         <span class="kh-venue-settings__labelled">

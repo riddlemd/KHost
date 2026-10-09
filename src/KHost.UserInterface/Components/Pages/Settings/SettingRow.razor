@@ -2,7 +2,10 @@
     <span class="@LabelClass">
         @Label
         <span class="kh-app-settings__apply">@Applies</span>
-        @Note
     </span>
     @ChildContent
 </label>
+@if (Note is not null)
+{
+    <div class="kh-app-settings__description">@Note</div>
+}

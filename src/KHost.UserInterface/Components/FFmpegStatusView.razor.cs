@@ -20,12 +20,20 @@ public partial class FFmpegStatusView
 
     private static string NameOf(FFmpegToolStatus tool) => tool.Tool == FFmpegTool.FFmpeg ? "FFmpeg" : "FFprobe";
 
+    // The path goes on its own line under this, so here it is only the version or what went wrong.
     private string Describe(FFmpegToolStatus tool)
     {
         if (!Status.HasChecked) return "Checking…";
 
-        if (tool.IsUsable) return $"{tool.Version}, at {tool.Path}";
+        if (tool.IsUsable) return tool.Version ?? "Found";
 
-        return tool.Path is not null ? $"Found at {tool.Path}, but {tool.Error}" : "Missing";
+        return tool.Path is not null ? $"Found, but {tool.Error}" : "Missing";
     }
+
+    private string StateClass(FFmpegToolStatus tool)
+        => !Status.HasChecked ? "kh-ffmpeg-status__tool--checking"
+            : tool.IsUsable ? "kh-ffmpeg-status__tool--found" : "kh-ffmpeg-status__tool--missing";
+
+    private string IconFor(FFmpegToolStatus tool)
+        => !Status.HasChecked ? "hourglass-split" : tool.IsUsable ? "check-circle-fill" : "x-circle-fill";
 }

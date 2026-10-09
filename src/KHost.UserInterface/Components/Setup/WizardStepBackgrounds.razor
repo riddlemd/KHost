@@ -1,0 +1,43 @@
+@using KHost.UserInterface.Models
+
+<div class="kh-setup-wizard__step">
+    <div class="kh-setup-wizard__header">
+        <h2>Choose Backgrounds</h2>
+        <p>Pick what plays under the words when a song has no picture of its own.</p>
+    </div>
+
+    <div class="kh-wizard-backgrounds" role="radiogroup" aria-label="Backgrounds for new venues">
+        @foreach (var option in Options)
+        {
+            <label class="kh-wizard-backgrounds__option @(_choice == option.Backgrounds ? "kh-wizard-backgrounds__option--chosen" : "")">
+                <iframe @ref="option.Frame" class="kh-wizard-backgrounds__preview" title="Preview of @option.Title"
+                        src="visualiser-preview.html" sandbox="allow-scripts" tabindex="-1"
+                        data-kh-visualiser-preview></iframe>
+                <span class="kh-wizard-backgrounds__heading kh-form-check">
+                    <input type="radio" class="kh-form-check-input" name="wizard-backgrounds"
+                           id="@($"wizard-backgrounds-{option.Backgrounds}")"
+                           checked="@(_choice == option.Backgrounds)" @onchange="() => _choice = option.Backgrounds" />
+                    <span class="kh-form-check-label">@option.Title</span>
+                </span>
+                <span class="kh-note">@option.Description</span>
+                <span class="kh-wizard-backgrounds__scenes">@string.Join(" · ", option.Scenes)</span>
+            </label>
+        }
+    </div>
+
+    <p class="kh-note">
+        Every venue you add starts on this playlist. Change it later in App Settings, or per venue in
+        its own settings.
+    </p>
+
+    @if (!string.IsNullOrEmpty(_serverError))
+    {
+        <div class="kh-alert kh-alert--danger">@_serverError</div>
+    }
+
+    <div class="kh-setup-wizard__actions">
+        <button class="kh-button kh-button--primary" type="button" disabled="@_isSaving" @onclick="OnNextAsync">
+            <Icon Name="arrow-right" /> Next
+        </button>
+    </div>
+</div>

@@ -3,30 +3,67 @@
     flex-direction: column;
     gap: 0.4rem;
 
+    // Each program its own row, so the two read apart at a glance.
     &__tool {
         display: flex;
-        gap: 1rem;
-        align-items: baseline;
+        gap: 0.75rem;
+        align-items: flex-start;
+        min-width: 0;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        background-color: var(--kh-bg-card-dark);
+    }
+
+    ::deep .kh-ffmpeg-status__icon {
+        flex-shrink: 0;
+        font-size: 1.1rem;
+        line-height: 1.3;
+        color: var(--kh-text-muted);
+    }
+
+    &__tool--found ::deep .kh-ffmpeg-status__icon {
+        color: var(--kh-success);
+    }
+
+    &__tool--missing {
+        border-color: var(--kh-danger-glow);
+
+        ::deep .kh-ffmpeg-status__icon,
+        .kh-ffmpeg-status__detail {
+            color: var(--kh-danger-bright);
+        }
+    }
+
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
         min-width: 0;
     }
 
+    &__headline {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+    }
+
     &__name {
-        flex-shrink: 0;
-        width: 5rem;
         font-weight: 600;
     }
 
-    // A path has no length it can be trusted to keep; the title attribute carries the whole of it.
     &__detail {
+        color: var(--kh-text-secondary);
+    }
+
+    // A path has no length it can be trusted to keep; the title attribute carries the whole of it.
+    &__path {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        color: var(--kh-text-secondary);
-    }
-
-    &__tool--missing &__detail {
-        color: var(--kh-danger-bright);
+        font-size: 0.8rem;
+        color: var(--kh-text-muted);
     }
 
     &__progress {
