@@ -3,9 +3,18 @@
 <div class="kh-ffmpeg-status">
     @foreach (var tool in Tools)
     {
-        <div class="kh-ffmpeg-status__tool @(tool.IsUsable ? "" : "kh-ffmpeg-status__tool--missing")" data-tool="@NameOf(tool)">
-            <span class="kh-ffmpeg-status__name">@NameOf(tool)</span>
-            <span class="kh-ffmpeg-status__detail" title="@tool.Path">@Describe(tool)</span>
+        <div class="kh-ffmpeg-status__tool @StateClass(tool)" data-tool="@NameOf(tool)">
+            <Icon Name="@IconFor(tool)" Class="kh-ffmpeg-status__icon" />
+            <div class="kh-ffmpeg-status__body">
+                <div class="kh-ffmpeg-status__headline">
+                    <span class="kh-ffmpeg-status__name">@NameOf(tool)</span>
+                    <span class="kh-ffmpeg-status__detail">@Describe(tool)</span>
+                </div>
+                @if (Status.HasChecked && tool.Path is not null)
+                {
+                    <span class="kh-ffmpeg-status__path" title="@tool.Path">@tool.Path</span>
+                }
+            </div>
         </div>
     }
 

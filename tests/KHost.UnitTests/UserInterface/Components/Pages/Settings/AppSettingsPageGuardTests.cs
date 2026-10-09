@@ -51,7 +51,7 @@ public class AppSettingsPageGuardTests : BunitContext
     public async Task Leaving_WithEdits_HoldsTheNavigationAndAsks()
     {
         var page = Render<AppSettingsPage>();
-        Edit(page, stopFadeSeconds: 9);
+        Edit(page, stopFadeSeconds: 10);
 
         await NavigateAsync(page);
 
@@ -66,12 +66,12 @@ public class AppSettingsPageGuardTests : BunitContext
     public async Task Saving_WritesTheChangesAndThenLeaves()
     {
         var page = Render<AppSettingsPage>();
-        Edit(page, stopFadeSeconds: 9);
+        Edit(page, stopFadeSeconds: 10);
         await NavigateAsync(page);
 
         await AnswerAsync(page, save: true);
 
-        await _settings.Received(1).SaveAsync(Arg.Is<AppSettings>(s => s.StopFadeSeconds == 9));
+        await _settings.Received(1).SaveAsync(Arg.Is<AppSettings>(s => s.StopFadeSeconds == 10));
         Assert.Equal(Elsewhere, Navigation.Uri);
     }
 
@@ -79,7 +79,7 @@ public class AppSettingsPageGuardTests : BunitContext
     public async Task Discarding_LeavesWithoutWriting()
     {
         var page = Render<AppSettingsPage>();
-        Edit(page, stopFadeSeconds: 9);
+        Edit(page, stopFadeSeconds: 10);
         await NavigateAsync(page);
 
         await AnswerAsync(page, save: false);
@@ -92,7 +92,7 @@ public class AppSettingsPageGuardTests : BunitContext
     public async Task Discarding_DoesNotAskAgainOnTheWayOut()
     {
         var page = Render<AppSettingsPage>();
-        Edit(page, stopFadeSeconds: 9);
+        Edit(page, stopFadeSeconds: 10);
         await NavigateAsync(page);
 
         await AnswerAsync(page, save: false);
@@ -110,7 +110,7 @@ public class AppSettingsPageGuardTests : BunitContext
             .Returns(new AppSettingsSaveResult(false, "No admin user has a password yet"));
 
         var page = Render<AppSettingsPage>();
-        Edit(page, stopFadeSeconds: 9);
+        Edit(page, stopFadeSeconds: 10);
         await NavigateAsync(page);
 
         await AnswerAsync(page, save: true);
@@ -123,7 +123,7 @@ public class AppSettingsPageGuardTests : BunitContext
     public async Task EditingBackToWhatIsStored_IsNotAChange()
     {
         var page = Render<AppSettingsPage>();
-        Edit(page, stopFadeSeconds: 9);
+        Edit(page, stopFadeSeconds: 10);
         Edit(page, stopFadeSeconds: _stored.StopFadeSeconds);
 
         await NavigateAsync(page);
@@ -150,5 +150,5 @@ public class AppSettingsPageGuardTests : BunitContext
     }
 
     private static void Edit(IRenderedComponent<AppSettingsPage> page, double stopFadeSeconds)
-        => page.Find("input[step='0.5']").Change(stopFadeSeconds.ToString());
+        => page.Find("select#stop-fade").Change(stopFadeSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
 }

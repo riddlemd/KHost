@@ -70,7 +70,7 @@ public class AppSettingsPageLayoutTests : BunitContext
         var grid = page.Find(".kh-app-settings__grid");
         var panels = grid.QuerySelectorAll(":scope > .kh-app-settings__panel");
 
-        // Screens, Playback, Lyrics, Break music, New venues, Ads, Console, Pagination, Media, FFmpeg, Video: one panel each, not folded
+        // Screens, Playback, Lyrics, Break music, New venues, Ads, Hosting Dashboard, Pagination, Media, FFmpeg, Video: one panel each, not folded
         // two-to-a-card, and every one is a direct child of the grid so the CSS grid actually
         // lays them out rather than a wrapper it never sees. No Security panel: sign-in is a
         // config-only flag now, not something this page saves.
@@ -81,7 +81,7 @@ public class AppSettingsPageLayoutTests : BunitContext
             .Select(panel => panel.QuerySelector(".kh-card__title")?.TextContent.Trim())
             .ToList();
         Assert.Equal(
-            ["Screens", "Playback", "Lyrics", "Break music", "New venues", "Ads", "Console", "Pagination", "Media", "FFmpeg", "Video"],
+            ["Screens", "Playback", "Lyrics", "Break music", "New venues", "Ads", "Hosting Dashboard", "Pagination", "Media", "FFmpeg", "Video"],
             titles);
     }
 
@@ -112,6 +112,17 @@ public class AppSettingsPageLayoutTests : BunitContext
         Assert.Equal("%", input.Closest(".kh-input-affix")!.QuerySelector(".kh-input-affix__text--suffix")!.TextContent);
         Assert.DoesNotContain("(%)", row.QuerySelector(".kh-app-settings__labelled")!.TextContent);
         Assert.Contains("Default backing vocals volume", row.TextContent);
+    }
+
+    /// <summary>The label names the setting; what blank means is the note's job.</summary>
+    [Fact]
+    public void MediaDirectory_SaysWhatBlankMeansUnderTheRow_NotInTheLabel()
+    {
+        var page = Render<AppSettingsPage>();
+        var row = page.Find("input#media-directory").Closest(".kh-app-settings__row")!;
+
+        Assert.DoesNotContain("blank", row.QuerySelector(".kh-app-settings__labelled")!.TextContent);
+        Assert.Contains("/karaoke", row.NextElementSibling!.QuerySelector(".kh-note")!.TextContent);
     }
 
     [Fact]
