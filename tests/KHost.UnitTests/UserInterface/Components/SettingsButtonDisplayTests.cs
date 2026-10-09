@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
@@ -335,6 +336,25 @@ public class SettingsButtonDisplayTests : BunitContext
 
         Assert.Contains(rows, r => r.TextContent.Contains("Stop searching", StringComparison.Ordinal));
         Assert.DoesNotContain(rows, r => r.TextContent.Contains("Search for devices", StringComparison.Ordinal));
+    }
+
+    /// <summary>The menu redraws off the provider's announcement, so a provider that ends its own
+    /// sweep turns the row back without the host touching it.</summary>
+    [Fact]
+    public void TheSearchRow_OffersSearchAgain_WhenTheProviderAnnouncesItStopped()
+    {
+        _cast.IsDiscovering.Returns(true);
+        var (menu, _) = OpenDisplaySection();
+
+        _cast.IsDiscovering.Returns(false);
+        _broker.Announce(new DisplaysChanged());
+
+        menu.WaitForAssertion(() =>
+        {
+            var rows = menu.FindAll(".kh-settings-menu__flyout .kh-dropdown__item");
+            Assert.Contains(rows, r => r.TextContent.Contains("Search for devices", StringComparison.Ordinal));
+            Assert.DoesNotContain(rows, r => r.TextContent.Contains("Stop searching", StringComparison.Ordinal));
+        });
     }
 
     /// <summary>Gap two: a sweep can be stopped. A console runs all night on whatever wifi the
