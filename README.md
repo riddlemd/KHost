@@ -11,7 +11,8 @@ and macOS.
 - **Search and enqueue.** Search the library, or a plugin's media provider, and put a song on a
   singer's list. Songs a provider still has to download show their progress on the Downloads page.
 - **The screen.** One display shows the song: the local screen app, or a device a plugin supplies.
-  A venue can put a QR code on it.
+  A venue can put a QR code on it, and the local screen can play a library video, or a
+  visualisation, under the words.
 - **Break music.** Between singers KHost fills the room from break music, and a venue can name the
   track that is playing in a corner of the screen.
 - **Ads.** A venue can choose an ad playlist; ads play in the gap after a performance, never over one.
@@ -55,14 +56,23 @@ A plugin runs in-process and can add:
 - **buttons** on its row on the Plugins page, and tables and prompts reached from them.
 
 Hosts install plugins from the **Available** tab on the Plugins page, which reads the published
-`plugins.json` in [riddlemd/KHost.Releases](https://github.com/riddlemd/KHost.Releases). The catalog is the trust root: a release is offered
-only over https with a `sha256`, and the download is hashed and checked before anything is written.
-An install is staged and applied on the next start, never into a running host.
+`plugins.json` in [riddlemd/KHost.Releases](https://github.com/riddlemd/KHost.Releases). The catalog
+offers the build for the host's platform. It is the trust root: a release is offered only over https
+with a `sha256`, and the download is hashed and checked before anything is written. An install is
+staged and applied on the next start, never into a running host.
+
+To install by hand (a plugin that is not in the catalog), unzip its release into its own folder
+under KHost's `plugins/`, enable it on the Plugins page and restart.
+
+Each plugin's manifest carries an `apiVersion`, the plugin API it was built against. A host runs,
+installs and offers it only when that falls between the host's `PluginApi.MinimumVersion` and
+`PluginApi.CurrentVersion` (both currently 1); otherwise the Plugins page says which side needs
+updating.
 
 A plugin builds against two NuGet packages, **`KHost.Abstractions`** (the interfaces and models)
 and **`KHost.Common`** (helpers over them), both MIT. It references them with
-`ExcludeAssets="runtime"` and ships no copy, because the host already has both. Until the packages
-are released, `./build/pack-contracts.sh` packs them into a local feed:
+`ExcludeAssets="runtime"` and ships no copy, because the host already has both. They are not on
+nuget.org yet, so `./build/pack-contracts.sh` packs them into a local feed:
 
 ```bash
 dotnet nuget add source ~/.nuget/khost-local -n khost-local   # once per machine
