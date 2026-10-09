@@ -241,17 +241,19 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
-    /// <summary>Opens for the loaded turn too, read-only: the dialog itself says why nothing in it
-    /// can change, which a disabled menu item could only put in a tooltip.</summary>
+    /// <summary>Not for the song on screen, playing or paused: the song controls change that one,
+    /// and the menu item is disabled with the reason in its tooltip.</summary>
     private async Task OpenEditPerformanceDialogAsync(Performance performance, Media? media, KHostUser singer)
     {
+        if (PlaybackService.CurrentPerformance?.Id == performance.Id) return;
+
         await DialogService.RequestEditPerformanceAsync(performance, media, singer.Name,
             edit => edit.SaveAsync(PerformanceService, performance.Id));
     }
 
     private string EditPerformanceTooltip(Performance performance)
         => PlaybackService.CurrentPerformance?.Id == performance.Id
-            ? "This song is loaded. Change it with the song controls while it plays."
+            ? "This song is on screen. Change it with the song controls."
             : "Change the name, key, tempo, levels and background this song will be sung with";
 
     private async Task ToggleIsRegularAsync()
