@@ -2,6 +2,7 @@ using Bunit;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
@@ -17,6 +18,29 @@ public class HelpDialogTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton<IControlState>(_controlState);
+    }
+
+    [Fact]
+    public void Escape_ClosesIt()
+    {
+        var closed = false;
+        var dialog = Render<HelpDialog>(p => p
+            .Add(d => d.IsOpen, true)
+            .Add(d => d.OnClose, () => closed = true));
+
+        dialog.Find(".kh-dialog").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        Assert.True(closed);
+    }
+
+    /// <summary>Esc reaches the dialog only from focus inside it, and with no input there
+    /// focusFirstInput takes [autofocus] or nothing, leaving focus on the header's ? button.</summary>
+    [Fact]
+    public void Opening_PutsFocusInsideTheDialog()
+    {
+        var dialog = Render<HelpDialog>(p => p.Add(d => d.IsOpen, true));
+
+        Assert.NotNull(dialog.Find(".kh-dialog").QuerySelector("[autofocus]"));
     }
 
     [Fact]

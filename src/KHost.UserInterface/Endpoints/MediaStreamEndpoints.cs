@@ -7,7 +7,7 @@ namespace KHost.UserInterface.Endpoints;
 public static class MediaStreamEndpoints
 {
     public static IEndpointConventionBuilder MapMediaStream(this IEndpointRouteBuilder endpoints)
-        => endpoints.MapGet("/media/{sessionId}/{fileName}", (
+        => endpoints.MapGet("/media/{sessionId}/{fileName}", async (
             string sessionId,
             string fileName,
             IMediaStreamService streams,
@@ -39,7 +39,14 @@ public static class MediaStreamEndpoints
 
                 // Encoding outruns playback, so a player would join at the live edge and start
                 // the song part-way in. EXT-X-START pins every consumer to the top.
-                var playlist = File.ReadAllText(path);
+                var playlist = await LivePlaylistReader.ReadAsync(path, cancellationToken: context.RequestAborted);
+                if (playlist is null)
+                {
+                    // A player re-polls a live playlist; a 500 here would end the song on screen.
+                    context.Response.Headers.RetryAfter = "1";
+                    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+                }
+
                 if (!playlist.Contains("#EXT-X-START", StringComparison.Ordinal))
                     playlist = playlist.Replace(
                         "#EXTM3U",

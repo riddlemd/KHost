@@ -2,13 +2,17 @@ using KHost.Abstractions.Models;
 using KHost.DataAccess.Repositories;
 using KHost.DataAccess.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.DataAccess.Services;
 
 public class RetiredVenueSettingsReaderTests : IDisposable
 {
-    private readonly SqliteTestDatabase _database = new();
+    // Thrown, not logged: startup runs this read, and an unordered First there warns on every launch.
+    private readonly SqliteTestDatabase _database = new(options => options.ConfigureWarnings(warnings => warnings.Throw(
+        CoreEventId.FirstWithoutOrderByAndFilterWarning,
+        CoreEventId.RowLimitingOperationWithoutOrderByWarning)));
     private readonly RetiredVenueSettingsReader _reader;
 
     public RetiredVenueSettingsReaderTests()
