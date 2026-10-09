@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Components.Forms;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
+using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Setup;
 
 public partial class WizardStep2VenueSetup
 {
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
 
     [Parameter]
     public EventCallback OnComplete { get; set; }
@@ -30,6 +32,7 @@ public partial class WizardStep2VenueSetup
 
         try
         {
+            var defaults = NewVenueDefaults.From(AppSettings.Current);
             var venue = new Venue
             {
                 Name = _model.Name,
@@ -39,7 +42,9 @@ public partial class WizardStep2VenueSetup
                     PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance,
                     ClearQueueOnClose = _model.ClearQueueOnClose,
-                    VisualisationPlaylistId = VisualisationPlaylist.DefaultId,
+                    VisualisationPlaylistId = defaults.VisualisationPlaylistId,
+                    BrandingImageMediaId = defaults.PlaceholderImageMediaId,
+                    BrandingImageScaling = defaults.PlaceholderImageScaling,
                 }
             };
             var createdVenue = await VenuesService.CreateAsync(venue);

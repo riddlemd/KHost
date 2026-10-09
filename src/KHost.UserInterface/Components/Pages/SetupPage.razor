@@ -22,6 +22,12 @@
             case SetupStep.Admin:
                 <WizardStep1AdminUser OnComplete="@(async () => await MoveToNextStepAsync())" />
                 break;
+            case SetupStep.Backgrounds:
+                <WizardStepBackgrounds OnComplete="@(async () => await MoveToNextStepAsync())" />
+                break;
+            case SetupStep.Placeholder:
+                <WizardStepPlaceholderImage OnComplete="@(async () => await MoveToNextStepAsync())" />
+                break;
             case SetupStep.Venue:
                 <WizardStep2VenueSetup OnComplete="@(async () => await MoveToNextStepAsync())" />
                 break;

@@ -28,7 +28,8 @@ public sealed record AppSettings
     public VideoEncoderPreference VideoEncoder { get; set; } = VideoEncoderPreference.Auto;
 
     /// <summary>How long an ad runs when its playlist entry and the media itself say nothing.</summary>
-    /// <remarks>A still with no voiceover; a video ad runs its own length regardless.</remarks>
+    /// <remarks>A still with no voiceover; a video ad runs its own length regardless. One of
+    /// <see cref="AdDurationChoices"/>.</remarks>
     public double AdDefaultDurationSeconds { get; set; } = DefaultAdDurationSeconds;
     public int MediaPageSize { get; set; } = DefaultPageSize;
     public int UsersPageSize { get; set; } = DefaultPageSize;
@@ -78,6 +79,18 @@ public sealed record AppSettings
     /// keeps what the room already hears.</remarks>
     public string? BreakMusicProvider { get; set; }
 
+    /// <summary>The shipped visualisation playlist a venue starts on when it is added.</summary>
+    /// <remarks>A venue already made keeps the playlist it names.</remarks>
+    public VenueBackgrounds NewVenueBackgrounds { get; set; } = VenueBackgrounds.Basic;
+
+    /// <summary>The library image a venue shows while nothing plays when it is added; null leaves
+    /// its screen blank.</summary>
+    /// <remarks>A venue already made keeps its own.</remarks>
+    public Guid? NewVenuePlaceholderImageId { get; set; }
+
+    /// <summary>How that image fills a new venue's screen; null takes the image's own answer.</summary>
+    public ImageScaling? NewVenuePlaceholderImageScaling { get; set; }
+
     /// <summary>The screen launched at startup is named this, so it reclaims its own window.</summary>
     public const string StartupScreenName = "Screen 1";
 
@@ -98,8 +111,12 @@ public sealed record AppSettings
     public static readonly IReadOnlyList<int> DynamicLeadInPauseChoices = [1, 2, 3, 4, 5];
 
     public const double DefaultAdDurationSeconds = 10;
-    // A spot has to be long enough to read and short enough that the room does not turn back to
-    // its drinks, and the whole point of the setting is that a venue disagrees with the number.
+
+    /// <summary>The default durations the page offers, shortest first.</summary>
+    public static readonly IReadOnlyList<double> AdDurationChoices = [5, 10, 15, 20, 25, 30];
+
+    // An ad entry's own duration: long enough to read and short enough that the room does not
+    // turn back to its drinks, and the whole point of the setting is that a venue disagrees.
     public const double MinAdDurationSeconds = 1;
     public const double MaxAdDurationSeconds = 300;
 
@@ -109,9 +126,9 @@ public sealed record AppSettings
     public const int MinPageSize = 1;
     public const int MaxPageSize = 500;
 
-    // The stop waits out the whole fade before the queue moves on, so a long one is dead air.
-    public const double MinStopFadeSeconds = 0;
-    public const double MaxStopFadeSeconds = 30;
+    /// <summary>The fades the page offers, shortest first; none is no fade at all.</summary>
+    /// <remarks>The stop waits out the whole fade before the queue moves on, so a long one is dead air.</remarks>
+    public static readonly IReadOnlyList<double> StopFadeChoices = [0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30];
 
     // Below one second is no segment at all; past ten, a seek or a key change waits a whole
     // segment before the screen has anything to play.
@@ -133,6 +150,15 @@ public interface IAppSettingsService
     /// <summary>Writes the overlay. Does not touch <see cref="AppSettings.RequireLogin"/> — that
     /// is a configuration-only flag, not something this page saves.</summary>
     Task<AppSettingsSaveResult> SaveAsync(AppSettings settings);
+
+    /// <summary>Saves <see cref="AppSettings.NewVenueBackgrounds"/> alone, keeping every other key in
+    /// the overlay as it is.</summary>
+    Task SaveNewVenueBackgroundsAsync(VenueBackgrounds backgrounds);
+
+    /// <summary>Saves <see cref="AppSettings.NewVenuePlaceholderImageId"/> and
+    /// <see cref="AppSettings.NewVenuePlaceholderImageScaling"/> alone, as
+    /// <see cref="SaveNewVenueBackgroundsAsync"/> does.</summary>
+    Task SaveNewVenuePlaceholderImageAsync(Guid? mediaId, ImageScaling? scaling);
 }
 
 public sealed record AppSettingsSaveResult(bool Saved, string? Error = null);

@@ -26,6 +26,7 @@ public class EditVenueDialogBreakMusicTests : BunitContext
     public EditVenueDialogBreakMusicTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(new List<MediaPool>());

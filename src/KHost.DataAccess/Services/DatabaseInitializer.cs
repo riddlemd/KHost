@@ -41,7 +41,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         await context.Database.MigrateAsync();
 
         await SweepStalledDownloadsAsync();
-        await EnsureDefaultVisualisationPlaylistAsync();
+        await EnsureShippedVisualisationPlaylistsAsync();
 
         _logger.LogInformation("Database initialization complete");
     }
@@ -69,24 +69,33 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogWarning("Swept {Count} stalled download(s) left mid-download by an unclean shutdown to Broken", stalled.Count);
     }
 
-    /// <summary>Puts the "Default Visualizations" playlist back if it is somehow gone. The
-    /// migration that ships it seeds new and upgraded databases once; this covers a row deleted
-    /// out from under the app some other way, since the service itself refuses to delete it.</summary>
-    internal async Task EnsureDefaultVisualisationPlaylistAsync()
+    /// <summary>Puts either shipped playlist back if it is somehow gone. The migrations seed new
+    /// and upgraded databases once; this covers a row deleted out from under the app some other way,
+    /// since the service itself refuses to delete them.</summary>
+    internal async Task EnsureShippedVisualisationPlaylistsAsync()
     {
-        if (await _visualisationPlaylistService.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId) is not null)
-            return;
-
-        _logger.LogWarning("The default visualisation playlist was missing; recreating it");
-
         // Reads the live ambient set rather than a copy, so an ambient scene added later is
         // covered by a restore without this method needing to change.
         var ambient = _visualiserPresetService.ReadAll()
             .Where(p => p.Source == VisualiserPresetSource.BuiltIn && p.Name.StartsWith("ambient-", StringComparison.Ordinal))
-            .Select(p => new VisualisationEntry { PresetSource = p.Source, PresetName = p.Name })
+            .Select(p => p.Name)
             .ToList();
 
-        await _visualisationPlaylistService.CreateAsync(new VisualisationPlaylist { Id = VisualisationPlaylist.DefaultId, Name = "Default Visualizations" });
-        await _visualisationPlaylistService.ReplaceEntriesAsync(VisualisationPlaylist.DefaultId, ambient);
+        await EnsurePlaylistAsync(ShippedVisualisationPlaylists.BasicId, ShippedVisualisationPlaylists.BasicName,
+            ambient.Where(name => !ShippedVisualisationPlaylists.AdvancedScenes.Contains(name)));
+        await EnsurePlaylistAsync(ShippedVisualisationPlaylists.AdvancedId, ShippedVisualisationPlaylists.AdvancedName,
+            ambient.Where(ShippedVisualisationPlaylists.AdvancedScenes.Contains));
+    }
+
+    private async Task EnsurePlaylistAsync(Guid id, string name, IEnumerable<string> scenes)
+    {
+        if (await _visualisationPlaylistService.ReadWithEntriesAsync(id) is not null)
+            return;
+
+        _logger.LogWarning("The shipped visualisation playlist {Name} was missing; recreating it", name);
+
+        var entries = scenes.Select(scene => new VisualisationEntry { PresetSource = VisualiserPresetSource.BuiltIn, PresetName = scene }).ToList();
+        await _visualisationPlaylistService.CreateAsync(new VisualisationPlaylist { Id = id, Name = name });
+        await _visualisationPlaylistService.ReplaceEntriesAsync(id, entries);
     }
 }

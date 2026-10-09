@@ -16,21 +16,26 @@
     // bottom on its own, and column-width (an optimum, not a fixed track) collapses to one column
     // once nothing fits beside it, same as the grid's auto-fill did.
     &__grid {
-        column-width: 26rem;
+        column-width: 30rem;
         column-gap: 1em;
     }
 
     // break-inside keeps a panel from being split across the column break; multicol's gap only
     // ever spaces columns apart, never the cards stacked within one, so that spacing is a margin.
+    // Bottom only: a column break drops a top margin everywhere but the first column, so the card
+    // style's top margin left the first panel lower than every other column's.
     &__panel {
         break-inside: avoid-column;
-        margin-bottom: 1em;
+        margin: 0 0 1em;
     }
 
     // SettingRow and ChoiceSelect carry no scoped CSS of their own, so everything they render
     // (the row, its label column and the apply note) has none of this page's scope attribute;
     // ::deep reaches it from a panel's kh-card__body, the ancestor every panel still renders directly.
+    // Every control in one fixed column down the right, as in the venue dialog: a long label or
+    // note never squeezes one, and the controls line up from row to row and panel to panel.
     &__panel .kh-card__body {
+        --kh-app-settings-control-width: 15rem;
         padding: 0 1em 1em;
 
         ::deep .kh-app-settings__row {
@@ -39,16 +44,46 @@
             justify-content: space-between;
             gap: 16px;
             padding: 8px 0;
+
+            > :first-child {
+                flex: 1 1 0;
+                min-width: 0;
+            }
+
+            > .kh-form-control,
+            > .kh-form-select,
+            > .kh-input-affix,
+            > .kh-media-picker {
+                flex: 0 0 var(--kh-app-settings-control-width);
+                width: var(--kh-app-settings-control-width);
+            }
+
+            // In the same column as every other control, at its right edge, so a checkbox row's
+            // label and note wrap at the same width as the rows around it.
+            > .kh-form-check-input {
+                flex: 0 0 auto;
+                width: 1.25rem;
+                height: 1.25rem;
+                margin: 0 0 0 calc(var(--kh-app-settings-control-width) - 1.25rem);
+            }
         }
 
         ::deep .kh-app-settings__number {
-            width: 120px;
             text-align: right;
         }
 
-        ::deep .kh-app-settings__path {
-            width: 320px;
-            max-width: 100%;
+        // A row's note sits right under it, so the pair reads as one setting.
+        ::deep .kh-app-settings__row:has(+ .kh-app-settings__description) {
+            padding-bottom: 2px;
+        }
+
+        ::deep .kh-app-settings__description {
+            padding: 0 0 8px;
+
+            .kh-note {
+                display: block;
+                margin: 0;
+            }
         }
 
         // A label with its note under it, as one column, so the control beside it centres on the pair.
@@ -61,11 +96,31 @@
                 margin: 0;
             }
         }
+    }
 
+    // A note about a whole section, above its rows; the body has no top padding of its own.
+    &__intro {
+        margin: 8px 0;
+    }
+
+    // A row whose control needs the panel's whole width sits under its label instead of beside it.
+    &__panel .kh-card__body .kh-app-settings__stacked {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px 0;
+    }
+
+    &__panel .kh-card__body {
+        // A tag, not prose: the theme's accent, and case and weight, set it apart from the note under the row.
         ::deep .kh-app-settings__apply {
             display: block;
-            font-size: 0.75rem;
-            color: var(--kh-text-muted);
+            margin-top: 2px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--kh-accent-bright);
         }
     }
 

@@ -12,6 +12,7 @@ public class AppSettingsPageRangeTests : BunitContext
     public AppSettingsPageRangeTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         var settings = Substitute.For<IAppSettingsService>();
         settings.Current.Returns(_ => new AppSettings());
@@ -42,15 +43,12 @@ public class AppSettingsPageRangeTests : BunitContext
     }
 
     [Fact]
-    public void StopFadeAndSegment_AreBoundedAsTheServiceClamps()
+    public void PageSizes_AreBoundedAsTheServiceClamps()
     {
         var page = Render<AppSettingsPage>();
 
         var maxima = page.FindAll("input.kh-app-settings__number").Select(input => input.GetAttribute("max")).ToList();
 
-        Assert.Contains($"{AppSettings.MaxStopFadeSeconds}", maxima);
-        Assert.Contains($"{AppSettings.MaxSegmentSeconds}", maxima);
-        Assert.Contains($"{AppSettings.MaxAdDurationSeconds}", maxima);
         Assert.Contains($"{AppSettings.MaxPageSize}", maxima);
     }
 }

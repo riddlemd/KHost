@@ -47,7 +47,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
         FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
-        StopFadeSeconds = StopFadeClamp(
+        StopFadeSeconds = StopFadeChoice(
             (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds),
         SegmentSeconds = SegmentClamp(_configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2),
         GraphicsScaleHeight = GraphicsScaling.SnapToOffered(
@@ -58,7 +58,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             && Enum.IsDefined(encoder)
             ? encoder
             : VideoEncoderPreference.Auto,
-        AdDefaultDurationSeconds = AdDurationClamp(
+        AdDefaultDurationSeconds = AdDurationChoice(
             (_configuration.GetValue<TimeSpan?>("Ads:DefaultDuration")
                 ?? TimeSpan.FromSeconds(AppSettings.DefaultAdDurationSeconds)).TotalSeconds),
         MediaPageSize = PageSize("Media"),
@@ -84,7 +84,25 @@ internal sealed class AppSettingsService : IAppSettingsService
             : SongControlStyle.Sliders,
         DefaultSearchMode = SearchModeOrDefault(_configuration["Search:DefaultMode"]),
         BreakMusicProvider = Blank(_configuration[BreakMusicProviderKey]) ?? _breakMusic.ActiveProvider?.SourceName,
+        // Parsed rather than bound: a hand-edited word that names no playlist reads as Basic.
+        NewVenueBackgrounds = Enum.TryParse<VenueBackgrounds>(
+            _configuration[NewVenueBackgroundsKey], ignoreCase: true, out var backgrounds)
+            && Enum.IsDefined(backgrounds)
+            ? backgrounds
+            : VenueBackgrounds.Basic,
+        NewVenuePlaceholderImageId = Guid.TryParse(_configuration[NewVenuePlaceholderImageKey], out var image) ? image : null,
+        // Parsed rather than bound: a hand-edited word that names no scaling reads as the image's own.
+        NewVenuePlaceholderImageScaling = Enum.TryParse<ImageScaling>(
+            _configuration[NewVenuePlaceholderImageScalingKey], ignoreCase: true, out var scaling)
+            && Enum.IsDefined(scaling)
+            ? scaling
+            : null,
     };
+
+    private const string NewVenueBackgroundsSection = "Venues";
+    private const string NewVenueBackgroundsKey = NewVenueBackgroundsSection + ":NewVenueBackgrounds";
+    private const string NewVenuePlaceholderImageKey = NewVenueBackgroundsSection + ":NewVenuePlaceholderImageId";
+    private const string NewVenuePlaceholderImageScalingKey = NewVenueBackgroundsSection + ":NewVenuePlaceholderImageScaling";
 
     private const string BreakMusicProviderKey = BreakMusicService.ServiceOptions.SectionName + ":Provider";
 
@@ -95,14 +113,13 @@ internal sealed class AppSettingsService : IAppSettingsService
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
         PaginationClamp(_configuration.GetValue<int?>($"Pagination:{key}") ?? fallback);
 
-    // Clamped on read as well as on save: a hand-edited zero would end every ad the instant it
-    // started, and a hand-edited hour would hold the room until someone restarted the console.
-    private static double AdDurationClamp(double seconds) =>
-        Math.Clamp(seconds, AppSettings.MinAdDurationSeconds, AppSettings.MaxAdDurationSeconds);
+    // Read as well as save: a hand-edited value the select does not offer would show as none of them.
+    private static double AdDurationChoice(double seconds) =>
+        AppSettings.AdDurationChoices.MinBy(choice => Math.Abs(choice - seconds));
 
-    // Read as well as save, for the same reason as the ad duration.
-    private static double StopFadeClamp(double seconds) =>
-        Math.Clamp(seconds, AppSettings.MinStopFadeSeconds, AppSettings.MaxStopFadeSeconds);
+    // Read as well as save: a hand-edited value the select does not offer would show as none of them.
+    private static double StopFadeChoice(double seconds) =>
+        AppSettings.StopFadeChoices.MinBy(choice => Math.Abs(choice - seconds));
 
     private static int SegmentClamp(int seconds) =>
         Math.Clamp(seconds, AppSettings.MinSegmentSeconds, AppSettings.MaxSegmentSeconds);
@@ -139,7 +156,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         {
             ["Playback"] = new Dictionary<string, object?>
             {
-                ["StopFadeDuration"] = TimeSpan.FromSeconds(StopFadeClamp(settings.StopFadeSeconds)).ToString(),
+                ["StopFadeDuration"] = TimeSpan.FromSeconds(StopFadeChoice(settings.StopFadeSeconds)).ToString(),
                 ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
                 ["LeadInGraceSeconds"] = LeadInGraceChoice(settings.LeadInGraceSeconds),
                 ["DynamicLeadIns"] = settings.DynamicLeadIns,
@@ -154,7 +171,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             },
             ["Ads"] = new Dictionary<string, object?>
             {
-                ["DefaultDuration"] = TimeSpan.FromSeconds(AdDurationClamp(settings.AdDefaultDurationSeconds)).ToString(),
+                ["DefaultDuration"] = TimeSpan.FromSeconds(AdDurationChoice(settings.AdDefaultDurationSeconds)).ToString(),
             },
             ["Pagination"] = new Dictionary<string, object?>
             {
@@ -180,6 +197,14 @@ internal sealed class AppSettingsService : IAppSettingsService
         overlay[BreakMusicService.ServiceOptions.SectionName] = new Dictionary<string, object?>
         {
             ["Provider"] = Blank(settings.BreakMusicProvider),
+        };
+
+        overlay[NewVenueBackgroundsSection] = new Dictionary<string, object?>
+        {
+            ["NewVenueBackgrounds"] = settings.NewVenueBackgrounds.ToString(),
+            // Written even when null: clearing it must reach the overlay.
+            ["NewVenuePlaceholderImageId"] = settings.NewVenuePlaceholderImageId?.ToString(),
+            ["NewVenuePlaceholderImageScaling"] = settings.NewVenuePlaceholderImageScaling?.ToString(),
         };
 
         overlay["LocalScreen"] = new Dictionary<string, object?>
@@ -219,18 +244,31 @@ internal sealed class AppSettingsService : IAppSettingsService
     }
 
     /// <summary>Saves the break music mode alone, keeping every other key in the overlay as it is.</summary>
+    internal Task SaveBreakMusicProviderAsync(string provider)
+        => SaveOneAsync(BreakMusicService.ServiceOptions.SectionName, ("Provider", provider.Trim()));
+
+    public Task SaveNewVenueBackgroundsAsync(VenueBackgrounds backgrounds)
+        => SaveOneAsync(NewVenueBackgroundsSection, ("NewVenueBackgrounds", backgrounds.ToString()));
+
+    public Task SaveNewVenuePlaceholderImageAsync(Guid? mediaId, ImageScaling? scaling)
+        => SaveOneAsync(NewVenueBackgroundsSection,
+            ("NewVenuePlaceholderImageId", mediaId?.ToString()),
+            ("NewVenuePlaceholderImageScaling", scaling?.ToString()));
+
+    /// <summary>Writes the given keys of one section, keeping every other key in the overlay as it is.</summary>
     /// <remarks>Not through <see cref="SaveAsync"/>: that writes every setting, which would pin today's
     /// defaults into the overlay of a host who never opened the page.</remarks>
-    internal async Task SaveBreakMusicProviderAsync(string provider)
+    private async Task SaveOneAsync(string sectionName, params (string Key, string? Value)[] keys)
     {
         var overlay = File.Exists(_overlayPath)
             ? JsonNode.Parse(await File.ReadAllTextAsync(_overlayPath)) as JsonObject ?? new JsonObject()
             : new JsonObject();
 
-        if (overlay[BreakMusicService.ServiceOptions.SectionName] is not JsonObject section)
-            overlay[BreakMusicService.ServiceOptions.SectionName] = section = new JsonObject();
+        if (overlay[sectionName] is not JsonObject section)
+            overlay[sectionName] = section = new JsonObject();
 
-        section["Provider"] = provider.Trim();
+        foreach (var (key, value) in keys)
+            section[key] = value;
 
         await WriteOverlayAsync(overlay.ToJsonString(OverlayJson));
     }

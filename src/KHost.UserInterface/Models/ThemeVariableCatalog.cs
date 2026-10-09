@@ -8,7 +8,7 @@ public enum ThemeVariableKind
 
 public sealed record ThemeVariable(string Key, string Label, string Group, ThemeVariableKind Kind, string Fallback);
 
-/// <summary>The editable surface of a theme: 61 of the 73 custom properties a stylesheet needs.</summary>
+/// <summary>The editable surface of a theme: 62 of the 74 custom properties a stylesheet needs.</summary>
 /// <remarks>Translucent shades are stored, not derived; see <see cref="ShadeRecipes"/>.</remarks>
 public static class ThemeVariableCatalog
 {
@@ -36,6 +36,7 @@ public static class ThemeVariableCatalog
         new("--kh-accent-hover", "Accent hover", BrandGroup, ThemeVariableKind.Color, "#B84600"),
         new("--kh-accent-bright", "Accent bright", BrandGroup, ThemeVariableKind.Color, "#FF6B1A"),
         new("--kh-button-primary-text", "Primary button text", BrandGroup, ThemeVariableKind.Color, "#DDD4F0"),
+        new("--kh-button-accent-text", "Accent button text", BrandGroup, ThemeVariableKind.Color, "#ffffff"),
 
         new("--kh-bg", "Page background", SurfacesGroup, ThemeVariableKind.Color, "#0B0814"),
         new("--kh-bg-card", "Card", SurfacesGroup, ThemeVariableKind.Color, "#131025"),

@@ -47,6 +47,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
     public EditVenueDialogQrCodeTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(new List<MediaPool>());

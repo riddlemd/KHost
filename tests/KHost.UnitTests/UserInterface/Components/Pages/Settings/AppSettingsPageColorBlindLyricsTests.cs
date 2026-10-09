@@ -14,6 +14,7 @@ public class AppSettingsPageColorBlindLyricsTests : BunitContext
     public AppSettingsPageColorBlindLyricsTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
         _settings.DefaultMediaDirectory.Returns("/karaoke");
@@ -29,7 +30,7 @@ public class AppSettingsPageColorBlindLyricsTests : BunitContext
     }
 
     [Fact]
-    public void ColorBlindFriendlyLyrics_IsACheckbox_OffByDefault_WithItsNoteInTheLabel()
+    public void ColorBlindFriendlyLyrics_IsACheckbox_OffByDefault_WithItsNoteUnderTheRow()
     {
         var page = Render<AppSettingsPage>();
 
@@ -37,7 +38,10 @@ public class AppSettingsPageColorBlindLyricsTests : BunitContext
 
         Assert.Equal("checkbox", box.GetAttribute("type"));
         Assert.False(box.HasAttribute("checked"));
-        Assert.Contains("colour-blind", box.ParentElement!.QuerySelector(".kh-form-check-label .kh-note")!.TextContent);
+        var row = box.Closest(".kh-app-settings__row")!;
+        Assert.Null(row.QuerySelector(".kh-note"));
+        Assert.Contains("colour-blind", row.NextElementSibling!.QuerySelector(".kh-app-settings__description .kh-note, .kh-note")!.TextContent);
+        Assert.Contains("kh-app-settings__description", row.NextElementSibling.ClassList);
     }
 
     [Fact]

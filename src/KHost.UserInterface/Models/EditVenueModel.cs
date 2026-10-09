@@ -131,11 +131,16 @@ public class EditVenueModel
     public double QrCodeOffset { get; set; }
 
     /// <summary>What the dialog opens on. Null <paramref name="venue"/> is Add, which starts from
-    /// every default above.</summary>
-    public static EditVenueModel From(Venue? venue)
+    /// every default above and on <paramref name="defaults"/>.</summary>
+    public static EditVenueModel From(Venue? venue, NewVenueDefaults defaults)
     {
         if (venue is null)
-            return new EditVenueModel { VisualisationPlaylistId = VisualisationPlaylist.DefaultId };
+            return new EditVenueModel
+            {
+                VisualisationPlaylistId = defaults.VisualisationPlaylistId,
+                BrandingImageMediaId = defaults.PlaceholderImageMediaId,
+                BrandingImageScaling = defaults.PlaceholderImageScaling,
+            };
 
         var settings = venue.Settings;
 

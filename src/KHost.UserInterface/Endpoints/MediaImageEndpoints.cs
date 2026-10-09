@@ -8,6 +8,9 @@ namespace KHost.UserInterface.Endpoints;
 /// <remarks>Same as the stream: a screen holds no credentials, nor reaches the host's filesystem.</remarks>
 public static class MediaImageEndpoints
 {
+    /// <summary>Where a still is served, relative to the host, so a console in another browser reaches it too.</summary>
+    public static string PathFor(Guid mediaId) => $"/media/image/{mediaId}";
+
     public static IEndpointConventionBuilder MapMediaImages(this IEndpointRouteBuilder endpoints)
         => endpoints.MapGet("/media/image/{mediaId:guid}", async (
             Guid mediaId,

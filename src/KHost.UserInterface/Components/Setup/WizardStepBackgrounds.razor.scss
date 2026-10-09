@@ -1,0 +1,39 @@
+.kh-wizard-backgrounds {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1rem;
+
+    &__option {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-width: 0;
+        padding: 0.75rem;
+        border: 2px solid var(--kh-border);
+        border-radius: 0.5rem;
+        cursor: pointer;
+    }
+
+    &__option--chosen {
+        border-color: var(--kh-primary-bright);
+    }
+
+    &__preview {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border: 0;
+        border-radius: 0.25rem;
+        background: #000;
+        pointer-events: none;
+    }
+
+    &__heading {
+        font-weight: 600;
+    }
+
+    &__scenes {
+        font-size: 0.75rem;
+        line-height: 1.5;
+        color: var(--kh-text-muted);
+    }
+}
