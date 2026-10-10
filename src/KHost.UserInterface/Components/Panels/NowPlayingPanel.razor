@@ -18,10 +18,22 @@
         @if (PlaybackService.CurrentPerformance is null || PlaybackService.CurrentMedia is null)
         {
             <div class="kh-now-playing__empty">
-                <Icon Name="mic" Class="kh-now-playing__empty-icon" />
-                <span class="kh-now-playing__empty-text">
-                    No song loaded. Click <Icon Name="play-fill" /> in the queue
-                </span>
+                @* An ad is nobody's turn, so it lands here; without this the console read "No song
+                   loaded" while the room watched the ad. A sound-only spot has no media to name. *@
+                @if (PlaybackService.IsPlayingAd)
+                {
+                    <Icon Name="megaphone" Class="kh-now-playing__empty-icon" />
+                    <span class="kh-now-playing__empty-text kh-now-playing__ad">
+                        Ad playing@(PlaybackService.CurrentMedia is { } ad ? $": {ad.Title}" : "")
+                    </span>
+                }
+                else
+                {
+                    <Icon Name="mic" Class="kh-now-playing__empty-icon" />
+                    <span class="kh-now-playing__empty-text">
+                        No song loaded. Click <Icon Name="play-fill" /> in the queue
+                    </span>
+                }
 
                 <div class="kh-now-playing__empty-actions">
                     @* Only between songs: the card replaces the picture, so announcing over somebody's

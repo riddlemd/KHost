@@ -32,6 +32,10 @@ public partial class EditVenueBreakMusic
 
         _breakMusicPool = _breakMusicPools.FirstOrDefault(pool => pool.Id == Model.BreakMusicPoolId);
         _breakMusicPoolText = _breakMusicPool?.Name ?? "";
+
+        // The field reads "none" over an id that resolves to nothing; saving must agree with it.
+        if (_breakMusicPool is null)
+            Model.BreakMusicPoolId = null;
     }
 
     private void OnBreakMusicPoolChanged(MediaPool? pool)

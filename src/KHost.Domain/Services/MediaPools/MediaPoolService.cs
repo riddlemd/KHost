@@ -12,13 +12,43 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IMessageBroker _broker;
     private readonly Dictionary<Guid, PoolSelectionState> _selectionStates = [];
+    private readonly IVenuesService _venues;
     private readonly Random _random;
 
-    public MediaPoolService(ILogger<MediaPoolService> logger, IMediaPoolRepository repository, IMessageBroker broker, Random? random = null)
+    public MediaPoolService(
+        ILogger<MediaPoolService> logger,
+        IMediaPoolRepository repository,
+        IVenuesService venues,
+        IMessageBroker broker,
+        Random? random = null)
         : base(logger, repository, broker, new MediaPoolsChanged())
     {
+        _venues = venues;
         _broker = broker;
         _random = random ?? Random.Shared;
+    }
+
+    /// <summary>Also forgets the pool on every venue that named it.</summary>
+    /// <remarks>Left in place, the venue dialog shows "none" over an id it cannot clear.</remarks>
+    public override async Task<bool> DeleteAsync(Guid id)
+    {
+        if (!await base.DeleteAsync(id))
+            return false;
+
+        var venues = await _venues.ReadAllAsync();
+
+        foreach (var venue in venues.Items.Where(v => v.Settings.AdPoolId == id || v.Settings.BreakMusicPoolId == id))
+        {
+            if (venue.Settings.AdPoolId == id)
+                venue.Settings.AdPoolId = null;
+
+            if (venue.Settings.BreakMusicPoolId == id)
+                venue.Settings.BreakMusicPoolId = null;
+
+            await _venues.UpdateAsync(venue);
+        }
+
+        return true;
     }
 
     public Task<MediaPool?> ReadWithEntriesAsync(Guid id) => Repository.ReadWithEntriesAsync(id);

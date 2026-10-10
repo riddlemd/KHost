@@ -27,7 +27,7 @@ public class AdServiceTests : IDisposable
     private readonly IMediaPoolService _pools = Substitute.For<IMediaPoolService>();
     private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
-    private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
+    private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly StoppedClock _clock = new();
     private readonly AdService.ServiceOptions _options = new();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
@@ -42,10 +42,11 @@ public class AdServiceTests : IDisposable
         // A flag rather than re-stubbing mid-test: NSubstitute treats a second Returns on a call
         // that has already run as a new invocation.
         _playback.PlayAdAsync(Arg.Any<AdPlayback>()).Returns(_ => Task.FromResult(_adPlays));
-        _queue.Users.Returns([]);
+        _performances.ReadQueuedAsync().Returns(_ => Task.FromResult(new List<Performance>()));
+        _playback.HasConnectedScreenAsync().Returns(Task.FromResult(true));
 
         _service = new AdService(
-            NullLogger<AdService>.Instance, _playback, _pools, _media, _venues, _queue, _clock,
+            NullLogger<AdService>.Instance, _playback, _pools, _media, _venues, _performances, _clock,
             Options.Create(_options), _broker);
     }
 
@@ -534,24 +535,73 @@ public class AdServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task OnIdle_WithSingersStillWaiting_DoesNotFire()
+    public async Task OnIdle_WithASongStillQueued_DoesNotFire()
     {
         ConfigureVenue(AdTriggerMode.OnIdle);
-        _queue.Users.Returns([new KHostUser { Name = "Alice" }]);
+        _performances.ReadQueuedAsync().Returns(_ => Task.FromResult(new List<Performance> { new() }));
 
         await PerformancesAsync(1);
 
         await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
+    // The singer whose last song just ended is still in the queue with nothing left to sing, which
+    // is the usual shape of "nobody is queued" in the gap after a song.
     [Fact]
-    public async Task OnIdle_WithAnEmptyQueue_Fires()
+    public async Task OnIdle_NoSongsQueued_Fires()
     {
         ConfigureVenue(AdTriggerMode.OnIdle);
 
         await PerformancesAsync(1);
 
         await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
+    }
+
+    // Choosing moves the playlist on, so a refusal after choosing would skip an ad in order.
+    [Fact]
+    public async Task PlayNowAsync_OverALoadedSong_RefusesWithoutChoosing()
+    {
+        ConfigureVenue(AdTriggerMode.HostOnly);
+        _playback.CurrentPerformance.Returns(new Performance());
+
+        Assert.False(await _service.PlayNowAsync());
+
+        await _pools.DidNotReceive().SelectNextAsync(Arg.Any<Guid>(), Arg.Any<Guid?>());
+    }
+
+    [Fact]
+    public async Task PlayNowAsync_WithNoScreen_RefusesWithoutChoosing()
+    {
+        ConfigureVenue(AdTriggerMode.HostOnly);
+        _playback.HasConnectedScreenAsync().Returns(Task.FromResult(false));
+
+        Assert.False(await _service.PlayNowAsync());
+
+        await _pools.DidNotReceive().SelectNextAsync(Arg.Any<Guid>(), Arg.Any<Guid?>());
+    }
+
+    [Fact]
+    public async Task PlayNowAsync_IdleWithAScreen_ChoosesAndPlays()
+    {
+        ConfigureVenue(AdTriggerMode.HostOnly);
+
+        Assert.True(await _service.PlayNowAsync());
+
+        await _pools.Received(1).SelectNextAsync(_poolId, Arg.Any<Guid?>());
+    }
+
+    // Deleting the venue's playlist left the console offering an ad it could only refuse.
+    [Fact]
+    public async Task IsConfigured_TheVenuesPlaylistIsDeleted_LosesTheButton()
+    {
+        ConfigureVenue(AdTriggerMode.HostOnly);
+        await _service.InitializeAsync();
+        Assert.True(_service.IsConfigured);
+
+        _pools.ReadWithEntriesAsync(_poolId).Returns(Task.FromResult<MediaPool?>(null));
+        await _broker.PublishAsync(new MediaPoolsChanged());
+
+        Assert.False(_service.IsConfigured);
     }
 
     // A refusal leaves the slot due, so the next gap tries again rather than skipping it.

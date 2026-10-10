@@ -92,7 +92,37 @@
                             var entry = _entries[index];
 
                             <tr>
-                                <td class="kh-table__cell--fill">@DescribeEntry(entry)</td>
+                                <td class="kh-table__cell--fill">
+                                    @DescribeEntry(entry)
+
+                                    @if (Purpose == PoolPurpose.Ads && IsStill(entry))
+                                    {
+                                        <div class="kh-playlist-dialog__voice">
+                                            <ComboBox TItem="Media"
+                                                      Class="kh-playlist-dialog__voice-picker"
+                                                      Value="VoiceoverOf(entry)"
+                                                      ValueChanged="@((Media? voice) => SetVoiceover(index, voice))"
+                                                      Search="SearchVoiceoversAsync"
+                                                      DisplayName="Describe"
+                                                      MinimumSearchLength="0"
+                                                      OpenWhenEmpty="true"
+                                                      Placeholder="No voiceover" />
+                                        </div>
+                                    }
+
+                                    @* Trims the front of a longer clip, the way the playback reads it: no re-encode. *@
+                                    @if (Purpose == PoolPurpose.Ads && entry.AudioMediaId is not null)
+                                    {
+                                        <label class="kh-playlist-dialog__start">
+                                            Sound from
+                                            <input type="number" class="kh-form-control kh-playlist-dialog__start-input"
+                                                   min="0" step="1" placeholder="0"
+                                                   value="@(entry.AudioStart?.TotalSeconds)"
+                                                   @onchange="e => SetAudioStart(index, e.Value?.ToString())" />
+                                            sec
+                                        </label>
+                                    }
+                                </td>
 
                                 @if (_selectionMode == PoolSelectionMode.Weighted)
                                 {
