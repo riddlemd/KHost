@@ -11,9 +11,12 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     /// <summary>Long enough to not search on every keystroke, short enough to feel immediate.</summary>
     private const int DebounceMilliseconds = 150;
 
+    /// <summary>The box is for finding one row; past this the host is told to keep typing.</summary>
+    private const int MaxRows = 12;
+
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    /// <summary>Finds the rows for what was typed. Cap the row count here; the box does not.</summary>
+    /// <summary>Finds the rows for what was typed. The box shows at most twelve, and says when it cut.</summary>
     [Parameter, EditorRequired] public Func<string, Task<IReadOnlyList<TItem>>>? Search { get; set; }
 
     /// <summary>What to show for a row, in the menu and in the field once it is chosen.</summary>
@@ -49,6 +52,8 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     private List<TItem> _results = [];
     private bool _isOpen;
     private bool _isSearching;
+    private bool _truncated;
+    private bool _revealHighlighted;
     private int _highlighted;
 
     private TItem? _bound;
@@ -89,10 +94,32 @@ public partial class ComboBox<TItem> : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/combobox-keys.js");
+            _handle = await _module.InvokeAsync<IJSObjectReference>("init", _inputRef);
+        }
 
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/combobox-keys.js");
-        _handle = await _module.InvokeAsync<IJSObjectReference>("init", _inputRef);
+        // The menu shows three rows, so the arrow keys walk the highlight out of sight without this.
+        if (_revealHighlighted && _handle is not null)
+        {
+            _revealHighlighted = false;
+            await _handle.InvokeVoidAsync("reveal");
+        }
+    }
+
+    /// <summary>The chevron: the whole list whatever is typed, so a chosen value can be swapped.</summary>
+    private async Task ToggleAsync()
+    {
+        if (_isOpen)
+        {
+            Close();
+            return;
+        }
+
+        // The field holds focus so the arrow keys work and leaving it closes the menu as usual.
+        await FocusAsync();
+        await SearchAsync("", BeginSearch());
     }
 
     private bool CanSearch => _query.Trim().Length >= MinimumSearchLength;
@@ -152,8 +179,10 @@ public partial class ComboBox<TItem> : IAsyncDisposable
 
         if (token.IsCancellationRequested) return;
 
-        _results = [.. results];
+        _results = [.. results.Take(MaxRows)];
+        _truncated = results.Count > MaxRows;
         _highlighted = 0;
+        _revealHighlighted = true;
         _isSearching = false;
         _isOpen = true;
 
@@ -166,10 +195,12 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         {
             case "ArrowDown" when _isOpen && _results.Count > 0:
                 _highlighted = (_highlighted + 1) % _results.Count;
+                _revealHighlighted = true;
                 break;
 
             case "ArrowUp" when _isOpen && _results.Count > 0:
                 _highlighted = (_highlighted - 1 + _results.Count) % _results.Count;
+                _revealHighlighted = true;
                 break;
 
             case "Enter" when _isOpen && _highlighted < _results.Count:

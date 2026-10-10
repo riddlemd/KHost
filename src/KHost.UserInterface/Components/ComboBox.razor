@@ -1,6 +1,6 @@
 @typeparam TItem
 
-<div class="kh-combobox @Class?.Trim()">
+<div class="kh-combobox @(OpenWhenEmpty ? "kh-combobox--toggle" : "") @Class?.Trim()">
     <input type="text"
            @ref="_inputRef"
            class="kh-form-control kh-combobox__input"
@@ -17,6 +17,21 @@
            @onfocus="OnFocusAsync"
            @onfocusout="OnFocusOut"
            @onkeydown="OnKeyDownAsync" />
+
+    @* Only on a box that lists everything: a name box that would otherwise list every singer gets none.
+       Out of the tab order, since ArrowDown already opens the list from the field. *@
+    @if (OpenWhenEmpty)
+    {
+        <button type="button"
+                class="kh-combobox__toggle @(_isOpen ? "kh-combobox__toggle--open" : "")"
+                tabindex="-1"
+                aria-label="@(_isOpen ? "Hide the list" : "Show the list")"
+                aria-expanded="@(_isOpen ? "true" : "false")"
+                @onmousedown:preventDefault
+                @onclick="ToggleAsync">
+            <Icon Name="@(_isOpen ? "chevron-up" : "chevron-down")" />
+        </button>
+    }
 
     @if (_isOpen)
     {
@@ -54,6 +69,10 @@
                     </li>
                 }
 
+                @if (_truncated)
+                {
+                    <li class="kh-combobox__message" role="presentation">Showing the first @MaxRows: type to narrow</li>
+                }
             }
         </ul>
     }
