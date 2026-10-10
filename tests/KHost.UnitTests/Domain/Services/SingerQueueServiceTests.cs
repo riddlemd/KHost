@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Models.QueueRotation;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
@@ -19,6 +20,7 @@ public class SingerQueueServiceTests : IDisposable
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
     private readonly IUsersService _usersService;
+    private readonly IUsersRepository _usersRepository = Substitute.For<IUsersRepository>();
     private readonly IVenuesService _venuesService;
     private readonly IQueueRotationStrategyFactory _rotationFactory;
     private readonly Dictionary<Guid, KHostUser> _userDb = [];
@@ -53,7 +55,7 @@ public class SingerQueueServiceTests : IDisposable
         StubStrategy(ctx => ctx.Queue.Select(u => u.Id).ToList());
 
         var analyticsQueue = Substitute.For<IAnalyticsService>();
-        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _venuesService, analyticsQueue, _rotationFactory, _broker);
+        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _usersRepository, _venuesService, analyticsQueue, _rotationFactory, _broker);
     }
 
     private void StubStrategy(Func<QueueRotationContext, IReadOnlyList<Guid>> strategy)
@@ -383,12 +385,100 @@ public class SingerQueueServiceTests : IDisposable
         await _performanceService.DidNotReceive().DeleteAllQueuedAsync();
     }
 
+    private void VenueClosesWith(bool clearQueue, bool? clearSongs = null, bool removeUnsung = false)
+        => _venuesService.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Name = "Test",
+            Settings = new Venue.VenueSettings
+            {
+                ClearQueueOnClose = clearQueue,
+                ClearQueuedSongsOnClose = clearSongs,
+                RemoveUnsungSingersOnClose = removeUnsung,
+            },
+        });
+
+    // The point of the split: tonight's sign-ups keep their songs for next time without the order.
+    [Fact]
+    public async Task ClearAsync_QueueClearedButSongsKept_LeavesTheSongs()
+    {
+        VenueClosesWith(clearQueue: true, clearSongs: false);
+        await EnqueueAsync("Alice");
+
+        await _service.ClearAsync();
+
+        Assert.Null(_service.SelectedUserId);
+        await _performanceService.DidNotReceive().DeleteAllQueuedAsync();
+    }
+
+    [Fact]
+    public async Task ClearAsync_QueueKeptButSongsCleared_ClearsOnlyTheSongs()
+    {
+        VenueClosesWith(clearQueue: false, clearSongs: true);
+        await EnqueueAsync("Alice");
+
+        await _service.ClearAsync();
+
+        Assert.Single(_service.Users);
+        await _performanceService.Received(1).DeleteAllQueuedAsync();
+    }
+
+    [Fact]
+    public async Task ClearAsync_RemovingUnsungSingersIsOff_RemovesNobody()
+    {
+        VenueClosesWith(clearQueue: true);
+
+        await _service.ClearAsync();
+
+        await _usersRepository.DidNotReceive().DeleteUnsungAsync(Arg.Any<IReadOnlyCollection<Guid>>());
+    }
+
+    // Afterwards, or a singer whose only songs were cleared tonight would still count as having some.
+    [Fact]
+    public async Task ClearAsync_RemovingUnsungSingers_RunsAfterTheSongsAreCleared()
+    {
+        VenueClosesWith(clearQueue: true, clearSongs: true, removeUnsung: true);
+
+        await _service.ClearAsync();
+
+        Received.InOrder(() =>
+        {
+            _performanceService.DeleteAllQueuedAsync();
+            _usersRepository.DeleteUnsungAsync(Arg.Any<IReadOnlyCollection<Guid>>());
+        });
+    }
+
+    // A kept queue holding the id of a deleted singer would resolve to nobody.
+    [Fact]
+    public async Task ClearAsync_QueueKept_SparesTheSingersStillInIt()
+    {
+        VenueClosesWith(clearQueue: false, clearSongs: true, removeUnsung: true);
+        await EnqueueAsync("Alice");
+        var alice = _service.Users.Single().Id;
+
+        await _service.ClearAsync();
+
+        await _usersRepository.Received(1).DeleteUnsungAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(keep => keep.SequenceEqual(new[] { alice })));
+    }
+
+    [Fact]
+    public async Task ClearAsync_QueueCleared_SparesNobodyForBeingQueued()
+    {
+        VenueClosesWith(clearQueue: true, clearSongs: true, removeUnsung: true);
+        await EnqueueAsync("Alice");
+
+        await _service.ClearAsync();
+
+        await _usersRepository.Received(1).DeleteUnsungAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(keep => keep.Count == 0));
+    }
+
     // A kept queue and a shutdown that never reached the clear otherwise leave the same log.
     [Fact]
     public async Task ClearAsync_NoVenueSelected_SaysTheQueueWasKept()
     {
         var log = new RecordingLogger();
-        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersService,
+        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersService, _usersRepository,
             _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
         _venuesService.ReadSelectedVenueAsync().Returns((Venue?)null);
 
@@ -402,7 +492,7 @@ public class SingerQueueServiceTests : IDisposable
     public async Task ClearAsync_VenueKeepsItsQueue_SaysSo()
     {
         var log = new RecordingLogger();
-        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersService,
+        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersService, _usersRepository,
             _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
         _venuesService.ReadSelectedVenueAsync()
             .Returns(new Venue { Name = "Test", Settings = new Venue.VenueSettings { ClearQueueOnClose = false } });
@@ -454,6 +544,7 @@ public class SingerQueueServiceTests : IDisposable
         _cacheService,
         _performanceService,
         _usersService,
+        _usersRepository,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
         _rotationFactory,
@@ -592,6 +683,7 @@ public class SingerQueueServiceTests : IDisposable
         _cacheService,
         _performanceService,
         _usersService,
+        _usersRepository,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
         new QueueRotationStrategyFactory([new FifoStrategy()]),
@@ -618,7 +710,7 @@ public class SingerQueueServiceTests : IDisposable
     public async Task Dispose_WhileAPruneIsStillSaving_WaitsForTheSave()
     {
         var cache = new GatedCache();
-        var service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, _performanceService, _usersService,
+        var service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, _performanceService, _usersService, _usersRepository,
             _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
         var bob = new KHostUser { Id = Guid.NewGuid(), Name = "Bob" };
         _userDb[bob.Id] = bob;

@@ -64,6 +64,26 @@ public class EditVenueModelTests
     /// <summary>Every VenueSettings field, given a value nothing in From/ApplyTo treats specially:
     /// no nulls (some become screen-default fallbacks), no zeros where zero means "unset", and
     /// values already inside every Math.Clamp range.</summary>
+    // Before the split one setting decided both, so a venue that never chose opens showing what
+    // it still does, and saving pins that choice.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void From_QueuedSongsNeverSet_FollowsTheQueueSetting(bool clearQueue)
+    {
+        var venue = new Venue
+        {
+            Name = "Old Room",
+            Settings = new Venue.VenueSettings { ClearQueueOnClose = clearQueue, ClearQueuedSongsOnClose = null },
+        };
+
+        var model = EditVenueModel.From(venue, new NewVenueDefaults(Guid.NewGuid(), null));
+        model.ApplyTo(venue);
+
+        Assert.Equal(clearQueue, model.ClearQueuedSongsOnClose);
+        Assert.Equal(clearQueue, venue.Settings.ClearQueuedSongsOnClose);
+    }
+
     private static Venue.VenueSettings DistinctSettings() => new()
     {
         ShowEstimatedWaitTime = false,
@@ -75,6 +95,9 @@ public class EditVenueModelTests
         PromptBeforeRemovingSinger = false,
         PromptBeforeRemovingPerformance = false,
         ClearQueueOnClose = false,
+        // Opposite to the queue setting, so a mapping that copied one into the other shows.
+        ClearQueuedSongsOnClose = true,
+        RemoveUnsungSingersOnClose = true,
         QueueRotation = new QueueRotationConfig { StrategyId = "weighted-fair" },
         BrandingImageMediaId = Guid.NewGuid(),
         AdPoolId = Guid.NewGuid(),

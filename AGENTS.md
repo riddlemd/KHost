@@ -243,7 +243,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 - `KHost.Abstractions` and `KHost.Common` are **NuGet packages**; a plugin takes a `PackageReference`, never a `ProjectReference` into this repo.
 - `<ContractsVersion>` in `Directory.Build.props` versions both. Bump it on any shape change, additions included; 0.x while the contracts move.
-- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (**6** and **6**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
+- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (**6** and **7**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
   - `CurrentVersion` moves on any **addition** a plugin could call or implement (a new interface, member, model field, enum value), so a plugin built against it is refused by an older host with a reason, not a run-time `MissingMethodException`.
   - `MinimumVersion` moves only on a **break**: changing a method a plugin **calls or implements**, including adding an optional parameter (the default compiles into the call site; a changed implemented signature is a `TypeLoadException` at load), or removing anything. A break moves `CurrentVersion` too.
   - Not a break: a new interface member with a **default body** (still an addition).
