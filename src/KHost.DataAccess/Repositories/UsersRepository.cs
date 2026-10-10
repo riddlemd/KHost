@@ -166,6 +166,22 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
             .ExecuteDeleteAsync();
     }
 
+    public async Task<int> DeleteUnsungAsync(IReadOnlyCollection<Guid> keep)
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        // Performances name their singer without a foreign key, so nothing cascades from here;
+        // the check against them is the whole safety.
+        return await context.Set<KHostUser>()
+            .Where(u => !keep.Contains(u.Id)
+                && (u.PasswordHash == null || u.PasswordHash == "")
+                && !u.Tips.Any()
+                && !u.Groups.Any()
+                && !u.ForeignKeys.Any()
+                && !context.Set<Performance>().Any(p => p.SingerId == u.Id))
+            .ExecuteDeleteAsync();
+    }
+
     private static bool IsForeignKeyTaken(DbUpdateException ex)
         => ex.InnerException is SqliteException { SqliteErrorCode: SqliteConstraintViolation } sqlite
            && sqlite.Message.Contains(ForeignKeyIndex, StringComparison.Ordinal);
