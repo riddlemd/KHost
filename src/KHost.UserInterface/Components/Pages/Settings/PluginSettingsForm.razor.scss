@@ -75,7 +75,10 @@
     margin-bottom: 0;
 }
 
-// A note inside the checkbox's label must wrap, and stack under the label words.
+// The label takes the row, pinning every checkbox to the right edge in one column, level with
+// the row's Enabled box; sized to its words, each box landed wherever its label happened to end.
+// A note inside the label must wrap, and stack under the label words.
 .kh-plugins-manager__toggle .kh-form-check-label {
+    flex: 1;
     min-width: 0;
 }
