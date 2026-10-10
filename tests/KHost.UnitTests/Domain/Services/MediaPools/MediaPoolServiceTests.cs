@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
+using KHost.Abstractions.Services;
 using KHost.Domain.Services.MediaPools;
 using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging.Messages;
@@ -10,7 +11,9 @@ namespace KHost.UnitTests.Domain.Services.MediaPools;
 public class MediaPoolServiceTests
 {
     private readonly IMediaPoolRepository _repository = Substitute.For<IMediaPoolRepository>();
+    private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly List<Venue> _venueRows = [];
     private readonly MediaPoolService _service;
 
     public MediaPoolServiceTests()
@@ -18,8 +21,11 @@ public class MediaPoolServiceTests
         _repository.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(Task.FromResult<IReadOnlyList<MediaPool>>([]));
 
+        _venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>())
+            .Returns(_ => Task.FromResult(new PaginatedResult<Venue> { Items = [.. _venueRows] }));
+
         _service = new MediaPoolService(NullLogger<MediaPoolService>.Instance, _repository,
-            _broker, random: new Random(1));
+            _venues, _broker, random: new Random(1));
     }
 
     private static MediaPool Pool(Guid id, params MediaPoolEntry[] entries) => new()
@@ -146,5 +152,73 @@ public class MediaPoolServiceTests
         await _service.ReplaceEntriesAsync(pool.Id, [new MediaPoolEntry { ChildPoolId = pool.Id }]);
 
         Assert.Equal(0, raised);
+    }
+
+    private Venue VenueNaming(Guid? adPoolId = null, Guid? breakMusicPoolId = null)
+    {
+        var venue = new Venue
+        {
+            Id = Guid.NewGuid(),
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { AdPoolId = adPoolId, BreakMusicPoolId = breakMusicPoolId },
+        };
+
+        _venueRows.Add(venue);
+        return venue;
+    }
+
+    // Left behind, the venue dialog shows "none" over an id it cannot clear.
+    [Fact]
+    public async Task DeleteAsync_APlaylistAVenueRunsAdsFrom_ForgetsItOnThatVenue()
+    {
+        var poolId = Guid.NewGuid();
+        _repository.DeleteAsync(poolId).Returns(Task.FromResult(true));
+        var venue = VenueNaming(adPoolId: poolId);
+
+        await _service.DeleteAsync(poolId);
+
+        Assert.Null(venue.Settings.AdPoolId);
+        await _venues.Received(1).UpdateAsync(venue);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_APlaylistAVenuePlaysBetweenSingers_ForgetsItOnThatVenue()
+    {
+        var poolId = Guid.NewGuid();
+        _repository.DeleteAsync(poolId).Returns(Task.FromResult(true));
+        var venue = VenueNaming(breakMusicPoolId: poolId);
+
+        await _service.DeleteAsync(poolId);
+
+        Assert.Null(venue.Settings.BreakMusicPoolId);
+        await _venues.Received(1).UpdateAsync(venue);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AVenueNamingAnotherPlaylist_IsLeftAlone()
+    {
+        var poolId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        _repository.DeleteAsync(poolId).Returns(Task.FromResult(true));
+        var venue = VenueNaming(adPoolId: otherId, breakMusicPoolId: otherId);
+
+        await _service.DeleteAsync(poolId);
+
+        Assert.Equal(otherId, venue.Settings.AdPoolId);
+        Assert.Equal(otherId, venue.Settings.BreakMusicPoolId);
+        await _venues.DidNotReceive().UpdateAsync(Arg.Any<Venue>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ARefusedDelete_LeavesVenuesAlone()
+    {
+        var poolId = Guid.NewGuid();
+        _repository.DeleteAsync(poolId).Returns(Task.FromResult(false));
+        var venue = VenueNaming(adPoolId: poolId);
+
+        Assert.False(await _service.DeleteAsync(poolId));
+
+        Assert.Equal(poolId, venue.Settings.AdPoolId);
+        await _venues.DidNotReceive().UpdateAsync(Arg.Any<Venue>());
     }
 }

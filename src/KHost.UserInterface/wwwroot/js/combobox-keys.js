@@ -21,10 +21,12 @@ export function init(element) {
     element.addEventListener('keydown', onKeyDown);
 
     return {
-        // Nearest, so a row already in view leaves the menu (and any dialog around it) where it is.
-        reveal: () => element.closest('.kh-combobox')
-            ?.querySelector('.kh-combobox__option--highlighted')
-            ?.scrollIntoView({ block: 'nearest' }),
+        // Nearest, so whatever is already in view leaves the menu (and any dialog around it) where it is.
+        reveal: wholeMenu => {
+            const box = element.closest('.kh-combobox');
+            const target = wholeMenu ? '.kh-combobox__menu' : '.kh-combobox__option--highlighted';
+            box?.querySelector(target)?.scrollIntoView({ block: 'nearest' });
+        },
         dispose: () => element.removeEventListener('keydown', onKeyDown),
     };
 }

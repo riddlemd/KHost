@@ -62,6 +62,33 @@ public class NowPlayingPanelTests : BunitContext
         Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
+    // An ad is nobody's turn, so it has no performance; the panel read "No song loaded" over it.
+    [Fact]
+    public void WhileAnAdPlays_SaysSoAndNamesIt()
+    {
+        _playback.IsPlayingAd.Returns(true);
+        _playback.CurrentMedia.Returns(new Media { Title = "Happy Hour", FilePath = "/media/spot.mp4" });
+
+        var text = Render<NowPlayingPanel>().Find(".kh-now-playing__empty-text").TextContent;
+
+        Assert.Contains("Ad playing: Happy Hour", text);
+        Assert.DoesNotContain("No song loaded", text);
+    }
+
+    [Fact]
+    public void WhileASoundOnlyAdPlays_SaysAnAdIsPlaying()
+    {
+        _playback.IsPlayingAd.Returns(true);
+
+        var text = Render<NowPlayingPanel>().Find(".kh-now-playing__empty-text").TextContent;
+
+        Assert.Equal("Ad playing", text.Trim());
+    }
+
+    [Fact]
+    public void WithNothingLoaded_SaysNoSongIsLoaded()
+        => Assert.Contains("No song loaded", Render<NowPlayingPanel>().Find(".kh-now-playing__empty-text").TextContent);
+
     /// <summary>Sharing the title row read as unrelated loose parts beside the single dropdown.</summary>
     [Fact]
     public void BreakMusicControls_RenderInABandOfTheirOwn()

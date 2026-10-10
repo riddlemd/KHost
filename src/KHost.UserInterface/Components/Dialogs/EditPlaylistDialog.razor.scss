@@ -42,4 +42,24 @@
     &__col--actions {
         width: 1%;
     }
+
+    // Under the still it belongs to, so a row still reads as one entry.
+    &__voice {
+        margin-top: 0.4rem;
+        max-width: 18rem;
+    }
+
+    &__start {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.4rem;
+        color: var(--kh-text-secondary);
+        font-size: 0.85em;
+    }
+
+    &__start-input {
+        width: 4.5rem;
+        text-align: right;
+    }
 }

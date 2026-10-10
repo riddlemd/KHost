@@ -26,7 +26,7 @@ public class AdService : BaseService, IAdService, IDisposable
     private readonly IMediaPoolService _pools;
     private readonly IMediaService _media;
     private readonly IVenuesService _venues;
-    private readonly ISingerQueueService _queue;
+    private readonly IPerformanceService _performances;
     private readonly TimeProvider _time;
     private readonly ServiceOptions _options;
 
@@ -36,7 +36,7 @@ public class AdService : BaseService, IAdService, IDisposable
         IMediaPoolService pools,
         IMediaService media,
         IVenuesService venues,
-        ISingerQueueService queue,
+        IPerformanceService performances,
         TimeProvider time,
         IOptions<ServiceOptions> options,
         IMessageBroker broker)
@@ -47,7 +47,7 @@ public class AdService : BaseService, IAdService, IDisposable
         _pools = pools;
         _media = media;
         _venues = venues;
-        _queue = queue;
+        _performances = performances;
         _time = time;
         _options = options.Value;
 
@@ -56,6 +56,10 @@ public class AdService : BaseService, IAdService, IDisposable
         // A venue's ad playlist can be chosen mid-shift; without this the play button stays hidden until
         // a song ends, which is the one moment a host is not looking for it.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>((_, _) => RefreshConfiguredAsync()));
+
+        // Deleting the venue's playlist would otherwise leave the button up, offering an ad that
+        // can only be refused.
+        _subscriptions.Add(broker.Subscribe<MediaPoolsChanged>((_, _) => RefreshConfiguredAsync()));
     }
 
     public bool IsConfigured { get; private set; }
@@ -126,7 +130,7 @@ public class AdService : BaseService, IAdService, IDisposable
 
             IsConfigured = true;
 
-            if (!IsDue(pool))
+            if (!await IsDueAsync(pool))
             {
                 _broker.Announce(new AdsChanged());
                 return;
@@ -145,14 +149,15 @@ public class AdService : BaseService, IAdService, IDisposable
         }
     }
 
-    private bool IsDue(MediaPool pool) => pool.AdTrigger switch
+    private async Task<bool> IsDueAsync(MediaPool pool) => pool.AdTrigger switch
     {
         AdTriggerMode.EveryNPerformances => PerformancesSinceLastAd >= Interval(pool),
         AdTriggerMode.EveryNMinutes => LastAdAtUtc is null
             || _time.GetUtcNow() - LastAdAtUtc.Value >= TimeSpan.FromMinutes(Interval(pool)),
 
-        // Nobody left to sing, so the room gets the ad rather than an empty screen.
-        AdTriggerMode.OnIdle => _queue.Users.Count == 0,
+        // Songs, not singers: a singer whose last song just ended stays in the queue, so an empty
+        // singer list almost never happens in the gap this runs in.
+        AdTriggerMode.OnIdle => (await _performances.ReadQueuedAsync()).Count == 0,
 
         _ => false,
     };
@@ -196,6 +201,20 @@ public class AdService : BaseService, IAdService, IDisposable
     /// <summary>Caller holds the lock.</summary>
     private async Task<bool> PlayFromAsync(Venue venue, MediaPool pool)
     {
+        // Asked before choosing: choosing moves the playlist on, so a refusal after it would
+        // silently skip an ad.
+        if (_playback.CurrentPerformance is not null)
+        {
+            Logger.LogInformation("No ad played: a song is loaded");
+            return false;
+        }
+
+        if (!await _playback.HasConnectedScreenAsync())
+        {
+            Logger.LogInformation("No ad played: no screen is connected");
+            return false;
+        }
+
         var entry = await _pools.SelectNextAsync(pool.Id, venue.Id);
 
         if (entry is null)

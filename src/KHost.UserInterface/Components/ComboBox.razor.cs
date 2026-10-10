@@ -54,6 +54,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     private bool _isSearching;
     private bool _truncated;
     private bool _revealHighlighted;
+    private bool _revealMenu;
     private int _highlighted;
 
     private TItem? _bound;
@@ -101,10 +102,14 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         }
 
         // The menu shows three rows, so the arrow keys walk the highlight out of sight without this.
-        if (_revealHighlighted && _handle is not null)
+        // A menu just opened is brought into view whole: inside a scrolling dialog it can open
+        // below the fold, and the overlay that dismisses it keeps the wheel from scrolling there.
+        if ((_revealHighlighted || _revealMenu) && _handle is not null)
         {
+            var wholeMenu = _revealMenu;
             _revealHighlighted = false;
-            await _handle.InvokeVoidAsync("reveal");
+            _revealMenu = false;
+            await _handle.InvokeVoidAsync("reveal", wholeMenu);
         }
     }
 
@@ -182,7 +187,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         _results = [.. results.Take(MaxRows)];
         _truncated = results.Count > MaxRows;
         _highlighted = 0;
-        _revealHighlighted = true;
+        _revealMenu = true;
         _isSearching = false;
         _isOpen = true;
 

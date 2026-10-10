@@ -25,6 +25,10 @@ public partial class EditVenueAds
 
         _adPool = _adPools.FirstOrDefault(pool => pool.Id == Model.AdPoolId);
         _adPoolText = _adPool?.Name ?? "";
+
+        // The field reads "none" over an id that resolves to nothing; saving must agree with it.
+        if (_adPool is null)
+            Model.AdPoolId = null;
     }
 
     private void OnAdPoolChanged(MediaPool? pool)
