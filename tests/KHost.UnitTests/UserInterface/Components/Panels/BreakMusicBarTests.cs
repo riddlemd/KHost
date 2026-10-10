@@ -6,6 +6,7 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.UserInterface.Components.Panels;
+using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,6 +19,7 @@ public class BreakMusicBarTests : BunitContext
     private readonly IAdService _ads = Substitute.For<IAdService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
+    private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
     private readonly IBreakMusicProvider _provider = Substitute.For<IBreakMusicProvider>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
@@ -39,6 +41,7 @@ public class BreakMusicBarTests : BunitContext
         Services.AddSingleton(_ads);
         Services.AddSingleton(_playback);
         Services.AddSingleton(_flash);
+        Services.AddSingleton(_dialogs);
         Services.AddSingleton<IMessageBroker>(_broker);
     }
 
@@ -135,6 +138,20 @@ public class BreakMusicBarTests : BunitContext
         _flash.Received(1).Show(
             Arg.Is<string>(message => message.Contains("playlist", StringComparison.OrdinalIgnoreCase)),
             FlashType.Warning);
+    }
+
+    // Left to the error boundary, one bad ad file replaced the whole console until a reload.
+    [Fact]
+    public void PlayAd_ThatFailsToLoad_ShowsTheErrorInsteadOfThrowing()
+    {
+        var error = new KHostException("KHost couldn't prepare the ad.", "Check the file.", "KH-STREAM-OPEN");
+        _ads.IsConfigured.Returns(true);
+        _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns<Task<bool>>(_ => throw error);
+
+        Render().Find("[title='Play an ad now']").Click();
+
+        _dialogs.Received(1).ShowErrorAsync(error, Arg.Any<string>(), Arg.Any<Action?>(), Arg.Any<Action?>());
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 
     [Fact]

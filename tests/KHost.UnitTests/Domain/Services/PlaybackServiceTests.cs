@@ -3249,6 +3249,67 @@ public class PlaybackServiceTests : IDisposable
         await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
     }
 
+    // Nothing runs the clock for an ad that never loaded, so a failure left unwound holds the main
+    // channel and the bed until the next button press.
+    [Fact]
+    public async Task PlayAdAsync_TheStreamWillNotOpen_TellsTheHost()
+    {
+        FailTheStreamOpen();
+
+        var error = await Assert.ThrowsAsync<KHostException>(() => _service.PlayAdAsync(CreateAd()));
+
+        Assert.Equal("KH-STREAM-OPEN", error.ReferenceCode);
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_TheStreamWillNotOpen_ClearsTheAd()
+    {
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.PlayAdAsync(CreateAd()));
+
+        Assert.False(_service.IsPlayingAd);
+        Assert.Null(_service.CurrentMedia);
+        Assert.IsType<PlaybackProgram.Idle>(_service.CurrentProgram);
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_TheStreamWillNotOpen_BringsBreakMusicBack()
+    {
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.PlayAdAsync(CreateAd()));
+
+        await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    // The ad this one replaced is still on the screen, and the venue card cannot come back over it.
+    [Fact]
+    public async Task PlayAdAsync_OverARunningAd_TheStreamWillNotOpen_StopsTheDisplay()
+    {
+        await _service.PlayAdAsync(CreateAd());
+        _screenServer.ClearReceivedCalls();
+
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.PlayAdAsync(CreateAd()));
+
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<StopCommand>());
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_TheStreamWillNotOpen_RedrawsTheConsole()
+    {
+        FailTheStreamOpen();
+
+        var raised = 0;
+        using var subscription = _broker.Subscribe<PlaybackChanged>(_ => raised++);
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.PlayAdAsync(CreateAd()));
+
+        Assert.True(raised > 0, "the console was never told the ad was abandoned");
+    }
+
     [Fact]
     public async Task AnAdEnding_DoesNotDequeueOrRotate()
     {
