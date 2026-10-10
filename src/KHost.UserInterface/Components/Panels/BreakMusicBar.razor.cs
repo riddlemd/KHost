@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Panels;
@@ -13,6 +14,7 @@ public partial class BreakMusicBar : IDisposable
     [Inject] private IAdService Ads { get; set; } = default!;
     [Inject] private IPlaybackService Playback { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -102,8 +104,17 @@ public partial class BreakMusicBar : IDisposable
 
     private async Task PlayAdAsync()
     {
-        if (await Ads.PlayNowAsync())
+        try
+        {
+            if (await Ads.PlayNowAsync())
+                return;
+        }
+        catch (KHostException ex)
+        {
+            // Uncaught, the error boundary takes the whole console down for one bad ad file.
+            await DialogService.ShowErrorAsync(ex, title: "Couldn't play this ad");
             return;
+        }
 
         // The service reports only that nothing played. A missing screen is the one cause
         // distinguishable here; an ad has nowhere to appear before anything else is wrong.
