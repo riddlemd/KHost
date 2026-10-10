@@ -51,6 +51,21 @@
         margin-top: 0.75rem;
     }
 
+    // Below the whole editor, so one Save covers the name, the order and every entry's look.
+    &__actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    &__unsaved {
+        margin-right: auto;
+        font-size: 0.85rem;
+        color: var(--kh-text-muted);
+    }
+
     &__import {
         cursor: pointer;
     }
