@@ -37,6 +37,8 @@ public partial class SettingsButton : IDisposable
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private ILogger<SettingsButton> Logger { get; set; } = default!;
+    [Inject] private IConfiguration Configuration { get; set; } = default!;
+    [Inject] private IHostApplicationLifetime Lifetime { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -374,6 +376,38 @@ public partial class SettingsButton : IDisposable
             if (updated is not null)
                 await VenuesService.UpdateAsync(updated);
         });
+    }
+
+    /// <summary>Headless only, for now: the native window still has a close button of its own.</summary>
+    private bool CanExit => !Configuration.GetValue<bool>(Program.NativeShellKey);
+
+    private async Task ExitAsync()
+    {
+        CloseMenu();
+
+        await DialogService.ShowConfirmationAsync(
+            "KHost will stop and close the screens it opened.",
+            onConfirm: StopHostAsync,
+            title: "Exit KHost",
+            confirmText: "Exit");
+    }
+
+    private async Task StopHostAsync()
+    {
+        try
+        {
+            await using var module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/host-exit.js");
+            await module.InvokeVoidAsync("showStopped");
+        }
+        catch (JSException ex)
+        {
+            // A page that cannot say it stopped must not keep the host running.
+            Logger.LogWarning(ex, "Could not show the stopped page before exiting");
+        }
+
+        // Off the circuit: StopApplication runs every shutdown hook synchronously on the caller,
+        // and a hook blocking on work that needs this circuit would never finish.
+        _ = Task.Run(Lifetime.StopApplication);
     }
 
     // A custom theme carries a name of its own; only a built-in is named by its filename.

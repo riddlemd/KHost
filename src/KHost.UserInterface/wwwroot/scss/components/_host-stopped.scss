@@ -1,0 +1,24 @@
+// The page host-exit.js lays over the console once the host stops, built in JS because no circuit
+// is left to render it, so it cannot take scoped styles.
+.kh-host-stopped {
+    position: fixed;
+    inset: 0;
+    // Above the validation toast (9999): nothing under it can act any more.
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: var(--kh-bg);
+    color: var(--kh-text);
+
+    &__heading {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    &__note {
+        color: var(--kh-text-muted);
+    }
+}
