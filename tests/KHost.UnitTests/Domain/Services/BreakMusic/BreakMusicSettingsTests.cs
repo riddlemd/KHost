@@ -16,7 +16,7 @@ public class BreakMusicSettingsTests
         Assert.Equal(BreakMusicService.ServiceOptions.DefaultFadeDuration, new BreakMusicSettings(_options).FadeDuration);
     }
 
-    /// <summary>App Settings promises the change applies immediately, so a plugin holding the
+    /// <summary>App Settings promises the change takes effect on save, so a plugin holding the
     /// settings object must see a save without being rebuilt.</summary>
     [Fact]
     public void FadeDuration_FollowsASaveMadeAfterConstruction()

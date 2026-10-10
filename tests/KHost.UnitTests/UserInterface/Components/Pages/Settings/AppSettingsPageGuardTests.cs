@@ -132,6 +132,18 @@ public class AppSettingsPageGuardTests : BunitContext
         Assert.Equal(Elsewhere, Navigation.Uri);
     }
 
+    /// <summary>Save sits at the foot of a long page, so an edit says so beside it.</summary>
+    [Fact]
+    public void AnEdit_IsMarkedUnsavedBesideSave()
+    {
+        var page = Render<AppSettingsPage>();
+        Assert.Empty(page.FindAll(".kh-app-settings__unsaved"));
+
+        Edit(page, stopFadeSeconds: 10);
+
+        Assert.Single(page.FindAll(".kh-app-settings__unsaved"));
+    }
+
     private NavigationManager Navigation => Services.GetRequiredService<NavigationManager>();
 
     /// <summary>Navigates on the renderer's own thread, as a link click in the app would.</summary>
