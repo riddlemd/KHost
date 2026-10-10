@@ -146,6 +146,50 @@ public partial class EditPlaylistDialog
         return page.Items;
     }
 
+    /// <summary>A still is the one picture that can take a voiceover: a video carries its own sound.</summary>
+    private bool IsStill(MediaPoolEntry entry)
+        => entry.MediaId is { } id && _media.TryGetValue(id, out var media) && MediaFormats.IsImage(media.Format);
+
+    private Media? VoiceoverOf(MediaPoolEntry entry)
+        => entry.AudioMediaId is { } id && _media.TryGetValue(id, out var media) ? media : null;
+
+    private void SetVoiceover(int index, Media? voice)
+    {
+        if (voice is not null)
+            _media[voice.Id] = voice;
+
+        _entries[index].AudioMediaId = voice?.Id;
+
+        // A start point belongs to the clip it was set against.
+        _entries[index].AudioStart = null;
+    }
+
+    /// <summary>Blank or zero is the clip's start. Held inside the clip, or the spot would run for nothing.</summary>
+    private void SetAudioStart(int index, string? value)
+    {
+        var entry = _entries[index];
+
+        if (!double.TryParse(value, out var seconds))
+        {
+            entry.AudioStart = null;
+            return;
+        }
+
+        var start = TimeSpan.FromSeconds(seconds);
+
+        if (VoiceoverOf(entry)?.Duration is { } length && start >= length)
+            start = length > TimeSpan.FromSeconds(1) ? length - TimeSpan.FromSeconds(1) : TimeSpan.Zero;
+
+        entry.AudioStart = start > TimeSpan.Zero ? start : null;
+    }
+
+    private async Task<IReadOnlyList<Media>> SearchVoiceoversAsync(string term)
+    {
+        var page = await Media.SearchAsync(term, 1, 50, sort: null, new MediaSearchOptions { Types = [MediaType.Audio] });
+
+        return page.Items;
+    }
+
     private void SetEntryWeight(int index, string? value)
         => _entries[index].Weight = int.TryParse(value, out var weight) && weight >= 0 ? Math.Min(weight, MaxWeight) : 1;
 
@@ -224,7 +268,11 @@ public partial class EditPlaylistDialog
         {
             _media[media.Id] = media;
 
-            _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id });
+            // A sound in an ad playlist plays over the venue card. As the entry's picture it took
+            // the card down and left the screen blank for the whole spot.
+            _entries.Add(Purpose == PoolPurpose.Ads && media.Type == MediaType.Audio
+                ? new MediaPoolEntry { Id = Guid.NewGuid(), AudioMediaId = media.Id }
+                : new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id });
         }
         else if (choice.Pool is { } pool)
         {

@@ -26,6 +26,9 @@ public class ComboBoxToggleTests : BunitContext
 
     private int Reveals => _keys.Invocations.Count(invocation => invocation.Identifier == "reveal");
 
+    private bool? LastRevealWasWholeMenu => _keys.Invocations
+        .LastOrDefault(invocation => invocation.Identifier == "reveal").Arguments?.FirstOrDefault() as bool?;
+
     private IRenderedComponent<ComboBox<Song>> RenderBox(bool openWhenEmpty = true, Song? value = null)
         => Render<ComboBox<Song>>(parameters => parameters
             .Add(c => c.DisplayName, song => song.Title)
@@ -109,5 +112,18 @@ public class ComboBoxToggleTests : BunitContext
         await combo.Find("input").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
 
         Assert.Equal(before + 1, Reveals);
+        Assert.False(LastRevealWasWholeMenu);
+    }
+
+    // In a scrolling dialog the menu can open below the fold, and its dismiss overlay keeps the
+    // wheel from scrolling the dialog to it.
+    [Fact]
+    public async Task Opening_BringsTheWholeMenuIntoView()
+    {
+        var combo = RenderBox();
+
+        await combo.Find(ToggleSelector).ClickAsync(new MouseEventArgs());
+
+        Assert.True(LastRevealWasWholeMenu);
     }
 }

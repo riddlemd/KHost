@@ -45,7 +45,11 @@
 
             @if (Ads.IsConfigured)
             {
-                <button class="kh-button--icon-minimal" title="Play an ad now" type="button" @onclick="PlayAdAsync">
+                <button class="kh-button--icon-minimal" type="button"
+                        title="@(SongIsLoaded ? "Ads wait for the gap after a song" : "Play an ad now")"
+                        aria-label="Play an ad now"
+                        disabled="@SongIsLoaded"
+                        @onclick="PlayAdAsync">
                     <Icon Name="megaphone" />
                 </button>
             }
