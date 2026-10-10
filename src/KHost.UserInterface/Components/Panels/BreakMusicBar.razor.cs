@@ -23,7 +23,12 @@ public partial class BreakMusicBar : IDisposable
     {
         _subscriptions.Add(Broker.Subscribe<BreakMusicChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<AdsChanged>(_ => OnStateChanged()));
+
+        // The ad button greys out while a song is loaded and comes back in the gap.
+        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
     }
+
+    private bool SongIsLoaded => Playback.CurrentPerformance is not null;
 
     public void Dispose()
     {
@@ -116,12 +121,14 @@ public partial class BreakMusicBar : IDisposable
             return;
         }
 
-        // The service reports only that nothing played. A missing screen is the one cause
-        // distinguishable here; an ad has nowhere to appear before anything else is wrong.
+        // The service reports only that nothing played, so the causes are told apart here, in the
+        // order the service checks them.
         Flash.Show(
-            await Playback.HasConnectedScreenAsync()
-                ? "No ad played: the playlist is empty or a song is loaded."
-                : "No ad played: no screen is connected.",
+            SongIsLoaded
+                ? "No ad played: a song is loaded. Ads wait for the gap after it."
+                : !await Playback.HasConnectedScreenAsync()
+                    ? "No ad played: no screen is connected."
+                    : "No ad played: nothing in this venue's ad playlist could play.",
             FlashType.Warning);
     }
 }

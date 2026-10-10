@@ -24,9 +24,13 @@ public static class PlaylistDisplay
 
     public static string DescribeTrigger(MediaPool pool) => pool.AdTrigger switch
     {
-        AdTriggerMode.EveryNPerformances => $"Every {pool.AdTriggerInterval} songs",
-        AdTriggerMode.EveryNMinutes => $"Every {pool.AdTriggerInterval} minutes",
+        AdTriggerMode.EveryNPerformances => Every(pool.AdTriggerInterval, "song"),
+        AdTriggerMode.EveryNMinutes => Every(pool.AdTriggerInterval, "minute"),
         AdTriggerMode.OnIdle => "When nobody is queued",
         _ => "Only when asked",
     };
+
+    /// <summary>"Every song", not "Every 1 songs".</summary>
+    private static string Every(int interval, string unit)
+        => interval <= 1 ? $"Every {unit}" : $"Every {interval} {unit}s";
 }

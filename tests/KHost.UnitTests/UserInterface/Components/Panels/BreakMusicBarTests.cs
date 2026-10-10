@@ -140,6 +140,32 @@ public class BreakMusicBarTests : BunitContext
             FlashType.Warning);
     }
 
+    // Pressed over a singer, it could only ever be refused.
+    [Fact]
+    public void AdButton_WhileASongIsLoaded_IsDisabled()
+    {
+        _ads.IsConfigured.Returns(true);
+        _playback.CurrentPerformance.Returns(new Performance());
+
+        var button = Render().Find("[aria-label='Play an ad now']");
+
+        Assert.True(button.HasAttribute("disabled"));
+        Assert.Equal("Ads wait for the gap after a song", button.GetAttribute("title"));
+    }
+
+    [Fact]
+    public void AdButton_OnceTheSongEnds_ComesBack()
+    {
+        _ads.IsConfigured.Returns(true);
+        _playback.CurrentPerformance.Returns(new Performance());
+        var cut = Render();
+
+        _playback.CurrentPerformance.Returns((Performance?)null);
+        _broker.Announce(new PlaybackChanged());
+
+        cut.WaitForAssertion(() => Assert.False(cut.Find("[aria-label='Play an ad now']").HasAttribute("disabled")));
+    }
+
     // Left to the error boundary, one bad ad file replaced the whole console until a reload.
     [Fact]
     public void PlayAd_ThatFailsToLoad_ShowsTheErrorInsteadOfThrowing()
