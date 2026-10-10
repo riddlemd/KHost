@@ -355,6 +355,19 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _broker.Announce(new PlaybackChanged());
     }
 
+    /// <summary>Puts back what PlayAdAsync set up before it failed.</summary>
+    /// <remarks>Nothing runs the clock for an ad that never loaded, so without this the ad holds the
+    /// main channel and the bed until the next button press.</remarks>
+    private async Task AbandonAdAsync()
+    {
+        // An ad this one replaced is still on the display; the card cannot come back over it.
+        await ToDisplayAsync(display => display.StopAsync(TimeSpan.Zero));
+
+        await EndedAsync();
+
+        _broker.Announce(new PlaybackChanged());
+    }
+
     /// <summary>Puts back what LoadAsync set up before it failed.</summary>
     /// <remarks>Deliberately not EndedAsync, since nothing was performed.</remarks>
     private async Task AbandonLoadAsync()
@@ -459,17 +472,25 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             { } still => new PlaybackProgram.AdStill(_mediaStreams.BuildImageUrl(still.Id), still.ImageScaling),
         };
 
-        if (playsOnMainChannel)
-            await LoadOntoDisplayAsync(await BuildLoadAsync(ad.Visual!, TimeSpan.Zero));
-
-        // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
-        // and the host clock stops it at the ad's duration.
-        if (ad.Audio is { } audio)
+        try
         {
-            _adAudioStream = await _mediaStreams.OpenAsync(audio.FilePath, ad.AudioStart);
+            if (playsOnMainChannel)
+                await LoadOntoDisplayAsync(await BuildLoadAsync(ad.Visual!, TimeSpan.Zero));
 
-            var bed = new BackgroundLoad { StreamUrl = _adAudioStream.PlaylistUrl, AutoPlay = true };
-            await ToDisplayAsync(display => display.LoadBackgroundAsync(bed));
+            // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
+            // and the host clock stops it at the ad's duration.
+            if (ad.Audio is { } audio)
+            {
+                _adAudioStream = await _mediaStreams.OpenAsync(audio.FilePath, ad.AudioStart);
+
+                var bed = new BackgroundLoad { StreamUrl = _adAudioStream.PlaylistUrl, AutoPlay = true };
+                await ToDisplayAsync(display => display.LoadBackgroundAsync(bed));
+            }
+        }
+        catch
+        {
+            await AbandonAdAsync();
+            throw;
         }
 
         _broker.Announce(new PlaybackChanged());

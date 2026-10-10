@@ -18,6 +18,42 @@
         }
     }
 
+    // Room for the toggle, or a long name runs under the chevron.
+    &--toggle &__input {
+        padding-right: 2.75rem;
+    }
+
+    &__toggle {
+        position: absolute;
+        top: 1px;
+        right: 1px;
+        bottom: 1px;
+        width: 2.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 0;
+        border-left: 1px solid var(--kh-border);
+        border-radius: 0 var(--kh-radius) var(--kh-radius) 0;
+        background: transparent;
+        color: var(--kh-text-secondary);
+        font-size: 0.75rem;
+        cursor: pointer;
+
+        &:hover {
+            color: var(--kh-text);
+        }
+
+        // Lifted only while open, over the dismiss overlay; lifted always, it would paint over the
+        // menu of a combobox above it.
+        &--open {
+            z-index: 21;
+            background: var(--kh-primary-subtle);
+            color: var(--kh-text);
+        }
+    }
+
     // Catches the click that dismisses the menu, like the song controls' scrim.
     &__overlay {
         position: fixed;
@@ -34,7 +70,10 @@
         margin: 0;
         padding: 0.35em 0;
         list-style: none;
-        max-height: 14rem;
+
+        // Three option rows (padding plus a 1.5 line each), so the menu stays short enough to open
+        // inside a dialog; the rest scroll. Border-box, so the 1px border counts twice.
+        max-height: calc(3 * 2.3em + 0.7em + 2px);
         overflow-y: auto;
         background: var(--kh-bg-card);
         border: 1px solid var(--kh-border-bright);
@@ -49,6 +88,8 @@
         border: 0;
         background: transparent;
         color: var(--kh-text);
+        font: inherit;
+        line-height: 1.5;
         text-align: left;
         cursor: pointer;
 
