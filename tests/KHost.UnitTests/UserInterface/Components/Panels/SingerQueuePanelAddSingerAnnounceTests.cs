@@ -73,7 +73,7 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
         permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
 
         var queue = new SingerQueueService(
-            NullLogger<SingerQueueService>.Instance, cache, performances, users, venues, analytics, rotationFactory, _broker);
+            NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.Abstractions.Repositories.IUsersRepository>(), venues, analytics, rotationFactory, _broker);
 
         Services.AddSingleton<ISingerQueueService>(queue);
         Services.AddSingleton<IMessageBroker>(_broker);

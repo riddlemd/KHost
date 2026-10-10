@@ -50,6 +50,8 @@ public class EditVenueModel
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;
+    public bool ClearQueuedSongsOnClose { get; set; } = true;
+    public bool RemoveUnsungSingersOnClose { get; set; }
 
     /// <summary>Off for a venue never asked, which is why the setting needed no backfill.</summary>
     public bool AllowAliases { get; set; }
@@ -185,6 +187,9 @@ public class EditVenueModel
             PromptBeforeRemovingSinger = settings.PromptBeforeRemovingSinger,
             PromptBeforeRemovingPerformance = settings.PromptBeforeRemovingPerformance,
             ClearQueueOnClose = settings.ClearQueueOnClose,
+            // Shown as what the venue does today: before the split, the queue setting decided both.
+            ClearQueuedSongsOnClose = settings.ClearQueuedSongsOnClose ?? settings.ClearQueueOnClose,
+            RemoveUnsungSingersOnClose = settings.RemoveUnsungSingersOnClose,
             AllowAliases = settings.AllowAliases,
             AllowGuestRemote = settings.AllowGuestRemote,
             ShowQueueToGuests = settings.ShowQueueToGuests,
@@ -271,6 +276,8 @@ public class EditVenueModel
         venue.Settings.PromptBeforeRemovingSinger = PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = ClearQueueOnClose;
+        venue.Settings.ClearQueuedSongsOnClose = ClearQueuedSongsOnClose;
+        venue.Settings.RemoveUnsungSingersOnClose = RemoveUnsungSingersOnClose;
         venue.Settings.AllowAliases = AllowAliases;
         venue.Settings.AllowGuestRemote = AllowGuestRemote;
         venue.Settings.ShowQueueToGuests = ShowQueueToGuests;

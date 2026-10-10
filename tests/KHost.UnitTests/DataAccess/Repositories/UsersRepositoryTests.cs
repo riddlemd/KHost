@@ -377,6 +377,106 @@ public class UsersRepositoryTests : IDisposable
         Assert.Null(await _repository.ReadByForeignKeyAsync("Example", "remote-1"));
     }
 
+    private List<string> RemainingNames()
+    {
+        using var context = _database.CreateDbContext();
+        return [.. context.Users.Select(u => u.Name).OrderBy(n => n)];
+    }
+
+    private static Performance PerformanceBy(KHostUser singer)
+        => new() { Id = Guid.NewGuid(), SingerId = singer.Id, MediaId = Guid.NewGuid() };
+
+    [Fact]
+    public async Task DeleteUnsungAsync_ASingerWithNoPerformances_IsDeleted()
+    {
+        await _database.SeedAsync(User("Walk-in"));
+
+        Assert.Equal(1, await _repository.DeleteUnsungAsync([]));
+        Assert.Empty(RemainingNames());
+    }
+
+    // Sung or still queued: either way, they have been here to sing.
+    [Fact]
+    public async Task DeleteUnsungAsync_ASingerWithAPerformance_IsKept()
+    {
+        var regular = User("Regular");
+        await _database.SeedAsync(regular, PerformanceBy(regular), User("Walk-in"));
+
+        await _repository.DeleteUnsungAsync([]);
+
+        Assert.Equal(["Regular"], RemainingNames());
+    }
+
+    [Fact]
+    public async Task DeleteUnsungAsync_ASingerWhoTipped_IsKept()
+    {
+        var tipper = User("Tipper");
+        await _database.SeedAsync(tipper, new Tip { UserId = tipper.Id, AmountInCents = 500 });
+
+        await _repository.DeleteUnsungAsync([]);
+
+        Assert.Equal(["Tipper"], RemainingNames());
+    }
+
+    [Fact]
+    public async Task DeleteUnsungAsync_ASingerInAGroup_IsKept()
+    {
+        var member = User("Member");
+        member.Groups.Add(new KHostUserGroup { Name = "Regulars" });
+        await _database.SeedAsync(member);
+
+        await _repository.DeleteUnsungAsync([]);
+
+        Assert.Equal(["Member"], RemainingNames());
+    }
+
+    [Fact]
+    public async Task DeleteUnsungAsync_ASingerWithALinkedAccount_IsKept()
+    {
+        var linked = User("Linked");
+        await _database.SeedAsync(linked, new KHostUserForeignKey { UserId = linked.Id, Source = "remote", Key = "abc" });
+
+        await _repository.DeleteUnsungAsync([]);
+
+        Assert.Equal(["Linked"], RemainingNames());
+    }
+
+    [Fact]
+    public async Task DeleteUnsungAsync_ASingerWithAPassword_IsKept()
+    {
+        var host = User("Host");
+        host.PasswordHash = "hash";
+        await _database.SeedAsync(host);
+
+        await _repository.DeleteUnsungAsync([]);
+
+        Assert.Equal(["Host"], RemainingNames());
+    }
+
+    // An empty hash is no login, as HasAdminWithPasswordAsync already reads it.
+    [Fact]
+    public async Task DeleteUnsungAsync_AnEmptyPassword_IsNoLogin()
+    {
+        var walkIn = User("Walk-in");
+        walkIn.PasswordHash = "";
+        await _database.SeedAsync(walkIn);
+
+        await _repository.DeleteUnsungAsync([]);
+
+        Assert.Empty(RemainingNames());
+    }
+
+    [Fact]
+    public async Task DeleteUnsungAsync_ASingerTheCallerKeeps_IsKept()
+    {
+        var queued = User("Queued");
+        await _database.SeedAsync(queued, User("Walk-in"));
+
+        await _repository.DeleteUnsungAsync([queued.Id]);
+
+        Assert.Equal(["Queued"], RemainingNames());
+    }
+
     private static KHostUser User(string name) => new() { Name = name };
 
     public void Dispose()

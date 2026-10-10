@@ -73,8 +73,25 @@
 
     <VenueSettingsGroup Title="Closing">
         <label class="kh-venue-settings__row kh-form-check">
-            <span class="kh-form-check-label">Clear queue when closing</span>
-            <InputCheckbox class="kh-form-check-input" @bind-Value="Model.ClearQueueOnClose" />
+            <span class="kh-form-check-label">
+                Clear queue when closing
+                <span class="kh-note">Empties the list of singers waiting their turn.</span>
+            </span>
+            <InputCheckbox id="venue-clear-queue" class="kh-form-check-input" @bind-Value="Model.ClearQueueOnClose" />
+        </label>
+        <label class="kh-venue-settings__row kh-form-check">
+            <span class="kh-form-check-label">
+                Clear queued songs when closing
+                <span class="kh-note">Deletes songs still waiting to be sung. Songs already sung are kept.</span>
+            </span>
+            <InputCheckbox id="venue-clear-queued-songs" class="kh-form-check-input" @bind-Value="Model.ClearQueuedSongsOnClose" />
+        </label>
+        <label class="kh-venue-settings__row kh-form-check">
+            <span class="kh-form-check-label">
+                Remove singers who never sang
+                <span class="kh-note">Keeps anyone in the queue, or with a tip, group, linked account or login.</span>
+            </span>
+            <InputCheckbox id="venue-remove-unsung-singers" class="kh-form-check-input" @bind-Value="Model.RemoveUnsungSingersOnClose" />
         </label>
     </VenueSettingsGroup>
 </VenueSettingsSection>

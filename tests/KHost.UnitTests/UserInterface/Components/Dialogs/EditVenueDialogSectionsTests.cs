@@ -102,6 +102,8 @@ public class EditVenueDialogSectionsTests : BunitContext
                 "Warn when queueing a song already queued or recently sung", "Consider a song recently sung within",
                 "Show estimated wait time in the singer queue", "Allow Singer Aliases",
                 "Clear queue when closing",
+                "Clear queued songs when closing",
+                "Remove singers who never sang",
             ]
         },
     };

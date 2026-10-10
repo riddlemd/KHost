@@ -46,4 +46,10 @@ public interface IUsersRepository : IRepository<KHostUser>
     /// <summary>Drops <paramref name="source"/>'s ephemeral keys; other keys stay untouched.</summary>
     /// <returns>How many keys were dropped.</returns>
     Task<int> DeleteEphemeralForeignKeysAsync(string source);
+
+    /// <summary>Deletes every singer who has never sung, returning how many went.</summary>
+    /// <remarks>"Never sung" means no performance of any kind, sung or still queued. A singer with a
+    /// tip, a group membership, a linked account or a password is kept regardless, as is every
+    /// id in <paramref name="keep"/>.</remarks>
+    Task<int> DeleteUnsungAsync(IReadOnlyCollection<Guid> keep);
 }

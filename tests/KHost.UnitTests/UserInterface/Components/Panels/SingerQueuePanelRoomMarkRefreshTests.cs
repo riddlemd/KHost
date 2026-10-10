@@ -48,7 +48,7 @@ public class SingerQueuePanelRoomMarkRefreshTests : BunitContext
 
         var cache = new JsonFileCacheService(
             NullLogger<JsonFileCacheService>.Instance, Substitute.For<IAnalyticsService>(), _cacheDir);
-        _queue = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, performances, users,
+        _queue = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.Abstractions.Repositories.IUsersRepository>(),
             venues, Substitute.For<IAnalyticsService>(), rotation, _broker);
 
         var permissions = Substitute.For<IPermissionService>();

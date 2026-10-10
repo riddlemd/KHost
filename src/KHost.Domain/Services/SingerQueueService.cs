@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models.QueueRotation;
+using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
     private readonly IUsersService _usersService;
+    private readonly IUsersRepository _usersRepository;
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
@@ -45,6 +47,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         ICacheService cacheService,
         IPerformanceService performanceService,
         IUsersService usersService,
+        IUsersRepository usersRepository,
         IVenuesService venuesService,
         IAnalyticsService analytics,
         IQueueRotationStrategyFactory rotationStrategyFactory,
@@ -54,6 +57,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         _cacheService = cacheService;
         _performanceService = performanceService;
         _usersService = usersService;
+        _usersRepository = usersRepository;
         _venuesService = venuesService;
         _analytics = analytics;
         _rotationStrategyFactory = rotationStrategyFactory;
@@ -410,29 +414,61 @@ public class SingerQueueService : ISingerQueueService, IDisposable
             return;
         }
 
-        if (!venue.Settings.ClearQueueOnClose)
+        var settings = venue.Settings;
+
+        if (settings.ClearQueueOnClose)
+        {
+            await _lock.WaitAsync();
+            try
+            {
+                _userIds.Clear();
+
+                SelectedUserId = null;
+
+                await SaveAsync();
+            }
+            finally
+            {
+                _lock.Release();
+            }
+
+            _logger.LogInformation("Singer queue cleared on close");
+        }
+        else
         {
             _logger.LogInformation("Singer queue kept on close: venue {VenueName} keeps its queue", venue.Name);
-            return;
         }
 
-        await _lock.WaitAsync();
-        try
+        // Null on a venue saved before the two were split, when the queue setting decided both.
+        if (settings.ClearQueuedSongsOnClose ?? settings.ClearQueueOnClose)
         {
-            _userIds.Clear();
-
-            SelectedUserId = null;
-
-            await SaveAsync();
+            await _performanceService.DeleteAllQueuedAsync();
+            _logger.LogInformation("Queued songs cleared on close");
         }
-        finally
+        else
         {
-            _lock.Release();
+            _logger.LogInformation("Queued songs kept on close: venue {VenueName} keeps them", venue.Name);
         }
 
-        _logger.LogInformation("Singer queue cleared on close");
+        // After the songs: a singer whose only songs were just cleared never sang. A singer the
+        // kept queue still lists is spared, or the queue would hold an id that resolves to nobody.
+        if (settings.RemoveUnsungSingersOnClose)
+        {
+            List<Guid> queued;
 
-        await _performanceService.DeleteAllQueuedAsync();
+            await _lock.WaitAsync();
+            try
+            {
+                queued = [.. _userIds];
+            }
+            finally
+            {
+                _lock.Release();
+            }
+
+            var removed = await _usersRepository.DeleteUnsungAsync(queued);
+            _logger.LogInformation("Removed {Count} singer(s) who never sang", removed);
+        }
     }
 
     public async Task InitializeAsync()
