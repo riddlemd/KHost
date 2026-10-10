@@ -20,5 +20,11 @@ export function init(element) {
     // action still leaves Blazor's own handler to see the key.
     element.addEventListener('keydown', onKeyDown);
 
-    return { dispose: () => element.removeEventListener('keydown', onKeyDown) };
+    return {
+        // Nearest, so a row already in view leaves the menu (and any dialog around it) where it is.
+        reveal: () => element.closest('.kh-combobox')
+            ?.querySelector('.kh-combobox__option--highlighted')
+            ?.scrollIntoView({ block: 'nearest' }),
+        dispose: () => element.removeEventListener('keydown', onKeyDown),
+    };
 }
