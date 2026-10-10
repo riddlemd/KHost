@@ -245,6 +245,11 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         var suspended = await RunLockedAsync(async () =>
         {
+            // A second suspend (an ad in the gap after a song) would read the provider this service
+            // stopped as Paused, and Restore would then leave the bed off for the rest of the night.
+            if (State == BreakMusicState.Suspended)
+                return false;
+
             // Asked before deciding: a provider driving another app can start, stop or pause
             // without this service hearing about it. Only what it cannot tell falls back to the
             // state kept here.

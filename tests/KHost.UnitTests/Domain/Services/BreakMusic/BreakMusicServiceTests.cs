@@ -415,6 +415,21 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Equal(BreakMusicState.Suspended, _service.State);
     }
 
+    // An ad in the gap after a song suspends again over a provider this service already stopped,
+    // which a provider driving another app reports as Paused.
+    [Fact]
+    public async Task SuspendAsync_WhileAlreadySuspended_RestoreStillBringsTheBedBack()
+    {
+        await PlayingAsync();
+        await _service.SuspendAsync();
+        _provider.ReadPlaybackAsync(Arg.Any<CancellationToken>()).Returns(BreakMusicPlayback.Paused);
+
+        await _service.SuspendAsync();
+        await _service.RestoreAsync();
+
+        Assert.Equal(BreakMusicState.Playing, _service.State);
+    }
+
     // The song was going to play over the top of music this service never started.
     [Fact]
     public async Task SuspendAsync_ProviderIsPlayingButThisStateSaysStopped_SuspendsAnyway()
