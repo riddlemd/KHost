@@ -1,3 +1,4 @@
+@using KHost.Common.Chronography
 @using KHost.UserInterface.Components.Panels
 
 <Dialog IsOpen="IsOpen" Class="@_rootClassName" OnClose="CloseAsync">
@@ -7,7 +8,20 @@
     <Body>
         @if (!string.IsNullOrWhiteSpace(Media?.Title))
         {
-            <p class="@(_rootClassName)__title">@Media!.Title</p>
+            <div class="@(_rootClassName)__song">
+                <span class="@(_rootClassName)__song-glyph"><Icon Name="music-note-beamed" /></span>
+                <span class="@(_rootClassName)__song-words">
+                    <span class="@(_rootClassName)__title" title="@Media!.Title">@Media.Title</span>
+                    @if (!string.IsNullOrWhiteSpace(Media.Artist))
+                    {
+                        <span class="@(_rootClassName)__artist">@Media.Artist</span>
+                    }
+                </span>
+                @if (Media.Duration is { } length)
+                {
+                    <span class="@(_rootClassName)__length">@length.ToTotalMinutesAndSeconds()</span>
+                }
+            </div>
         }
 
         @* Shown, never an input: the singer wrote it, and the host reads it. *@
@@ -48,7 +62,7 @@
         <SongControlList Style="@AppSettings.Current.SongControlStyle" Tracks="@_tracks" Values="@_values"
                          Disabled="@_loaded" />
 
-        @if (_queued)
+        @if (_offersBackground)
         {
             <div class="@(_rootClassName)__background">
                 <label for="edit-performance-background" class="kh-form-label">Background</label>
@@ -56,7 +70,7 @@
                         value="@_backgroundChoice" @onchange="ChooseBackground">
                     <option value="@BackgroundChoice.Venue">Venue's playlist</option>
                     <option value="@BackgroundChoice.Black">Black</option>
-                    <option value="@BackgroundChoice.Look">A look</option>
+                    <option value="@BackgroundChoice.Look">Custom</option>
                 </select>
                 <p class="kh-note">
                     Drawn on the screen under the words of a song with no picture of its own.

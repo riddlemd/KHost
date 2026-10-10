@@ -1,6 +1,7 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
@@ -29,6 +30,8 @@ public class EditPerformanceDialogTests : BunitContext
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IVisualiserPresetService _presets = Substitute.For<IVisualiserPresetService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
+    private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
+    private readonly ISourcePictureProbe _pictures = Substitute.For<ISourcePictureProbe>();
     private readonly AppSettings _settings = new() { BackingVocalVolume = 80 };
     private readonly Venue _venue = new() { Name = "Bar", Settings = new() { AllowAliases = true } };
 
@@ -62,6 +65,16 @@ public class EditPerformanceDialogTests : BunitContext
         Services.AddSingleton(_playback);
         Services.AddSingleton(_venues);
 
+        // A song the screen draws a background under, unless a test says otherwise.
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new TimedLyrics
+        {
+            DurationSeconds = 60,
+            Bounds = new LyricBox(0, 0, 640, 360),
+            Pages = [new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 5 }],
+        });
+        Services.AddSingleton(_timedLyrics);
+        Services.AddSingleton(_pictures);
+
         _presets.ReadAll().Returns(
         [
             new VisualiserPreset { Name = "Rovastar - Oozing Resistance", Source = VisualiserPresetSource.Bundled },
@@ -80,6 +93,29 @@ public class EditPerformanceDialogTests : BunitContext
         var values = host.FindAll(Values);
         Assert.Equal("−2", values[0].TextContent.Trim());
         Assert.Equal("+15%", values[1].TextContent.Trim());
+    }
+
+    [Fact]
+    public async Task Opening_ShowsTheSongWithItsArtistAndLength()
+    {
+        _media.Artist = "Two Voices";
+        _media.Duration = TimeSpan.FromSeconds(245);
+
+        var host = await OpenAsync();
+
+        Assert.Equal("Duet", host.Find(".kh-edit-performance-dialog__title").TextContent);
+        Assert.Equal("Two Voices", host.Find(".kh-edit-performance-dialog__artist").TextContent);
+        Assert.Equal("04:05", host.Find(".kh-edit-performance-dialog__length").TextContent);
+    }
+
+    [Fact]
+    public async Task Opening_ASongWithNoArtistOrLength_ShowsTheTitleAlone()
+    {
+        var host = await OpenAsync();
+
+        Assert.Equal("Duet", host.Find(".kh-edit-performance-dialog__title").TextContent);
+        Assert.Empty(host.FindAll(".kh-edit-performance-dialog__artist"));
+        Assert.Empty(host.FindAll(".kh-edit-performance-dialog__length"));
     }
 
     [Fact]
@@ -387,6 +423,57 @@ public class EditPerformanceDialogTests : BunitContext
 
         Assert.Equal("Venue", host.Find(Background).GetAttribute("value"));
         Assert.Empty(host.FindAll(".kh-visualisation-look"));
+    }
+
+    /// <summary>A song with no timed words plays its own picture, so nothing is drawn under it.</summary>
+    [Fact]
+    public async Task Opening_AQueuedSongWithNoTimedWords_OffersNoBackground()
+    {
+        _performance.QueuePosition = 2;
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((TimedLyrics?)null);
+
+        var host = await OpenAsync();
+
+        Assert.Empty(host.FindAll(Background));
+    }
+
+    [Fact]
+    public async Task Opening_AQueuedSongWithItsOwnPicture_OffersNoBackground()
+    {
+        _performance.QueuePosition = 2;
+        _pictures.HasMovingPictureAsync(_media.FilePath, Arg.Any<CancellationToken>()).Returns(true);
+
+        var host = await OpenAsync();
+
+        Assert.Empty(host.FindAll(Background));
+    }
+
+    /// <summary>An audio file's cover is never shown, so the file is not opened to look for one.</summary>
+    [Fact]
+    public async Task Opening_AQueuedAudioFile_OffersABackgroundWithoutProbingForAPicture()
+    {
+        _performance.QueuePosition = 2;
+        _media.FilePath = "/music/duet.mp3";
+        _pictures.HasMovingPictureAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        var host = await OpenAsync();
+
+        Assert.Equal("Venue", host.Find(Background).GetAttribute("value"));
+        await _pictures.DidNotReceiveWithAnyArgs().HasMovingPictureAsync(default!);
+    }
+
+    /// <summary>Hidden is not cleared: a background the turn already names is kept on Save.</summary>
+    [Fact]
+    public async Task Saving_ASongThatDrawsNoBackground_LeavesTheTurnsBackgroundAlone()
+    {
+        _performance.QueuePosition = 2;
+        _performance.Background = new PerformanceBackground { Type = PerformanceBackgroundType.Black };
+        _pictures.HasMovingPictureAsync(_media.FilePath, Arg.Any<CancellationToken>()).Returns(true);
+        var host = await OpenAsync();
+
+        host.Find(Save).Click();
+
+        Assert.False(_saved!.BackgroundChanged);
     }
 
     [Fact]

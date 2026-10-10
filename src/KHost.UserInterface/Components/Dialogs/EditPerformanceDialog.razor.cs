@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Common.Media;
 using KHost.Common.Visualisations;
+using KHost.Domain.Services;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -25,6 +26,8 @@ public partial class EditPerformanceDialog
     [Inject] private IPlaybackService PlaybackService { get; set; } = default!;
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
     [Inject] private IVisualiserPresetService VisualiserPresets { get; set; } = default!;
+    [Inject] private ITimedLyricsService TimedLyrics { get; set; } = default!;
+    [Inject] private ISourcePictureProbe SourcePictures { get; set; } = default!;
 
     private SongControlValues _values = new();
     private SongControlValues _opened = new();
@@ -39,12 +42,13 @@ public partial class EditPerformanceDialog
     /// values, writing them back over the row on its next change, so nothing here may be saved.</summary>
     private bool _loaded;
 
-    /// <summary>Still waiting to be sung: only a queued turn has a background left to draw.</summary>
-    private bool _queued;
+    /// <summary>Still waiting to be sung, since only a queued turn has a background left to draw,
+    /// and a song the screen draws a background under at all.</summary>
+    private bool _offersBackground;
 
     private BackgroundChoice _backgroundChoice;
 
-    /// <summary>The look "A look" draws, kept while another choice is shown so switching back
+    /// <summary>The look "Custom" draws, kept while another choice is shown so switching back
     /// finds it as it was left.</summary>
     private PerformanceBackground _look = new() { Type = PerformanceBackgroundType.Look };
 
@@ -73,8 +77,8 @@ public partial class EditPerformanceDialog
         if (Performance is not { } performance) return;
 
         _loaded = IsLoaded(performance);
-        _queued = performance.QueuePosition is not null;
-        if (_queued) OpenBackground(performance.Background);
+        _offersBackground = performance.QueuePosition is not null && await DrawsBackgroundAsync(Media);
+        if (_offersBackground) OpenBackground(performance.Background);
         _alias = new AliasModel { SungAs = performance.SungAs };
         _editContext = new EditContext(_alias);
 
@@ -123,7 +127,7 @@ public partial class EditPerformanceDialog
 
         var edit = new PerformanceEdit { Settings = ChangedSettings(performance) };
 
-        if (_queued && ChosenBackground() is var background && !SameBackground(background, performance.Background))
+        if (_offersBackground && ChosenBackground() is var background && !SameBackground(background, performance.Background))
             edit = edit with { BackgroundChanged = true, Background = background };
 
         // Blank is stored as null, not "": every reader takes an empty name as "use the singer's
@@ -156,6 +160,23 @@ public partial class EditPerformanceDialog
         {
             VoiceVolumes = _values.Voices.Count == 0 ? null : new Dictionary<string, int>(_values.Voices),
         };
+    }
+
+    /// <summary>Whether playing the song draws a background under its words: the playback rule
+    /// answering black, which takes timed words and no moving picture of the song's own.</summary>
+    /// <remarks>A file still downloading has no timing to read yet, so it answers false.</remarks>
+    private async Task<bool> DrawsBackgroundAsync(Media? media)
+    {
+        if (string.IsNullOrWhiteSpace(media?.FilePath)) return false;
+
+        var lyrics = await TimedLyrics.GetTimedLyricsAsync(media.FilePath);
+        if (lyrics is not { Pages.Count: > 0 }) return false;
+
+        // Free, and nothing from an audio file is ever shown, so the probe is skipped.
+        var hasPicture = SongBackdrops.MayShowPictureFrom(media.FilePath)
+            && await SourcePictures.HasMovingPictureAsync(media.FilePath);
+
+        return SongBackdrops.ForPlaying(hasTimedLyrics: true, media.FilePath, hasPicture) == SongBackdrop.Black;
     }
 
     private void OpenBackground(PerformanceBackground? background)

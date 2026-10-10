@@ -2,6 +2,7 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
@@ -55,6 +56,8 @@ public class SingerPerformanceHistoryDialogEditPerformanceTests : BunitContext
         Services.AddSingleton(venues);
         Services.AddSingleton(tracks);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
+        Services.AddSingleton(Substitute.For<ITimedLyricsService>());
+        Services.AddSingleton(Substitute.For<ISourcePictureProbe>());
         var presets = Substitute.For<IVisualiserPresetService>();
         presets.ReadAll().Returns([]);
         Services.AddSingleton(presets);

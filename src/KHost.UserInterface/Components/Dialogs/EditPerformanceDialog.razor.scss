@@ -1,7 +1,51 @@
 .kh-edit-performance-dialog {
+    &__song {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding: 10px 12px;
+        background: var(--kh-bg-elevated);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+    }
+
+    &__song-glyph {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        font-size: 1.1rem;
+        border-radius: var(--kh-radius);
+        background: var(--kh-primary-subtle);
+        color: var(--kh-primary-bright);
+    }
+
+    &__song-words {
+        display: grid;
+        gap: 1px;
+        min-width: 0;
+    }
+
     &__title {
-        margin: 0 0 0.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: var(--kh-text);
+    }
+
+    &__artist {
+        font-size: 0.8rem;
         color: var(--kh-text-secondary);
+    }
+
+    &__length {
+        font-size: 0.8rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--kh-text-muted);
     }
 
     &__alias,
