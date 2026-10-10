@@ -13,7 +13,15 @@ public static class MediaStatusDisplay
         MediaStatus.Downloading => "kh-badge--info",
         MediaStatus.Processing  => "kh-badge--info",
         MediaStatus.Broken      => "kh-badge--danger",
+        MediaStatus.NotDownloaded => "kh-badge--secondary",
         _                       => "kh-badge--secondary",
+    };
+
+    /// <summary>What the badge says; every status but one reads as its own name.</summary>
+    public static string Label(MediaStatus status) => status switch
+    {
+        MediaStatus.NotDownloaded => "Not downloaded",
+        _ => status.ToString(),
     };
 
     /// <summary>Only Ready and Broken are the host's to set.</summary>

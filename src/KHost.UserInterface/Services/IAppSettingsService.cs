@@ -60,6 +60,15 @@ public sealed record AppSettings
     /// <remarks>Off by default: it changes how some songs' colours look to everyone.</remarks>
     public bool ColorBlindFriendlyLyrics { get; set; }
 
+    /// <summary>How far the words are moved against the music, in milliseconds; positive shows them later.</summary>
+    /// <remarks>For a display whose picture and sound arrive out of step. Within
+    /// <see cref="LyricsOffset.MaxMilliseconds"/> either way.</remarks>
+    public int LyricsOffsetMilliseconds { get; set; }
+
+    /// <summary>Whether Now Playing shows the lyrics offset with buttons to tune it during a song.</summary>
+    /// <remarks>Off by default: most rooms never need an offset, and the header has little room.</remarks>
+    public bool ShowLyricsOffsetControl { get; set; }
+
     /// <summary>Which shape the key, tempo and vocal controls take. Presentation only.</summary>
     /// <remarks>Both shapes drive the same underlying values.</remarks>
     public SongControlStyle SongControlStyle { get; set; } = SongControlStyle.Sliders;

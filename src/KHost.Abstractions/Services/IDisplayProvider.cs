@@ -33,6 +33,7 @@ namespace KHost.Abstractions.Services;
 /// device list, the connection or the <see cref="SessionId"/> moves. The host re-reads the
 /// providers on it: a new session gets the running song handed to it again, and every provider
 /// reporting no session while a song plays parks that song, paused, at its start.</para></remarks>
+[PluginExtensionPoint("Display provider", Order = 4)]
 public interface IDisplayProvider
 {
     /// <summary>Names the transport for the console, so no wording here has to be built in.</summary>

@@ -45,6 +45,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         /// <remarks>A change reaches the song already up: see <see cref="TimedLyricsSettingsChanged"/>.</remarks>
         public bool ColorBlindFriendlyLyrics { get; set; }
 
+        /// <summary>How far the words are moved against the music, in milliseconds; positive is later.</summary>
+        /// <remarks>Clamped to <see cref="LyricsOffset.MaxMilliseconds"/> either way. A change reaches
+        /// the song already up: see <see cref="TimedLyricsSettingsChanged"/>.</remarks>
+        public int LyricsOffsetMilliseconds { get; set; }
+
         /// <summary>How long a replaced encode stays before deletion.</summary>
         /// <remarks>No second player exists mid-fetch, and a receiver reads a 404 body as media.</remarks>
         public TimeSpan StreamRetireGrace { get; set; } = TimeSpan.FromSeconds(8);

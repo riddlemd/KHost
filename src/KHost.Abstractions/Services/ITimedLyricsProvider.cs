@@ -17,6 +17,7 @@ namespace KHost.Abstractions.Services;
 /// in turn, and the first whose <see cref="CanProvide"/> is true answers; no other is asked after
 /// it, even when it answers null. The plugin's object is one singleton shared across every extension
 /// interface it implements, and is called from any thread.</para></remarks>
+[PluginExtensionPoint]
 public interface ITimedLyricsProvider
 {
     /// <summary>Whether this provider has the timing for that file. Answered from the path alone.

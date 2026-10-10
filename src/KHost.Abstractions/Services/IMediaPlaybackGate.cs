@@ -40,6 +40,7 @@ public sealed record PlaybackGateResult(bool Allowed, string? Reason)
 ///
 /// <para>The plugin's object is one singleton shared across every extension interface it
 /// implements, and is called from any thread.</para></remarks>
+[PluginExtensionPoint]
 public interface IMediaPlaybackGate
 {
     /// <summary>Metadata tag a gated file carries, holding the owning gate's key.</summary>

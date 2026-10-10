@@ -41,7 +41,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - All domain services are singletons — guard mutable state with `SemaphoreSlim`.
 - A helper both host and plugin would want goes in `KHost.Common` (MIT, so a plugin can use it without taking PolyForm code), not `Abstractions`.
   - `Common` holds helpers *over* the contracts: string folding aids, formatting, list surgery, the shared drop-position mechanic.
-  - A contract, a model, or anything `Abstractions` itself needs goes in `Abstractions`, which references nothing and does not compute (see **No static methods in Abstractions**).
+  - A contract, a model, or anything `Abstractions` itself needs goes in `Abstractions`, which references only `Microsoft.Extensions.Options` and `Microsoft.Extensions.Http` (how plugins read settings and make HTTP requests) and does not compute (see **No static methods in Abstractions**).
   - Group by area under `Common` (`Media/`, `Plugins/`, `Discovery/`), never its root; mirror that in the tests.
   - Name methods for what the call site reads without repo context: `StreamRate.FromTempo(t)`, `AudioLevels.ClampVolume(v)` (not `For`, `Clamp`), `PluginRid.MatchesThisHost`, `int.CentsToCurrencyString()`. Exception: a member filling a BCL gap keeps the familiar name (`IList<T>.FindIndex`).
 - No "gate" services: a guard lives on the service that owns the call (enqueue rules in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard`). `IMediaGateService`/`IMediaProbeService` are routers, not guards: they answer which plugin owns a file; the rule lives in the plugin.
@@ -107,6 +107,9 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 - A plugin's entry point is built with `ActivatorUtilities.CreateInstance` against the host container; it takes `KHost.Abstractions` service interfaces in its constructor. No facade.
 - `IPluginContext` carries the plugin's own manifest and settings, plus the calls where the *host* supplies the identity: its secrets and its QR code.
+- **Settings are options.** A plugin with settings names its class with `IPlugin<TSettings>` on its entry point (plain `IPlugin`, or no entry point, binds none); the loader binds it to `PluginSettings:{id}` (`PluginSettingsConfiguration`: manifest defaults, saves on top, a saved value of the wrong declared type dropped) and every constructor can take `IOptions`/`IOptionsSnapshot`/`IOptionsMonitor<TSettings>`. A save reloads it, so `CurrentValue` and `OnChange` move at once: settings never need a restart. One settings class per plugin, from its own assembly. `IPluginContext` carries no settings.
+- **HTTP goes through `IHttpClientFactory`** (`CreateClient("name")`), never `new HttpClient()`. Every client the factory makes carries the host's defaults (`ServiceDefaults`): automatic decompression, and the standard resilience handler (10 s per attempt, 30 s in all, retrying only safe methods, so a sign-in POST is never replayed), so a large download reads with `HttpCompletionOption.ResponseHeadersRead` and streams the body, keeping only the headers inside those limits.
+- **Extension points are marked `[PluginExtensionPoint]`** (with the Plugins-page capability label where there is one); the loader binds every marked interface a plugin type implements and nothing else, so a plugin implementing a host service is never registered over it. A new extension point needs only the mark; `PluginExtensionInterfaceTests` pins the set.
 
 ### Acquisition
 - Downloading media for the queue goes through `IMediaAcquisitionService`. Its rules, which nothing else may re-implement:
@@ -120,6 +123,14 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
   - Ask `MediaStatuses.IsAcquiring()` (`Common/Media/`), never `== MediaStatus.Downloading`, or a phase-two row is stranded. `MediaStatuses.Acquiring` is the same question as data for EF.
 - `FailImportAsync` takes an optional reason the page shows — a line a host can act on, never a stack trace.
 - `DiscardImportAsync` reads `FilePath` itself: deletes the row only when nothing is on disk; keeps it as `Broken` when a file outlived the cancel.
+
+### Files a provider asks the host to remove
+- **A provider, never the importer, marks a row `IsEphemeral` (file deleted when KHost closes) or `IsSingleUse` (file deleted once a performance of it is dequeued as sung and no queued turn still points at it, and when KHost closes)**, on `MediaImportRequest`, with a `SourceKey` of its own. A scanned file never has them.
+- **The row is never deleted; only the file.** It becomes `MediaStatus.NotDownloaded` (a host-owned transition, made only by `IMediaLifetimeService`, Domain-only because it deletes files), keeps its history, and is fetched again when queued: `TryCreateAndEnqueueAsync` asks `IMediaLifetimeService.RefetchAsync`, and refuses with a reason when no installed plugin can.
+- **Fetching again**: a plugin implements `IMediaRefetcher` (`CanRefetch` from the row alone, `RefetchAsync` in the background). The host has already moved the row to Downloading and opened its Downloads entry; the plugin settles the ticket as for any import. `BeginImportAsync` on a NotDownloaded row does the same, so a provider's usual download path works too.
+- A marked row whose fetch fails, is cancelled, or is left stalled by a crash goes back to NotDownloaded, never Broken or deleted. Startup squares marked rows with their files both ways (`DatabaseInitializer.ReconcileFileLifetimeAsync`).
+- Ephemeral and single-use files are removed last on `ApplicationStopping`, after the streams close and after the queue clear; a file a still-queued turn needs (a venue that keeps its queue) is kept.
+- Edit Media shows the flags as **Ephemeral** / **Single Use** tags with a `Hint`, and a NotDownloaded row's path struck through; there is no download button, since queuing the song (from search, the library or a singer's history) is what fetches it again.
 
 ### Talking to the host
 - **Tell the host something**: inject `IFlashService`, call `Show(text, FlashType)`. For a line the host reads and moves on from (why an action was refused, a lapsed sign-in), never a decision (that is `IInteractionDispatcher`). Name the plugin in the text. Flash only what a host can act on (a failure the host caused, e.g. pressing play) — not background retries; the log takes the rest.
@@ -177,6 +188,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 ### Burn-in
 - **The host burns in the words, not the format's renderer.** When the target asks for `RenderTarget.BurnLyrics` and `ITimedLyricsService` has timed words, `StreamingMediaRenderer` opens the song through `LyricBurnIn`.
 - Words are painted by `TimedLyricsPainter` (SkiaSharp + HarfBuzz, `Domain/Services/BurnIn/`) and fed down a raw RGBA pipe into the **same** ffmpeg run as an overlay input, so key, tempo and per-voice mix still apply. Every provider supplying `TimedLyrics` gets this, as a file or as stems. No timed words → plain encode.
+- **The lyrics offset** (App Settings → Lyrics, `Playback:LyricsOffsetMilliseconds`, ±`LyricsOffset.MaxMilliseconds`, positive is later) moves every moment in the timing in `TimedLyricsService`, the one door the screen and the burn-in both read through; no drawer applies an offset of its own.
 - **One set of drawing rules: the painter follows `screen-ui/lyrics-overlay.js`. Change one, change the other.**
   - Page fitted and centred; theme colours for anything the timing leaves unset; linear wipe.
   - Count-ins ease over one step and are gone by the next page's arrival.
@@ -224,21 +236,21 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 ### QR codes, import formats, extension binding, `bin/`
 - **QR codes**: the manifest's `qrCode` is the standing registration, read without resolving the plugin. `IPluginContext.RegisterQrCodeAsync` is the live one. The venue names **one** source in `Venue.Settings.QrCodeSource`, **none by default**; other owners' codes are held, not drawn. The owner is stamped from the loaded manifest, never passed by the caller. Placement is the venue's alone.
 - **Import formats**: manifest `importFormats: [".ext"]`, read from `IPluginRegistry` without resolving the plugin, unioned with the built-ins for **loaded** plugins only, normalised to leading-dot lowercase. A *filter* only — says a row may be made, not that the host can play it. The folder is never content-probed.
-- **A plugin extension type is one singleton across every extension interface it implements** (one object, one session key). The bound interfaces are a hand-written list in `PluginLoader`; omitting one is **silent**. `PluginExtensionInterfaceTests` fails on any Abstractions interface the domain collects that is not listed.
+- **A plugin extension type is one singleton across every extension interface it implements** (one object, one session key). The bound interfaces are the ones marked `[PluginExtensionPoint]`; `PluginExtensionInterfaceTests` fails on any Abstractions interface the domain collects that is not marked.
 - **The host's `bin/` is shared; a plugin finds it via `IHostDirectories.BinDirectory`.** A plugin's own program goes there under a distinctly own name. Never write, replace or delete `ffmpeg`/`ffprobe`. The host looks there before PATH. A plugin running ffmpeg asks `IFFmpegService.Locate` rather than naming it bare. See **Finding and installing FFmpeg**.
 
 ## The published contracts
 
 - `KHost.Abstractions` and `KHost.Common` are **NuGet packages**; a plugin takes a `PackageReference`, never a `ProjectReference` into this repo.
 - `<ContractsVersion>` in `Directory.Build.props` versions both. Bump it on any shape change, additions included; 0.x while the contracts move.
-- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (**1** and **4**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
+- A manifest's `apiVersion` is the plugin API it was **built against**. The host runs, installs and offers it only when `PluginApi.MinimumVersion <= apiVersion <= PluginApi.CurrentVersion` (**6** and **6**). The rule lives in `Common/Plugins/PluginApiRange` (`ThisHost.Covers`, `DescribeRefusal`); never compare to either constant directly.
   - `CurrentVersion` moves on any **addition** a plugin could call or implement (a new interface, member, model field, enum value), so a plugin built against it is refused by an older host with a reason, not a run-time `MissingMethodException`.
   - `MinimumVersion` moves only on a **break**: changing a method a plugin **calls or implements**, including adding an optional parameter (the default compiles into the call site; a changed implemented signature is a `TypeLoadException` at load), or removing anything. A break moves `CurrentVersion` too.
   - Not a break: a new interface member with a **default body** (still an addition).
   - Contract enums stay **append-only** with explicit values: a plugin compiles them as numbers.
   - Do not reason from the published catalog about who implements what — the hand-installed plugin is the one running.
   - Widening a method silently changes what `Received(1).Foo(id)` asserts in a plugin's tests: assert the argument, not the bare call.
-- A plugin excludes their runtime assets: `<PackageReference Include="KHost.Abstractions" ExcludeAssets="runtime" />`. The host has both in its default context and `PluginLoadContext.Load` returns null for them. A plugin's *test* project takes them normally.
+- A plugin ships neither contract nor any `Microsoft.Extensions.*` assembly: the package's `build/KHost.Abstractions.targets` trims them from its output, and `PluginLoadContext.Load` hands it the host's copies (an `IOptionsMonitor` from another copy is a different type). A plugin's *test* project keeps them.
 - While unreleased, `./build/pack-contracts.sh` packs both into a local folder feed. Register once per machine: `dotnet nuget add source ~/.nuget/khost-local -n khost-local`.
 - The script clears the matching global-packages entries before packing: NuGet never re-reads an extracted version, so without it a plugin builds against whatever it first restored.
 - The analyzer reference in `KHost.Abstractions` carries `PrivateAssets="all"` so the package declares no dependency on the unpublished `KHost.Analyzers`.

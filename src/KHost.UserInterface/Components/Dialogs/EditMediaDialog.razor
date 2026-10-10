@@ -36,7 +36,13 @@
             </div>
             <div >
                 <label class="kh-form-label">File Path</label>
-                <input type="text" class="kh-form-control" readonly value="@Media?.FilePath" />
+                <input type="text" class="kh-form-control @(IsNotDownloaded ? $"{_rootClassName}__path--gone" : "")" readonly value="@Media?.FilePath" />
+                @if (IsNotDownloaded)
+                {
+                    <p class="kh-note @(_rootClassName)__path-note">
+                        The file was removed. It is downloaded again the next time the song is queued.
+                    </p>
+                }
             </div>
             <div >
                 <label for="edit-media-source" class="kh-form-label">Source</label>
@@ -45,7 +51,13 @@
             <div>
                 <label class="kh-form-label">Status</label>
                 <div class="@(_rootClassName)__status">
-                    <span class="kh-badge @MediaStatusDisplay.BadgeClass(_model.Status)">@_model.Status</span>
+                    <span class="kh-badge @MediaStatusDisplay.BadgeClass(_model.Status)">
+                        @if (IsNotDownloaded)
+                        {
+                            <Icon Name="cloud-arrow-down" />
+                        }
+                        @MediaStatusDisplay.Label(_model.Status)
+                    </span>
 
                     @if (MediaStatusDisplay.IsUserSettable(_model.Status))
                     {
@@ -60,6 +72,27 @@
                     }
                 </div>
             </div>
+            @if (Media is { } tagged && tagged.HasFileLifetime())
+            {
+                <div>
+                    <span class="kh-form-label">Tags</span>
+                    <div class="@(_rootClassName)__tags">
+                        @if (tagged.IsEphemeral)
+                        {
+                            <Hint Text="The file is deleted when KHost closes. The song stays in your library and is downloaded again the next time it is queued.">
+                                <span class="@(_rootClassName)__tag"><Icon Name="hourglass-split" /> Ephemeral</span>
+                            </Hint>
+                        }
+                        @if (tagged.IsSingleUse)
+                        {
+                            <Hint Text="The file is deleted once the song has been sung and no other turn is waiting on it, or when KHost closes. The song stays in your library and is downloaded again when queued.">
+                                <span class="@(_rootClassName)__tag"><Icon Name="1-circle" /> Single Use</span>
+                            </Hint>
+                        }
+                    </div>
+                    <p class="kh-note">Set by @SourceDisplay.</p>
+                </div>
+            }
             @if (MediaFormats.IsImage(Media?.Format))
             {
                 <div>

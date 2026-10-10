@@ -18,6 +18,7 @@ namespace KHost.Abstractions.Services;
 ///
 /// <para>Answers facts, not policy: the asking service decides, for instance, that one track is
 /// nothing to balance.</para></remarks>
+[PluginExtensionPoint]
 public interface IMediaProbe
 {
     /// <summary>Whether this probe understands the file. Answered from the path alone: the host asks

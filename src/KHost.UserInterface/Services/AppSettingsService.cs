@@ -76,6 +76,8 @@ internal sealed class AppSettingsService : IAppSettingsService
         DynamicLeadInPauseSeconds = DynamicLeadInPauseChoice(
             _configuration.GetValue<int?>("Playback:DynamicLeadInPauseSeconds") ?? LeadInGenerator.DefaultLongPauseSeconds),
         ColorBlindFriendlyLyrics = _configuration.GetValue<bool?>("Playback:ColorBlindFriendlyLyrics") ?? false,
+        // Clamped on read as well as save: a hand-edited value would otherwise reach the page outside the field's range.
+        LyricsOffsetMilliseconds = LyricsOffset.ClampMilliseconds(_configuration.GetValue<int?>("Playback:LyricsOffsetMilliseconds") ?? 0),
         // Parsed rather than cast: a hand-edited word that names no shape falls back to sliders
         // instead of reaching the console as an enum value with no case to render it.
         SongControlStyle = Enum.TryParse<SongControlStyle>(
@@ -83,6 +85,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             ? style
             : SongControlStyle.Sliders,
         DefaultSearchMode = SearchModeOrDefault(_configuration["Search:DefaultMode"]),
+        ShowLyricsOffsetControl = _configuration.GetValue<bool?>("Console:ShowLyricsOffsetControl") ?? false,
         BreakMusicProvider = Blank(_configuration[BreakMusicProviderKey]) ?? _breakMusic.ActiveProvider?.SourceName,
         BreakMusicFadeSeconds = BreakMusicFadeChoice(
             (_configuration.GetValue<TimeSpan?>(BreakMusicFadeKey) ?? BreakMusicService.ServiceOptions.DefaultFadeDuration).TotalSeconds),
@@ -169,6 +172,7 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["DynamicLeadIns"] = settings.DynamicLeadIns,
                 ["DynamicLeadInPauseSeconds"] = DynamicLeadInPauseChoice(settings.DynamicLeadInPauseSeconds),
                 ["ColorBlindFriendlyLyrics"] = settings.ColorBlindFriendlyLyrics,
+                ["LyricsOffsetMilliseconds"] = LyricsOffset.ClampMilliseconds(settings.LyricsOffsetMilliseconds),
             },
             ["MediaStream"] = new Dictionary<string, object?>
             {
@@ -194,6 +198,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         overlay["Console"] = new Dictionary<string, object?>
         {
             ["SongControlStyle"] = settings.SongControlStyle.ToString(),
+            ["ShowLyricsOffsetControl"] = settings.ShowLyricsOffsetControl,
         };
 
         overlay["Search"] = new Dictionary<string, object?>

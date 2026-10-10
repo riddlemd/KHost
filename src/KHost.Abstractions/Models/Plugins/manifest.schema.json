@@ -31,7 +31,7 @@
     },
     "settings": {
       "type": "array",
-      "description": "Settings the host collects and hands to the plugin via IPlugin (GetSetting/BindSettings).",
+      "description": "Settings the host collects and hands to the plugin as IOptions/IOptionsMonitor of the settings class its entry point names with IPlugin<TSettings>. Each key binds to the property of the same name, ignoring case.",
       "items": {
         "type": "object",
         "required": ["key", "type", "label"],
@@ -44,6 +44,8 @@
             "type": "string",
             "description": "Heading this setting sits under on the Plugins page. Settings naming no section sit above the first heading. Sections appear in the order they are first named."
           },
+          "description": { "type": "string", "description": "A line of explanation shown under the control." },
+          "optional": { "type": "boolean", "default": false, "description": "Marks a setting the plugin works without; the Plugins page says so beside the label." },
           "secret": { "type": "boolean", "default": false },
           "default": { "description": "Value used when the host has none stored." }
         }

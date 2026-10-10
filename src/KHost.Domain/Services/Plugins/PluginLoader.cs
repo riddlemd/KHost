@@ -5,6 +5,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Common.Plugins;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
@@ -17,23 +18,23 @@ public static class PluginLoader
 {
     public const string ManifestFileName = "manifest.json";
 
-    /// <summary>The interfaces whose implementations the Plugins page names as things the plugin
-    /// provides to the show. The label is what a host sees on the row.</summary>
-    private static readonly (Type Interface, string Capability)[] CapabilityInterfaces =
-    [
-        (typeof(IMediaProvider), "Media provider"),
-        (typeof(IQueueRotationMode), "Queue rotation"),
-        (typeof(IBreakMusicProvider), "Break music"),
-        (typeof(IDisplayProvider), "Display provider"),
-    ];
+    /// <summary>Every plugin-facing interface the loader binds: each one the contracts mark
+    /// <see cref="PluginExtensionPointAttribute"/>, and no other.</summary>
+    /// <remarks>Read from the contracts, so a new extension point is bound the moment it is marked;
+    /// <c>PluginExtensionInterfaceTests</c> fails on any interface the host collects that is not.</remarks>
+    internal static readonly Type[] ExtensionInterfaces = typeof(PluginExtensionPointAttribute).Assembly.GetExportedTypes()
+        .Where(type => type.IsInterface && type.GetCustomAttribute<PluginExtensionPointAttribute>() is not null)
+        .OrderBy(type => type.FullName, StringComparer.Ordinal)
+        .ToArray();
 
-    /// <summary>Every plugin-facing interface the loader binds; a button handler has no capability.</summary>
-    /// <remarks>Missing one here is silent: the plugin loads, the interface is simply never bound,
-    /// and the host falls back as though no plugin implemented it. <c>PluginExtensionInterfaceTests</c>
-    /// reads the domain for services taking <c>IEnumerable&lt;T&gt;</c> of an Abstractions interface
-    /// and fails on any that is not listed, so the list maintains itself.</remarks>
-    internal static readonly Type[] ExtensionInterfaces =
-        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate), typeof(IMediaProbe), typeof(ITimedLyricsProvider), typeof(IPlayableMediaSource), typeof(IMediaRenderer)];
+    /// <summary>The extension points the Plugins page names as things a plugin provides to the show,
+    /// in the order the row lists them.</summary>
+    private static readonly (Type Interface, string Capability)[] CapabilityInterfaces = ExtensionInterfaces
+        .Select(type => (Type: type, Point: type.GetCustomAttribute<PluginExtensionPointAttribute>()!))
+        .Where(pair => pair.Point.Capability is not null)
+        .OrderBy(pair => pair.Point.Order)
+        .Select(pair => (pair.Type, pair.Point.Capability!))
+        .ToArray();
 
     public static PluginsState ReadState(string cacheDirectory)
     {
@@ -73,12 +74,17 @@ public static class PluginLoader
     }
 
     public static void LoadAndRegister(IServiceCollection services, IEnumerable<DiscoveredPlugin> plugins, PluginsState state)
+        => LoadAndRegister(services, plugins, state, new PluginSettingsConfiguration(state.Settings));
+
+    public static void LoadAndRegister(IServiceCollection services, IEnumerable<DiscoveredPlugin> plugins, PluginsState state, PluginSettingsConfiguration settings)
     {
+        var configuration = new ConfigurationBuilder().Add(settings).Build();
+
         foreach (var plugin in plugins.Where(p => p.Status == PluginStatus.Enabled))
         {
             try
             {
-                LoadOne(services, plugin, state);
+                LoadOne(services, plugin, settings, configuration);
 
                 plugin.Status = PluginStatus.Loaded;
             }
@@ -193,7 +199,7 @@ public static class PluginLoader
         return width > 0 && height > 0;
     }
 
-    private static void LoadOne(IServiceCollection services, DiscoveredPlugin plugin, PluginsState state)
+    private static void LoadOne(IServiceCollection services, DiscoveredPlugin plugin, PluginSettingsConfiguration settings, IConfiguration configuration)
     {
         var manifest = plugin.Manifest!;
         var entryPath = Path.Combine(plugin.Directory, manifest.EntryAssembly);
@@ -220,9 +226,7 @@ public static class PluginLoader
         }
 
         var registered = 0;
-        var storedValues = state.Settings.GetValueOrDefault(manifest.Id.ToString());
-
-        PluginContext CreateContext(IServiceProvider serviceProvider) => new(manifest, storedValues, plugin,
+        PluginContext CreateContext(IServiceProvider serviceProvider) => new(manifest, plugin,
             serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
             serviceProvider.GetRequiredService<QrCodes.IQrCodeService>(),
             serviceProvider.GetRequiredService<IMessageBroker>(),
@@ -239,8 +243,8 @@ public static class PluginLoader
         {
             var implementationType = type;
 
-            services.AddSingleton(implementationType, serviceProvider => ActivatorUtilities.CreateInstance(
-                serviceProvider, implementationType, CreateContext(serviceProvider)));
+            services.AddSingleton(implementationType, serviceProvider => CreateExtension(
+                serviceProvider, implementationType, () => CreateContext(serviceProvider)));
 
             foreach (var extensionInterface in ExtensionInterfaces.Where(i => i.IsAssignableFrom(implementationType)))
                 services.AddSingleton(extensionInterface, sp => sp.GetRequiredService(implementationType));
@@ -261,6 +265,10 @@ public static class PluginLoader
             if (extensionTypes.Any(t => extensionInterface.IsAssignableFrom(t)))
                 plugin.Capabilities.Add(capability);
 
+        settings.SetDefinitions(manifest.Id.ToString(), manifest.Settings);
+
+        RegisterSettings(services, plugin, concreteTypes, assembly, configuration.GetSection(PluginSettingsConfiguration.SectionFor(manifest.Id.ToString())));
+
         // Optional: a plugin that only exposes providers needs no entry point, and loads as before.
         foreach (var type in concreteTypes.Where(t => typeof(IPlugin).IsAssignableFrom(t)))
         {
@@ -277,6 +285,51 @@ public static class PluginLoader
         if (registered == 0)
             plugin.Warnings.Add("No extension implementations found in the entry assembly.");
     }
+
+    /// <summary>Builds an extension, handing it this plugin's context only when a constructor asks for one.</summary>
+    /// <remarks>ActivatorUtilities refuses an argument no constructor takes, and a plugin reading its
+    /// settings through options may well need no context at all.</remarks>
+    internal static object CreateExtension(IServiceProvider services, Type type, Func<IPluginContext> context)
+        => type.GetConstructors().Any(c => c.GetParameters().Any(p => p.ParameterType == typeof(IPluginContext)))
+            ? ActivatorUtilities.CreateInstance(services, type, context())
+            : ActivatorUtilities.CreateInstance(services, type);
+
+    /// <summary>Binds the settings class a plugin names with <see cref="IPlugin{TSettings}"/>, so its
+    /// constructors can take <c>IOptions</c>, <c>IOptionsSnapshot</c> or <c>IOptionsMonitor</c> of it.</summary>
+    /// <remarks>A plugin naming a host or shared type would bind its settings over that type for every
+    /// plugin, so only a class from its own entry assembly is bound.</remarks>
+    internal static void RegisterSettings(
+        IServiceCollection services, DiscoveredPlugin plugin, IEnumerable<Type> types, Assembly entryAssembly, IConfiguration section)
+    {
+        var named = types
+            .SelectMany(t => t.GetInterfaces())
+            .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPlugin<>))
+            .Select(i => i.GetGenericArguments()[0])
+            .Distinct()
+            .ToList();
+
+        if (named.Count == 0) return;
+
+        if (named.Count > 1)
+        {
+            plugin.Warnings.Add($"Names more than one settings class ({string.Join(", ", named.Select(t => t.Name))}); none is bound.");
+            return;
+        }
+
+        var settingsType = named[0];
+
+        if (settingsType.Assembly != entryAssembly)
+        {
+            plugin.Warnings.Add($"Its settings class {settingsType.FullName} is not its own; it is not bound.");
+            return;
+        }
+
+        services.AddOptions();
+        ConfigureMethod.MakeGenericMethod(settingsType).Invoke(null, [services, section]);
+    }
+
+    private static readonly MethodInfo ConfigureMethod = typeof(OptionsConfigurationServiceCollectionExtensions)
+        .GetMethod(nameof(OptionsConfigurationServiceCollectionExtensions.Configure), [typeof(IServiceCollection), typeof(IConfiguration)])!;
 
     // "1.0.0" must equal an assembly's 1.0.0.0: Version treats absent components as -1.
     private static Version Normalize(Version version)

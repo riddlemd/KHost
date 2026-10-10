@@ -19,6 +19,7 @@ public class NowPlayingPanelTests : BunitContext
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly ITimedLyricsService _lyrics = Substitute.For<ITimedLyricsService>();
+    private AppSettings _settings = new();
 
     public NowPlayingPanelTests()
     {
@@ -31,7 +32,7 @@ public class NowPlayingPanelTests : BunitContext
         // The header hosts SongControls, which reads the control shape from the machine settings;
         // without one registered every render of this panel throws.
         var appSettings = Substitute.For<IAppSettingsService>();
-        appSettings.Current.Returns(new AppSettings());
+        appSettings.Current.Returns(_ => _settings);
 
         // The panel reads the venue's say on whether a name queued with a song is honoured.
 
@@ -218,6 +219,61 @@ public class NowPlayingPanelTests : BunitContext
 
         cut.WaitForAssertion(() => _lyrics.Received(1).GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()));
         Assert.Equal(3, cut.FindAll(".kh-now-playing__lanes--by-voice .kh-now-playing__lane-span").Count);
+    }
+
+    /// <summary>The offset moves only words KHost draws, so the control is offered only for a song that has them.</summary>
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    public void LyricsOffset_ShownOnlyWhenTurnedOnAndTheSongHasTimedWords(bool turnedOn, bool timedWords, bool shown)
+    {
+        _settings = new AppSettings { ShowLyricsOffsetControl = turnedOn };
+        var media = Song("song.mp4");
+        _lyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(timedWords ? Duet() : null);
+        Load(Performance(), media);
+
+        var cut = Render<NowPlayingPanel>();
+
+        cut.WaitForAssertion(() => Assert.Equal(shown, cut.FindAll(".kh-lyrics-offset").Count == 1));
+    }
+
+    [Fact]
+    public void LyricsOffset_TheNextSongHasNoTimedWords_TakesTheControlDown()
+    {
+        _settings = new AppSettings { ShowLyricsOffsetControl = true };
+        var first = Song("duet.mp4");
+        var second = Song("song.cdg");
+        _lyrics.GetTimedLyricsAsync(first.FilePath, Arg.Any<CancellationToken>()).Returns(Duet());
+        _lyrics.GetTimedLyricsAsync(second.FilePath, Arg.Any<CancellationToken>()).Returns((TimedLyrics?)null);
+        Load(Performance(), first);
+        var cut = Render<NowPlayingPanel>();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".kh-lyrics-offset")));
+
+        Load(Performance(), second);
+        _broker.Announce(new PlaybackChanged());
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".kh-lyrics-offset")));
+    }
+
+    /// <summary>A read that fails says nothing about the new song, so the last song's answer must not stand.</summary>
+    [Fact]
+    public void LyricsOffset_TheNextSongsWordsCannotBeRead_TakesTheControlDown()
+    {
+        _settings = new AppSettings { ShowLyricsOffsetControl = true };
+        var first = Song("duet.mp4");
+        var second = Song("broken.mp4");
+        _lyrics.GetTimedLyricsAsync(first.FilePath, Arg.Any<CancellationToken>()).Returns(Duet());
+        _lyrics.GetTimedLyricsAsync(second.FilePath, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<TimedLyrics?>(new InvalidOperationException("unreadable")));
+        Load(Performance(), first);
+        var cut = Render<NowPlayingPanel>();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".kh-lyrics-offset")));
+
+        Load(Performance(), second);
+        _broker.Announce(new PlaybackChanged());
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".kh-lyrics-offset")));
     }
 
     [Fact]

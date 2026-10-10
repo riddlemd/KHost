@@ -1,4 +1,5 @@
 @using KHost.UserInterface.Models
+@using KHost.Domain.Services
 @using KHost.Domain.Services.VideoEncoding
 @page "/settings/app-settings"
 @attribute [Authorize(Roles = KHost.UserInterface.Auth.KHostClaimsFactory.AdminRole)]
@@ -106,6 +107,33 @@
                                 </Note>
                                 <ChildContent>
                                     <InputCheckbox id="colour-blind-lyrics" class="kh-form-check-input" @bind-Value="_model.ColorBlindFriendlyLyrics" />
+                                </ChildContent>
+                            </SettingRow>
+                            <SettingRow Label="Lyrics offset" Applies="applies immediately">
+                                <Note>
+                                    <span class="kh-note">
+                                        Moves the words against the music, for a screen whose picture runs ahead of or
+                                        behind its sound, as some wireless displays do. Positive shows them later,
+                                        negative earlier.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <InputAffix Suffix="ms">
+                                        <InputNumber id="lyrics-offset" class="kh-form-control kh-app-settings__number"
+                                                     @bind-Value="_model.LyricsOffsetMilliseconds"
+                                                     min="@(-LyricsOffset.MaxMilliseconds)" max="@LyricsOffset.MaxMilliseconds" step="10" />
+                                    </InputAffix>
+                                </ChildContent>
+                            </SettingRow>
+                            <SettingRow Label="Show the offset on Now Playing" Applies="applies immediately" IsCheckbox="true">
+                                <Note>
+                                    <span class="kh-note">
+                                        Puts the offset in the Now Playing header with buttons that move it 10 ms at a
+                                        time, so it can be tuned by eye during a song. Click the value to set it back to 0.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <InputCheckbox id="show-lyrics-offset" class="kh-form-check-input" @bind-Value="_model.ShowLyricsOffsetControl" />
                                 </ChildContent>
                             </SettingRow>
                         </div>

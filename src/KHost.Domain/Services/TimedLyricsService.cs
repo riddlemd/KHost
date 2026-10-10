@@ -116,6 +116,10 @@ public sealed class TimedLyricsService : ITimedLyricsService, IStartsWithTheHost
         if (settings.DynamicLeadIns)
             lyrics = AdjustedOrAsIs(lyrics, l => LeadInGenerator.AddMissing(l, settings.DynamicLeadInPauseSeconds), "adding lead-ins", filePath);
 
+        // Last, so lead-ins added above move with the words they lead into.
+        if (LyricsOffset.ClampMilliseconds(settings.LyricsOffsetMilliseconds) is not 0 and var offset)
+            lyrics = AdjustedOrAsIs(lyrics, l => LyricsOffset.Shift(l, offset / 1000.0), "offsetting its timing", filePath);
+
         return lyrics;
     }
 
@@ -150,12 +154,13 @@ public sealed class TimedLyricsService : ITimedLyricsService, IStartsWithTheHost
     }
 
     /// <summary>Everything <see cref="Adjusted"/> reads, compared as one value.</summary>
-    private readonly record struct Adjustments(bool ColorBlind, bool LeadIns, int LeadInPauseSeconds)
+    private readonly record struct Adjustments(bool ColorBlind, bool LeadIns, int LeadInPauseSeconds, int OffsetMilliseconds)
     {
         // The pause only matters while lead-ins are on; moving it with them off changes no word.
         public static Adjustments Of(PlaybackService.ServiceOptions options) => new(
             options.ColorBlindFriendlyLyrics,
             options.DynamicLeadIns,
-            options.DynamicLeadIns ? options.DynamicLeadInPauseSeconds : 0);
+            options.DynamicLeadIns ? options.DynamicLeadInPauseSeconds : 0,
+            LyricsOffset.ClampMilliseconds(options.LyricsOffsetMilliseconds));
     }
 }

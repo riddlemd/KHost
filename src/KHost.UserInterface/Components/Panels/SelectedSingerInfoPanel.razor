@@ -116,6 +116,7 @@
                         var playTitle = isBroken
                             ? "This song is marked broken and can't be played"
                             : isAcquiring ? "This song is still downloading"
+                            : rowMedia?.Status == MediaStatus.NotDownloaded ? "This song needs downloading again before it can play"
                             : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song";
 
                         <tr class="kh-selected-singer-info-panel__row @rowClass @(isCurrent && PlaybackService?.State == PlaybackState.Playing ? "kh-selected-singer-info-panel__row--playing" : "")"
@@ -177,7 +178,7 @@
                             <td class="kh-selected-singer-info-panel__status">
                                 @if (rowMedia is not null)
                                 {
-                                    <span class="kh-badge @MediaStatusDisplay.BadgeClass(rowMedia.Status)">@rowMedia.Status</span>
+                                    <span class="kh-badge @MediaStatusDisplay.BadgeClass(rowMedia.Status)">@MediaStatusDisplay.Label(rowMedia.Status)</span>
                                 }
                             </td>
                             <td class="kh-table__cell--actions">

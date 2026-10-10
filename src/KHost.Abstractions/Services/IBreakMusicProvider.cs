@@ -12,6 +12,7 @@ namespace KHost.Abstractions.Services;
 /// <para>The plugin's object is one singleton shared across every extension interface it
 /// implements, and is called from any thread. A provider driving another app may be changed behind
 /// the host's back; <see cref="ReadPlaybackAsync"/> is how the host catches up.</para></remarks>
+[PluginExtensionPoint("Break music", Order = 3)]
 public interface IBreakMusicProvider
 {
     /// <summary>What the console calls this provider.</summary>

@@ -73,6 +73,10 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
 
+            entity.Property(e => e.SourceKey)
+                .IsRequired()
+                .HasMaxLength(255);
+
             entity.Property(e => e.SearchFolded)
                 .IsRequired()
                 .HasMaxLength(600);

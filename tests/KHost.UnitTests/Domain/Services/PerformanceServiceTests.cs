@@ -1,3 +1,4 @@
+using KHost.Domain.Services.MediaLifetime;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
@@ -912,6 +913,86 @@ public class PerformanceServiceTests
         Assert.Equal(EnqueueResultType.RefusedByProvider, result.Type);
         Assert.Equal("Sign in to the provider.", result.Reason);
         Assert.Null(result.Performance);
+    }
+
+    // ── songs whose file the host removed ──────────────────────────────────────────────
+
+    private (Media Media, IMediaLifetimeService Lifetime) ArrangeRemovedFile(bool canRefetch)
+    {
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/karaoke/youtube/abc.mp4", Title = "Africa", Source = "YouTube", Status = MediaStatus.NotDownloaded, IsEphemeral = true };
+        _mediaService.ReadAsync(media.Id).Returns(media);
+        var lifetime = Substitute.For<IMediaLifetimeService>();
+        lifetime.RefetchAsync(media).Returns(canRefetch);
+        _services.GetService(typeof(IMediaLifetimeService)).Returns(lifetime);
+        return (media, lifetime);
+    }
+
+    /// <summary>Queued behind a download, the same as a fresh pick from its provider.</summary>
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_ASongWhoseFileWasRemoved_FetchesItAgainAndQueues()
+    {
+        var (media, lifetime) = ArrangeRemovedFile(canRefetch: true);
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = media.Id });
+
+        Assert.Equal(EnqueueResultType.Queued, result.Type);
+        await lifetime.Received(1).RefetchAsync(media);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_ASongNoInstalledPluginCanFetchAgain_IsRefusedNamingItsSource()
+    {
+        var (media, _) = ArrangeRemovedFile(canRefetch: false);
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = media.Id });
+
+        Assert.Equal(EnqueueResultType.RefusedByProvider, result.Type);
+        Assert.Contains("YouTube cannot do it", result.Reason);
+        Assert.Null(result.Performance);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_ASongWithItsFile_IsNotFetchedAgain()
+    {
+        var (media, lifetime) = ArrangeRemovedFile(canRefetch: true);
+        media.Status = MediaStatus.Ready;
+
+        await _service.TryCreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = media.Id });
+
+        await lifetime.DidNotReceive().RefetchAsync(Arg.Any<Media>());
+    }
+
+    /// <summary>Asked with what is still queued, so a song another singer picked keeps its file.</summary>
+    [Fact]
+    public async Task DequeueAsync_AsksForASingleUseFileToGoWithWhatIsStillQueued()
+    {
+        var lifetime = Substitute.For<IMediaLifetimeService>();
+        _services.GetService(typeof(IMediaLifetimeService)).Returns(lifetime);
+        var sharedMedia = Guid.NewGuid();
+        var first = await EnqueueMediaAsync(Guid.NewGuid(), sharedMedia);
+        await EnqueueMediaAsync(Guid.NewGuid(), sharedMedia);
+
+        await _service.DequeueAsync(first!.SingerId, first.Id);
+
+        await lifetime.Received(1).RemoveSingleUseFileIfDoneAsync(
+            sharedMedia, Arg.Is<IReadOnlyCollection<Guid>>(queued => queued.Contains(sharedMedia)));
+    }
+
+    [Fact]
+    public async Task DequeueAsync_TheFileCleanupThrows_StillDequeues()
+    {
+        var lifetime = Substitute.For<IMediaLifetimeService>();
+        lifetime.RemoveSingleUseFileIfDoneAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyCollection<Guid>>())
+            .Returns(Task.FromException(new IOException("busy")));
+        _services.GetService(typeof(IMediaLifetimeService)).Returns(lifetime);
+        var singerId = Guid.NewGuid();
+        var perf = await EnqueueForAsync(singerId);
+
+        await _service.DequeueAsync(singerId, perf.Id);
+
+        Assert.Empty((await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued)).Items);
     }
 
     [Fact]

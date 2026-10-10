@@ -194,6 +194,45 @@ public class AppSettingsServiceTests : IDisposable
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ShowLyricsOffsetControl_SavesAndReadsBack(bool on)
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { ShowLyricsOffsetControl = on });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(on, overlay.RootElement.GetProperty("Console").GetProperty("ShowLyricsOffsetControl").GetBoolean());
+
+        var reread = Service(new KeyValuePair<string, string?>("Console:ShowLyricsOffsetControl", on.ToString()));
+        Assert.Equal(on, reread.Current.ShowLyricsOffsetControl);
+    }
+
+    [Fact]
+    public void ShowLyricsOffsetControl_Unset_IsOff()
+    {
+        Assert.False(Service().Current.ShowLyricsOffsetControl);
+    }
+
+    [Theory]
+    [InlineData(-120, -120)]
+    [InlineData(350, 350)]
+    [InlineData(9000, 2000)]
+    [InlineData(-9000, -2000)]
+    public async Task LyricsOffsetMilliseconds_IsClampedOnReadAsWellAsOnSave(int typed, int expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("Playback:LyricsOffsetMilliseconds", typed.ToString()));
+
+        Assert.Equal(expected, service.Current.LyricsOffsetMilliseconds);
+
+        await service.SaveAsync(new AppSettings { LyricsOffsetMilliseconds = typed });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(expected, overlay.RootElement.GetProperty("Playback").GetProperty("LyricsOffsetMilliseconds").GetInt32());
+    }
+
+    [Theory]
     [InlineData(-3, 0)]
     [InlineData(1.4, 1.5)]
     [InlineData(0.6, 0.5)]

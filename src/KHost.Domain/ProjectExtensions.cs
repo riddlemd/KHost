@@ -2,6 +2,7 @@
 using KHost.Abstractions.Services;
 using KHost.IPC.SignalR.Contracts;
 using KHost.Domain.Services;
+using KHost.Domain.Services.MediaLifetime;
 using KHost.Domain.Services.BurnIn;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.AuthProviders;
@@ -209,6 +210,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IPluginInstallerService, PluginInstallerService>();
             serviceCollection.AddSingleton<MediaAcquisitionService>();
             serviceCollection.AddSingleton<IMediaAcquisitionService>(sp => sp.GetRequiredService<MediaAcquisitionService>());
+            serviceCollection.AddSingleton<IMediaLifetimeService, MediaLifetimeService>();
             serviceCollection.AddSingleton<IMediaUploader, MediaUploader>();
 
             // Queue Rotation (built-in modes register before plugins so their ids win)
@@ -238,7 +240,10 @@ namespace KHost.Domain
             var state = PluginLoader.ReadState(PluginPaths.Cache);
             var plugins = PluginLoader.Discover(PluginPaths.Plugins, state);
 
-            PluginLoader.LoadAndRegister(serviceCollection, plugins, state);
+            // One for the process: PluginsService reloads the same configuration every plugin's options bind from.
+            var settings = new PluginSettingsConfiguration(state.Settings);
+            PluginLoader.LoadAndRegister(serviceCollection, plugins, state, settings);
+            serviceCollection.AddSingleton(settings);
 
             serviceCollection.AddSingleton<IPluginRegistry>(new PluginRegistry(plugins));
             serviceCollection.AddSingleton<IPluginsService, PluginsService>();

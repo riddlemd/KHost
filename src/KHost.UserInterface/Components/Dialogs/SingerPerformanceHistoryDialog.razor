@@ -26,10 +26,12 @@
                             // Kept even when the song is gone from the library. The performance is
                             // still real history, and hiding the row leaves no way to delete it.
                             var media = _media.FirstOrDefault(m => m.Id == perf.MediaId);
-                            var isReady = media?.Status == MediaStatus.Ready;
+                            // A song whose file was removed queues too: queuing it is what fetches the file again.
+                            var canQueue = media?.Status is MediaStatus.Ready or MediaStatus.NotDownloaded;
                             var enqueueDescription = media is null
                                 ? "This song is no longer in the library"
-                                : isReady ? "Add to Singer's Queue" : media.Status.ToString();
+                                : media.Status == MediaStatus.NotDownloaded ? "Add to Singer's Queue (downloads it again)"
+                                : canQueue ? "Add to Singer's Queue" : MediaStatusDisplay.Label(media.Status);
 
                             <tr>
                                 <td class="kh-table__cell--fill">
@@ -64,7 +66,7 @@
                                 <td>@perf.CreatedDate.ToLocalTime().ToString("g")</td>
                                 <td class="kh-table__cell--actions">
                                     <SplitButton
-                                            PrimaryDisabled="@(!isReady)"
+                                            PrimaryDisabled="@(!canQueue)"
                                             @onclick="async () => await EnqueueAsync(media!, perf)"
                                             title="@enqueueDescription">
                                         <Text><Icon Name="plus-lg" /></Text>

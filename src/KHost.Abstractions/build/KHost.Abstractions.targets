@@ -1,7 +1,9 @@
 <Project>
 
   <!--
-    Keeps the contracts out of a plugin's output without the plugin having to ask.
+    Keeps the contracts, and the Microsoft.Extensions assemblies they and the host share, out of a
+    plugin's output without the plugin having to ask. PluginLoadContext always hands a plugin the
+    host's own Microsoft.Extensions.* (an IOptionsMonitor of another copy is a different type).
 
     The host loads KHost.Abstractions and KHost.Common into its default context, and
     PluginLoadContext.Load returns null for anything already there — so a copy shipped beside a
@@ -31,7 +33,7 @@
     <ItemGroup>
       <ReferenceCopyLocalPaths
           Remove="@(ReferenceCopyLocalPaths)"
-          Condition="'%(Filename)' == 'KHost.Abstractions' or '%(Filename)' == 'KHost.Common'" />
+          Condition="'%(Filename)' == 'KHost.Abstractions' or '%(Filename)' == 'KHost.Common' or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.Extensions.'))" />
     </ItemGroup>
   </Target>
 

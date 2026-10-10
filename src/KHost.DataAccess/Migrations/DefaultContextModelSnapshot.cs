@@ -191,6 +191,12 @@ namespace KHost.DataAccess.Migrations
                     b.Property<int>("ImageScaling")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsEphemeral")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsSingleUse")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -208,6 +214,11 @@ namespace KHost.DataAccess.Migrations
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")

@@ -12,7 +12,7 @@ namespace KHost.Abstractions.Services;
 public interface IPlugin
 {
     /// <summary>Runs once at startup; keep it short, and start slow work as a background task.</summary>
-    /// <param name="context">This plugin's own settings, secrets and warnings; the same values its
+    /// <param name="context">This plugin's own secrets, QR code and warnings; the same context its
     /// extensions are handed.</param>
     /// <param name="cancellationToken">Honour it if it fires; do not rely on it to cut a slow start
     /// short.</param>

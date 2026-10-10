@@ -1,0 +1,17 @@
+@using KHost.Domain.Services
+
+@if (_shown && SongHasTimedLyrics)
+{
+    <span class="kh-lyrics-offset" role="group" aria-label="Lyrics offset">
+        <button type="button" class="kh-lyrics-offset__step kh-lyrics-offset__earlier"
+                title="Words 10 ms earlier" aria-label="Words 10 ms earlier"
+                disabled="@(_offset <= -LyricsOffset.MaxMilliseconds)"
+                @onclick="() => MoveAsync(-Step)">−</button>
+        <button type="button" class="kh-lyrics-offset__value @(_offset != 0 ? "kh-lyrics-offset__value--set" : "")"
+                title="@Title" @onclick="ResetAsync">@Label</button>
+        <button type="button" class="kh-lyrics-offset__step kh-lyrics-offset__later"
+                title="Words 10 ms later" aria-label="Words 10 ms later"
+                disabled="@(_offset >= LyricsOffset.MaxMilliseconds)"
+                @onclick="() => MoveAsync(Step)">+</button>
+    </span>
+}

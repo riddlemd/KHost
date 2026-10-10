@@ -2,24 +2,14 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>What the host hands a plugin: settings, and a way to warn it. Fixed per process.</summary>
+/// <summary>What the host hands a plugin: its secrets, its QR code, and a way to warn it.</summary>
 /// <remarks>A plugin TAKES it: as a constructor parameter of any extension class, and as the argument
 /// to <see cref="IPlugin.InitializeAsync"/>. It carries the calls where the host, not the plugin,
 /// supplies the identity, so one plugin can never name another's secrets or QR code. Settings are
-/// those saved when the process started, over the manifest's defaults; a host's later edit applies
-/// only after a restart. Callable from any thread.</remarks>
+/// not here: a plugin declares them with <see cref="IPlugin{TSettings}"/> and reads them through the
+/// options pattern. Callable from any thread.</remarks>
 public interface IPluginContext
 {
-    /// <summary>One setting by key, the saved value else the manifest's default.</summary>
-    /// <returns>The default of <typeparamref name="T"/> when neither exists, or when the value does
-    /// not convert to <typeparamref name="T"/>.</returns>
-    /// <remarks>Keys match without regard to case.</remarks>
-    T? GetSetting<T>(string key);
-
-    /// <summary>Binds settings to <typeparamref name="TSettings"/>; manifest fills any gaps.</summary>
-    /// <returns>A new instance of <typeparamref name="TSettings"/>, left at its own defaults when a
-    /// saved value is malformed; never null, never a throw.</returns>
-    TSettings BindSettings<TSettings>() where TSettings : new();
 
     /// <summary>Shows a line against this plugin on the Plugins page; for setup, not failures.</summary>
     /// <returns>An id for <see cref="ClearWarning"/>, or 0 when <paramref name="message"/> is blank

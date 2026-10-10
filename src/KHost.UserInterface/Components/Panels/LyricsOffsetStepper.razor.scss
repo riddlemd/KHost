@@ -1,0 +1,59 @@
+// Sized as the header's other end controls. A set offset is carried by a drawn border and fill, not
+// by hue alone: a theme may make any accent a neutral.
+.kh-lyrics-offset {
+    display: inline-flex;
+    align-items: stretch;
+    // First of the header's end controls when shown, so it claims the right edge for the controls after it.
+    margin-left: auto;
+    border: 1px solid var(--kh-border);
+    border-radius: var(--kh-radius);
+    overflow: hidden;
+    font-weight: 400;
+
+    + ::deep .kh-lyric-colours-toggle {
+        margin-left: 0;
+    }
+}
+
+.kh-lyrics-offset__step,
+.kh-lyrics-offset__value {
+    background: transparent;
+    border: 0;
+    color: var(--kh-text-secondary);
+    font: inherit;
+    cursor: pointer;
+    transition: color var(--kh-transition), background var(--kh-transition);
+
+    &:hover:not(:disabled) {
+        color: var(--kh-text);
+        background: var(--kh-bg-elevated);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--kh-success);
+        outline-offset: -2px;
+    }
+
+    &:disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+}
+
+.kh-lyrics-offset__step {
+    width: 1.6em;
+    line-height: 1;
+}
+
+.kh-lyrics-offset__value {
+    min-width: 6.5ch;
+    padding: 0 0.4em;
+    font-size: 0.8em;
+    font-variant-numeric: tabular-nums;
+    border-inline: 1px solid var(--kh-border);
+
+    &--set {
+        color: var(--kh-text);
+        background: var(--kh-bg-elevated);
+    }
+}
