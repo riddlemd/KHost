@@ -148,6 +148,15 @@ public partial class AppSettingsPage : IDisposable
 
     private static string StopFadeLabel(double seconds) => seconds == 0 ? "No fade" : SecondsLabel((int)seconds);
 
+    private static IReadOnlyList<double> BreakMusicFadeChoices => KHost.UserInterface.Services.AppSettings.BreakMusicFadeChoices;
+
+    private static string BreakMusicFadeLabel(double seconds) => seconds switch
+    {
+        0 => "No fade",
+        1 => "1 second",
+        _ => $"{seconds:0.#} seconds",
+    };
+
     private static IReadOnlyList<double> AdDurationChoices => KHost.UserInterface.Services.AppSettings.AdDurationChoices;
 
     private static string AdDurationLabel(double seconds) => $"{seconds:0} seconds";

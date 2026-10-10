@@ -15,7 +15,13 @@
                     @if (field.Definition.Type == PluginSettingType.Bool)
                     {
                         <label class="kh-plugins-manager__toggle kh-form-check">
-                            <span class="kh-form-check-label">@field.Definition.Label</span>
+                            <span class="kh-form-check-label">
+                                @field.Definition.Label
+                                @if (field.Definition.Description is { } note)
+                                {
+                                    <span class="kh-note">@note</span>
+                                }
+                            </span>
                             <input type="checkbox" class="kh-form-check-input"
                                    checked="@field.Flag"
                                    @onchange="e => { field.Flag = (bool)(e.Value ?? false); MarkEdited(); }" />
@@ -23,7 +29,13 @@
                     }
                     else if (field.Definition.Secret)
                     {
-                        <span class="kh-plugins-manager__label">@field.Definition.Label</span>
+                        <span class="kh-plugins-manager__label">
+                            @field.Definition.Label
+                            @if (field.Definition.Optional)
+                            {
+                                <span class="kh-plugins-manager__optional">(optional)</span>
+                            }
+                        </span>
                         @if (field.HasSecret && !field.Replacing)
                         {
                             <span class="kh-plugins-manager__secret">
@@ -54,11 +66,21 @@
                     }
                     else
                     {
-                        <span class="kh-plugins-manager__label">@field.Definition.Label</span>
+                        <span class="kh-plugins-manager__label">
+                            @field.Definition.Label
+                            @if (field.Definition.Optional)
+                            {
+                                <span class="kh-plugins-manager__optional">(optional)</span>
+                            }
+                        </span>
                         <input class="kh-form-control" type="@GetInputType(field.Definition)"
                                autocomplete="off"
                                @bind="field.Text" @bind:event="oninput"
                                @bind:after="MarkEdited" />
+                    }
+                    @if (field.Definition.Type != PluginSettingType.Bool && field.Definition.Description is { } description)
+                    {
+                        <span class="kh-note">@description</span>
                     }
                 </div>
             }

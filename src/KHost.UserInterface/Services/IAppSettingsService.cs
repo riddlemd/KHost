@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Domain.Services.VideoEncoding;
@@ -79,6 +80,10 @@ public sealed record AppSettings
     /// keeps what the room already hears.</remarks>
     public string? BreakMusicProvider { get; set; }
 
+    /// <summary>How long break music takes to fade, down and back up, for every provider.</summary>
+    /// <remarks>One of <see cref="BreakMusicFadeChoices"/>.</remarks>
+    public double BreakMusicFadeSeconds { get; set; } = BreakMusicService.ServiceOptions.DefaultFadeDuration.TotalSeconds;
+
     /// <summary>The shipped visualisation playlist a venue starts on when it is added.</summary>
     /// <remarks>A venue already made keeps the playlist it names.</remarks>
     public VenueBackgrounds NewVenueBackgrounds { get; set; } = VenueBackgrounds.Basic;
@@ -128,6 +133,10 @@ public sealed record AppSettings
 
     /// <summary>The fades the page offers, shortest first; none is no fade at all.</summary>
     /// <remarks>The stop waits out the whole fade before the queue moves on, so a long one is dead air.</remarks>
+    /// <summary>The break music fades the page offers, shortest first; none cuts at once.</summary>
+    /// <remarks>Short: a suspend waits out the fade before the singer is heard.</remarks>
+    public static readonly IReadOnlyList<double> BreakMusicFadeChoices = [0, 0.5, 1, 1.5, 2, 3, 4, 5];
+
     public static readonly IReadOnlyList<double> StopFadeChoices = [0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30];
 
     // Below one second is no segment at all; past ten, a seek or a key change waits a whole

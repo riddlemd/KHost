@@ -194,6 +194,32 @@ public class AppSettingsServiceTests : IDisposable
     }
 
     [Theory]
+    [InlineData(-3, 0)]
+    [InlineData(1.4, 1.5)]
+    [InlineData(0.6, 0.5)]
+    [InlineData(9, 5)]
+    [InlineData(3, 3)]
+    public async Task BreakMusicFadeSeconds_ReadsAndSavesAsTheNearestChoice(double typed, double expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>(
+            "BreakMusic:FadeDuration", TimeSpan.FromSeconds(typed).ToString()));
+
+        Assert.Equal(expected, service.Current.BreakMusicFadeSeconds);
+
+        await service.SaveAsync(new AppSettings { BreakMusicFadeSeconds = typed });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(TimeSpan.FromSeconds(expected),
+            TimeSpan.Parse(overlay.RootElement.GetProperty("BreakMusic").GetProperty("FadeDuration").GetString()!));
+    }
+
+    [Fact]
+    public void BreakMusicFadeSeconds_Unset_ReadsAsTheDefault()
+    {
+        Assert.Equal(1.5, Service().Current.BreakMusicFadeSeconds);
+    }
+
+    [Theory]
     [InlineData(0, 1)]
     [InlineData(20, 10)]
     [InlineData(4, 4)]
