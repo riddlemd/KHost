@@ -50,6 +50,7 @@ public class SingerQueuePanelRemoveKeyTests : BunitContext
         Services.AddSingleton(_playback);
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton<IDialogService>(_dialogs);
+        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     private void PromptBeforeRemoving(bool prompt)

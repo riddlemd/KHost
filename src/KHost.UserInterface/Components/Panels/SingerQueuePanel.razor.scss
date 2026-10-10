@@ -15,6 +15,12 @@
         margin-left: 1em;
     }
 
+    // The sign-ups toggle before it already takes the free space; a second auto margin would split
+    // it and strand the toggle mid-row.
+    .kh-card__header .kh-card__shortcut {
+        margin-left: 6px;
+    }
+
     &__singer-queue {
         flex: 1 1 0;
         min-height: 0;

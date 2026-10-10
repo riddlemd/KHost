@@ -65,6 +65,7 @@ public class SingerQueuePanelRoomMarkRefreshTests : BunitContext
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(users);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]

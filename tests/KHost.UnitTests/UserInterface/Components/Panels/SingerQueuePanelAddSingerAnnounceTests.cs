@@ -84,6 +84,7 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
         Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     protected override void Dispose(bool disposing)
