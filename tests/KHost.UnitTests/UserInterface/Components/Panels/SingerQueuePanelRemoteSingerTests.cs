@@ -53,6 +53,7 @@ public class SingerQueuePanelRemoteSingerTests : BunitContext
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]

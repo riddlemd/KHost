@@ -53,6 +53,7 @@ public class SingerQueuePanelRemovePendingTests : BunitContext
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton<IDialogService>(_dialogs);
+        Services.AddSingleton(Substitute.For<IFlashService>());
 
         _dialogs.ShowRequested += (_, _) => _confirmsShown++;
     }

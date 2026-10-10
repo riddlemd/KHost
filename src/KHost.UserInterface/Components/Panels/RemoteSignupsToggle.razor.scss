@@ -1,12 +1,10 @@
-// Sized and coloured as the colour-blind toggle and the key-and-tempo trigger it sits between. On is
-// carried by the glyph and a drawn border and fill, never by hue alone: a theme may make any accent
-// a neutral.
+// Sized and coloured as the Now Playing header's toggles. On is carried by the glyph and a drawn
+// border and fill, never by hue alone: a theme may make any accent a neutral.
 .kh-remote-signups-toggle {
     display: flex;
     align-items: center;
-    // Apart from the colour-blind toggle before it: each draws its own border when on, and touching
-    // they read as one control.
-    margin-left: 6px;
+    // Claims the right edge itself: the shortcut hint after it hides in a narrow column.
+    margin-left: auto;
     padding: 1px 3px;
     background: transparent;
     border: 1px solid transparent;

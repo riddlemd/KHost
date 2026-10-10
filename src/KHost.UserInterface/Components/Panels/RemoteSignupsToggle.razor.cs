@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Components;
 namespace KHost.UserInterface.Components.Panels;
 
 /// <summary>The selected venue's <see cref="Venue.VenueSettings.AllowGuestRemote"/>, one click from
-/// the song: closes or reopens remote sign-ups mid-show.</summary>
+/// the singer queue: closes or reopens remote sign-ups mid-show.</summary>
 /// <remarks>Saved on the venue itself, so the Edit Venue dialog shows the same answer, and a guest
 /// room hears it through the announcement the save leads to.</remarks>
 public partial class RemoteSignupsToggle : IDisposable

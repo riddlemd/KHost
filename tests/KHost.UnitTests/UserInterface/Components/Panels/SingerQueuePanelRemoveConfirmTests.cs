@@ -45,6 +45,7 @@ public class SingerQueuePanelRemoveConfirmTests : BunitContext
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton<IDialogService>(_dialogs);
+        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]
