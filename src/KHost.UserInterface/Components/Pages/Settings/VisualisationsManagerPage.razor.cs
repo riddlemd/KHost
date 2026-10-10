@@ -6,11 +6,13 @@ using KHost.Domain.Services.Visualisations;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Routing;
+using System.Text.Json;
 
 namespace KHost.UserInterface.Components.Pages.Settings;
 
 /// <summary>Visualisation playlists, their entries and how each is drawn, and the presets a host
-/// imported. Every change is saved as it is made: there is no Save to forget.</summary>
+/// imported. A playlist's edits are held until Save; adding or deleting a playlist or preset acts at once.</summary>
 public partial class VisualisationsManagerPage : IDisposable
 {
     [Inject] private IVisualisationPlaylistService Playlists { get; set; } = default!;
@@ -20,24 +22,40 @@ public partial class VisualisationsManagerPage : IDisposable
     [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IMediaService Media { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
+    private IDisposable? _navigationGuard;
+
+    // Set while leaving on the host's answer, so the guard does not stop the navigation it asked for.
+    private bool _leaving;
 
     private List<VisualisationPlaylist> _playlists = [];
     private IReadOnlyList<VisualiserPreset> _presets = [];
     private Guid? _selectedId;
     private int _selectedEntry = -1;
     private Guid? _activePlaylistId;
+    private bool _saving;
+
+    /// <summary>The selected playlist as edited, a copy of the stored one until Save writes it back.</summary>
+    private VisualisationPlaylist? _draft;
 
     /// <summary>The library rows video entries name, by id; a row since gone is absent.</summary>
     private Dictionary<Guid, Media> _videos = [];
 
+    /// <summary>As stored: the list, its counts and the delete check read this, never the draft.</summary>
     private VisualisationPlaylist? Selected => _playlists.FirstOrDefault(p => p.Id == _selectedId);
 
     private VisualisationEntry? SelectedEntry
-        => Selected is { } playlist && _selectedEntry >= 0 && _selectedEntry < playlist.Entries.Count
+        => _draft is { } playlist && _selectedEntry >= 0 && _selectedEntry < playlist.Entries.Count
             ? playlist.Entries[_selectedEntry]
             : null;
+
+    /// <summary>Compared with what is stored, so an edit put back reads as not dirty.</summary>
+    private bool HasUnsavedChanges
+        => _draft is not null && Selected is { } stored && Fingerprint(_draft) != Fingerprint(stored);
+
+    private bool CanSave => HasUnsavedChanges && !_saving && !string.IsNullOrWhiteSpace(_draft?.Name);
 
     private IReadOnlyList<VisualiserPreset> Imported
         => [.. _presets.Where(p => p.Source == VisualiserPresetSource.Imported)];
@@ -51,15 +69,18 @@ public partial class VisualisationsManagerPage : IDisposable
         _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnChanged()));
         _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => OnChanged()));
 
+        // Registered before the first await: a navigation asked for while loading must still be guarded.
+        _navigationGuard = Navigation.RegisterLocationChangingHandler(OnLocationChangingAsync);
+
         await RefreshAsync();
 
-        _selectedId = _playlists.FirstOrDefault()?.Id;
-        _selectedEntry = Selected is { Entries.Count: > 0 } ? 0 : -1;
+        Open(_playlists.FirstOrDefault()?.Id);
     }
 
     public void Dispose()
     {
         _subscriptions.Dispose();
+        _navigationGuard?.Dispose();
 
         GC.SuppressFinalize(this);
     }
@@ -71,20 +92,67 @@ public partial class VisualisationsManagerPage : IDisposable
             StateHasChanged();
         });
 
+    /// <summary>Re-reads the store. A draft with edits is kept, so another page's change, or this
+    /// page's own add or import, never throws away what the host has not saved yet.</summary>
     private async Task RefreshAsync()
     {
+        var dirty = HasUnsavedChanges;
+
         _playlists = [.. await Playlists.ReadAllWithEntriesAsync()];
         _presets = Presets.ReadAll();
         _activePlaylistId = (await Venues.ReadSelectedVenueAsync())?.Settings.VisualisationPlaylistId;
         await ReadVideosAsync();
 
-        if (_selectedId is not null && Selected is null) _selectedId = _playlists.FirstOrDefault()?.Id;
-        if (SelectedEntry is null) _selectedEntry = Selected is { Entries.Count: > 0 } s ? Math.Min(Math.Max(_selectedEntry, 0), s.Entries.Count - 1) : -1;
+        if (Selected is null) Open(_playlists.FirstOrDefault()?.Id);
+        else if (!dirty) _draft = Copy(Selected);
+
+        if (SelectedEntry is null)
+            _selectedEntry = _draft is { Entries.Count: > 0 } d ? Math.Min(Math.Max(_selectedEntry, 0), d.Entries.Count - 1) : -1;
+    }
+
+    /// <summary>Selects a playlist and starts a fresh draft of it, dropping any edits to the last.</summary>
+    private void Open(Guid? id)
+    {
+        _selectedId = id;
+        _draft = Selected is { } stored ? Copy(stored) : null;
+        _selectedEntry = _draft is { Entries.Count: > 0 } ? 0 : -1;
+    }
+
+    /// <summary>Runs <paramref name="then"/> once unsaved edits are saved or discarded, or at once with none.</summary>
+    private Task LeaveDraftAsync(Func<Task> then)
+    {
+        if (!HasUnsavedChanges) return then();
+
+        return Dialogs.ShowUnsavedChangesAsync(
+            onSave: async () =>
+            {
+                // A refused save keeps the host on the draft, with the reason flashed.
+                if (await SaveAsync()) await then();
+            },
+            onDiscard: then,
+            message: $"{_draft!.Name} has changes that have not been saved yet.");
+    }
+
+    private async ValueTask OnLocationChangingAsync(LocationChangingContext context)
+    {
+        if (_leaving || !HasUnsavedChanges) return;
+
+        // Held rather than cancelled: the host has not chosen yet, and the target has to survive
+        // long enough to be navigated to once they do.
+        context.PreventNavigation();
+
+        var target = context.TargetLocation;
+        await LeaveDraftAsync(() =>
+        {
+            _leaving = true;
+            Navigation.NavigateTo(target);
+            return Task.CompletedTask;
+        });
     }
 
     // --- playlists ---
 
-    private async Task AddPlaylistAsync()
+    private Task AddPlaylistAsync() => LeaveDraftAsync(async () =>
     {
         var name = "New playlist";
         for (var n = 2; _playlists.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)); n++)
@@ -93,37 +161,20 @@ public partial class VisualisationsManagerPage : IDisposable
         var created = await Playlists.CreateAsync(new VisualisationPlaylist { Name = name });
 
         await RefreshAsync();
-        _selectedId = created.Id;
-        _selectedEntry = -1;
-    }
+        Open(created.Id);
+        StateHasChanged();
+    });
 
-    private void SelectPlaylist(Guid id)
+    private Task SelectPlaylistAsync(Guid id)
     {
-        if (_selectedId == id) return;
+        if (_selectedId == id) return Task.CompletedTask;
 
-        _selectedId = id;
-        _selectedEntry = Selected is { Entries.Count: > 0 } ? 0 : -1;
-    }
-
-    private async Task RenamePlaylistAsync(ChangeEventArgs e)
-    {
-        if (Selected is not { } playlist) return;
-
-        var name = e.Value?.ToString()?.Trim();
-
-        // An empty name would leave a row nobody can pick out; the field shows the old one again.
-        if (string.IsNullOrEmpty(name) || name == playlist.Name) return;
-
-        playlist.Name = name;
-        await Playlists.UpdateAsync(Header(playlist));
-    }
-
-    private async Task SetShuffleAsync(ChangeEventArgs e)
-    {
-        if (Selected is not { } playlist) return;
-
-        playlist.Shuffle = e.Value is true || string.Equals(e.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
-        await Playlists.UpdateAsync(Header(playlist));
+        return LeaveDraftAsync(() =>
+        {
+            Open(id);
+            StateHasChanged();
+            return Task.CompletedTask;
+        });
     }
 
     private async Task StartDeletePlaylistAsync(VisualisationPlaylist playlist)
@@ -139,8 +190,59 @@ public partial class VisualisationsManagerPage : IDisposable
             "Delete");
     }
 
+    /// <summary>Writes the draft back: the playlist's own row only if it changed, then its entries.</summary>
+    /// <returns>False when nothing was saved, with the reason flashed.</returns>
+    private async Task<bool> SaveAsync()
+    {
+        if (_draft is not { } draft || Selected is not { } stored) return false;
+
+        var name = draft.Name.Trim();
+
+        // An empty name would leave a row nobody can pick out.
+        if (name.Length == 0)
+        {
+            Flash.Show("A playlist needs a name.", FlashType.Warning);
+            return false;
+        }
+
+        draft.Name = name;
+        _saving = true;
+
+        try
+        {
+            if (draft.Name != stored.Name || draft.Shuffle != stored.Shuffle)
+                await Playlists.UpdateAsync(Header(draft));
+
+            if (!await Playlists.ReplaceEntriesAsync(draft.Id, draft.Entries))
+            {
+                Flash.Show("That playlist is gone, so the change was not saved.", FlashType.Warning);
+                return false;
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+
+        await RefreshAsync();
+        Reopen();
+
+        return true;
+    }
+
+    private void Revert() => Reopen();
+
+    /// <summary>A fresh draft of the same playlist, keeping the entry the editor had open.</summary>
+    private void Reopen()
+    {
+        var entry = _selectedEntry;
+        Open(_selectedId);
+
+        if (entry >= 0 && _draft is { Entries.Count: > 0 } draft) _selectedEntry = Math.Min(entry, draft.Entries.Count - 1);
+    }
+
     /// <summary>The playlist's own row, without its entries: an update saves only the playlist,
-    /// and entries go through <see cref="SaveEntriesAsync"/>.</summary>
+    /// and entries go through <see cref="IVisualisationPlaylistService.ReplaceEntriesAsync"/>.</summary>
     private static VisualisationPlaylist Header(VisualisationPlaylist playlist) => new()
     {
         Id = playlist.Id,
@@ -149,25 +251,29 @@ public partial class VisualisationsManagerPage : IDisposable
         Shuffle = playlist.Shuffle,
     };
 
+    /// <summary>A deep copy: the editor changes entries in place, and the stored list must not move with it.</summary>
+    private static VisualisationPlaylist Copy(VisualisationPlaylist playlist)
+        => JsonSerializer.Deserialize<VisualisationPlaylist>(JsonSerializer.Serialize(playlist))!;
+
+    private static string Fingerprint(VisualisationPlaylist playlist) => JsonSerializer.Serialize(playlist);
+
     // --- entries ---
 
     private void SelectEntry(int index) => _selectedEntry = index;
 
-    private async Task AddEntryAsync()
+    private void AddEntry()
     {
         // Starts on the first preset and opens in the editor below, where its preset is chosen:
         // a second picker beside the button read as the editor's own.
-        if (Selected is not { } playlist || _presets.FirstOrDefault() is not { } preset) return;
+        if (_draft is not { } playlist || _presets.FirstOrDefault() is not { } preset) return;
 
         playlist.Entries.Add(new VisualisationEntry { PresetSource = preset.Source, PresetName = preset.Name });
         _selectedEntry = playlist.Entries.Count - 1;
-
-        await SaveEntriesAsync(playlist);
     }
 
-    private async Task MoveEntryAsync(int index, int by)
+    private void MoveEntry(int index, int by)
     {
-        if (Selected is not { } playlist) return;
+        if (_draft is not { } playlist) return;
 
         var to = index + by;
         if (to < 0 || to >= playlist.Entries.Count) return;
@@ -175,34 +281,22 @@ public partial class VisualisationsManagerPage : IDisposable
         (playlist.Entries[index], playlist.Entries[to]) = (playlist.Entries[to], playlist.Entries[index]);
         if (_selectedEntry == index) _selectedEntry = to;
         else if (_selectedEntry == to) _selectedEntry = index;
-
-        await SaveEntriesAsync(playlist);
     }
 
-    private async Task RemoveEntryAsync(int index)
+    private void RemoveEntry(int index)
     {
-        if (Selected is not { } playlist || index < 0 || index >= playlist.Entries.Count) return;
+        if (_draft is not { } playlist || index < 0 || index >= playlist.Entries.Count) return;
 
         playlist.Entries.RemoveAt(index);
         if (_selectedEntry >= playlist.Entries.Count) _selectedEntry = playlist.Entries.Count - 1;
-
-        await SaveEntriesAsync(playlist);
     }
 
     /// <summary>The editor changed the selected entry in place; a newly picked video is read for its
-    /// title first, so the list names it.</summary>
-    private async Task SaveLookAsync(IVisualisationLook look)
+    /// title, so the list names it before it is saved.</summary>
+    private async Task LookChangedAsync(IVisualisationLook look)
     {
-        if (Selected is not { } playlist) return;
-
-        if (look.VideoMediaId is { } videoId && !_videos.ContainsKey(videoId)) await ReadVideosAsync();
-        await SaveEntriesAsync(playlist);
-    }
-
-    private async Task SaveEntriesAsync(VisualisationPlaylist playlist)
-    {
-        if (!await Playlists.ReplaceEntriesAsync(playlist.Id, playlist.Entries))
-            Flash.Show("That playlist is gone, so the change was not saved.", FlashType.Warning);
+        if (look.VideoMediaId is { } videoId && !_videos.ContainsKey(videoId))
+            await ReadVideosAsync();
     }
 
     // --- presets ---
@@ -249,9 +343,10 @@ public partial class VisualisationsManagerPage : IDisposable
     }
 
     /// <summary>Read by id rather than every video in the library: a list names only a few.</summary>
+    /// <remarks>The draft too: a video picked but not yet saved is named in the list all the same.</remarks>
     private async Task ReadVideosAsync()
     {
-        var ids = _playlists.SelectMany(p => p.Entries).Select(e => e.VideoMediaId).OfType<Guid>().Distinct();
+        var ids = _playlists.Append(_draft).OfType<VisualisationPlaylist>().SelectMany(p => p.Entries).Select(e => e.VideoMediaId).OfType<Guid>().Distinct();
         var videos = new Dictionary<Guid, Media>();
         foreach (var id in ids)
             if (await Media.ReadAsync(id) is { } row) videos[id] = row;

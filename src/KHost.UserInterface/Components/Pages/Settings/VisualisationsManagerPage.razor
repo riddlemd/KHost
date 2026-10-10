@@ -39,7 +39,7 @@
                                 @foreach (var playlist in _playlists)
                                 {
                                     <tr class="kh-visualisations__playlist @(playlist.Id == _selectedId ? "kh-visualisations__playlist--selected" : "")"
-                                        @onclick="() => SelectPlaylist(playlist.Id)">
+                                        @onclick="() => SelectPlaylistAsync(playlist.Id)">
                                         <td class="kh-table__cell--fill">
                                             <span class="kh-visualisations__name">
                                                 @playlist.Name
@@ -63,14 +63,14 @@
                             </tbody>
                         </table>
 
-                        @if (Selected is { } selected)
+                        @if (_draft is { } selected)
                         {
                             <div class="kh-visualisations__editor kh-venue-settings">
                                 <div class="kh-venue-settings__section kh-venue-settings__section--head">
                                     <div class="kh-venue-settings__field">
                                         <label for="visualisation-playlist-name" class="kh-form-label">Name</label>
                                         <input id="visualisation-playlist-name" class="kh-form-control" autocomplete="off"
-                                               value="@selected.Name" @onchange="RenamePlaylistAsync" />
+                                               @bind="selected.Name" @bind:event="oninput" />
                                     </div>
 
                                     <label class="kh-venue-settings__row kh-form-check">
@@ -82,7 +82,7 @@
                                             </span>
                                         </span>
                                         <input id="visualisation-shuffle" type="checkbox" class="kh-form-check-input"
-                                               checked="@selected.Shuffle" @onchange="SetShuffleAsync" />
+                                               @bind="selected.Shuffle" />
                                     </label>
                                 </div>
 
@@ -113,15 +113,15 @@
                                                         </td>
                                                         <td class="kh-table__cell--actions">
                                                             <button class="kh-button--icon-minimal" title="Move up" type="button"
-                                                                    disabled="@(index == 0)" @onclick="() => MoveEntryAsync(index, -1)" @onclick:stopPropagation="true">
+                                                                    disabled="@(index == 0)" @onclick="() => MoveEntry(index, -1)" @onclick:stopPropagation="true">
                                                                 <Icon Name="arrow-up" />
                                                             </button>
                                                             <button class="kh-button--icon-minimal" title="Move down" type="button"
-                                                                    disabled="@(index == selected.Entries.Count - 1)" @onclick="() => MoveEntryAsync(index, 1)" @onclick:stopPropagation="true">
+                                                                    disabled="@(index == selected.Entries.Count - 1)" @onclick="() => MoveEntry(index, 1)" @onclick:stopPropagation="true">
                                                                 <Icon Name="arrow-down" />
                                                             </button>
                                                             <button class="kh-button--icon-minimal kh-visualisations__remove-entry" title="Remove" type="button"
-                                                                    @onclick="() => RemoveEntryAsync(index)" @onclick:stopPropagation="true">
+                                                                    @onclick="() => RemoveEntry(index)" @onclick:stopPropagation="true">
                                                                 <Icon Name="trash" />
                                                             </button>
                                                         </td>
@@ -133,7 +133,7 @@
 
                                     <div class="kh-visualisations__add">
                                         <button id="visualisation-add-entry" class="kh-button kh-button--secondary" type="button"
-                                                @onclick="AddEntryAsync">
+                                                @onclick="AddEntry">
                                             <Icon Name="plus-lg" /> Add entry
                                         </button>
                                     </div>
@@ -144,9 +144,24 @@
                                     <div class="kh-venue-settings__section kh-visualisations__entry-editor">
                                         <span class="kh-venue-settings__section-title">This entry</span>
 
-                                        <VisualisationLookEditor Look="editing" Presets="_presets" LookChanged="SaveLookAsync" />
+                                        <VisualisationLookEditor Look="editing" Presets="_presets" LookChanged="LookChangedAsync" />
                                     </div>
                                 }
+
+                                <div class="kh-visualisations__actions">
+                                    @if (HasUnsavedChanges)
+                                    {
+                                        <span class="kh-visualisations__unsaved">Unsaved changes</span>
+                                    }
+                                    <button id="visualisation-revert" class="kh-button kh-button--secondary" type="button"
+                                            disabled="@(!HasUnsavedChanges || _saving)" @onclick="Revert">
+                                        Revert
+                                    </button>
+                                    <button id="visualisation-save" class="kh-button kh-button--primary" type="button"
+                                            disabled="@(!CanSave)" @onclick="SaveAsync">
+                                        @(_saving ? "Saving…" : "Save")
+                                    </button>
+                                </div>
                             </div>
                         }
                     </div>

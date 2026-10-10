@@ -11,6 +11,7 @@ using KHost.UnitTests.DataAccess;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -101,6 +102,7 @@ public class VisualisationsManagerPageTests : BunitContext
 
         Assert.Empty(cut.FindAll("#visualisation-add-preset"));
         cut.Find("#visualisation-add-entry").Click();
+        cut.Find("#visualisation-save").Click();
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         var first = _presets.ReadAll()[0];
@@ -116,6 +118,7 @@ public class VisualisationsManagerPageTests : BunitContext
 
         cut.Find("#visualisation-add-entry").Click();
         cut.Find("#visualisation-preset").Change("0:_Mig_049");
+        cut.Find("#visualisation-save").Click();
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal(("_Mig_049", VisualiserPresetSource.Bundled), (entry.PresetName, entry.PresetSource));
@@ -130,24 +133,26 @@ public class VisualisationsManagerPageTests : BunitContext
 
         cut.Find("#visualisation-add-entry").Click();
         cut.Find("#visualisation-preset").Change("1:My Swirl");
+        cut.Find("#visualisation-save").Click();
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal(("My Swirl", VisualiserPresetSource.Imported), (entry.PresetName, entry.PresetSource));
     }
 
-    /// <summary>One setting per test: any later save writes the whole list, which would carry a
-    /// slider's value to the database even if letting go of it saved nothing.</summary>
+    /// <summary>One setting per test, each saved on its own, so one slider's value is never carried
+    /// to the database by another's save.</summary>
     [Theory]
     [InlineData("#visualisation-brightness", "150")]
     [InlineData("#visualisation-saturation", "40")]
     [InlineData("#visualisation-sensitivity", "220")]
-    public async Task LettingGoOfASlider_SavesItOnTheEntry(string slider, string value)
+    public async Task LettingGoOfASlider_ThenSave_SavesItOnTheEntry(string slider, string value)
     {
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
         cut.Find("#visualisation-add-entry").Click();
 
         cut.Find(slider).Change(value);
+        cut.Find("#visualisation-save").Click();
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         var saved = slider switch
@@ -187,6 +192,7 @@ public class VisualisationsManagerPageTests : BunitContext
         Assert.Contains("effect's own colours", cut.Find($"#visualisation-palette option[value={VisualiserColourScheme.Classic}]").TextContent);
 
         cut.Find("#visualisation-palette").Change("Single");
+        cut.Find("#visualisation-save").Click();
         Assert.Equal(VisualiserColourScheme.Single, Assert.Single((await StoredAsync()).Entries).ColourScheme);
     }
 
@@ -210,6 +216,7 @@ public class VisualisationsManagerPageTests : BunitContext
         Assert.Contains("mix of colours", classic);
 
         cut.Find("#visualisation-palette").Change("Theme");
+        cut.Find("#visualisation-save").Click();
         Assert.Equal(VisualiserColourScheme.Theme, Assert.Single((await StoredAsync()).Entries).ColourScheme);
     }
 
@@ -238,6 +245,7 @@ public class VisualisationsManagerPageTests : BunitContext
         Assert.True(cut.Find("#visualisation-respects-theme").HasAttribute("checked"));
 
         cut.Find("#visualisation-respects-theme").Change(false);
+        cut.Find("#visualisation-save").Click();
 
         Assert.False(Assert.Single((await StoredAsync()).Entries).RespectsVenueTheme);
     }
@@ -286,6 +294,7 @@ public class VisualisationsManagerPageTests : BunitContext
         cut.Find("#visualisation-add-entry").Click();
 
         cut.Find("#visualisation-preset").Change("0:_Mig_049");
+        cut.Find("#visualisation-save").Click();
 
         Assert.True(Assert.Single((await StoredAsync()).Entries).RespectsVenueTheme);
         Assert.Null(LastPreviewPalette());
@@ -303,6 +312,7 @@ public class VisualisationsManagerPageTests : BunitContext
         cut.Find("#visualisation-add-playlist").Click();
         cut.Find("#visualisation-add-entry").Click();
         cut.Find("#visualisation-preset").Change($"2:{name}");
+        cut.Find("#visualisation-save").Click();
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal((VisualiserPresetSource.BuiltIn, name), (entry.PresetSource, entry.PresetName));
@@ -323,6 +333,7 @@ public class VisualisationsManagerPageTests : BunitContext
         var cut = await WithBuiltInAsync("spectrum-bars");
 
         cut.Find("#visualisation-bars").Change("64");
+        cut.Find("#visualisation-save").Click();
 
         Assert.Equal(64, Assert.Single((await StoredAsync()).Entries).BarCount);
     }
@@ -333,6 +344,7 @@ public class VisualisationsManagerPageTests : BunitContext
         var cut = await WithBuiltInAsync("spectrum-bars");
 
         cut.Find("#visualisation-palette").Change("Theme");
+        cut.Find("#visualisation-save").Click();
 
         Assert.Equal(VisualiserColourScheme.Theme, Assert.Single((await StoredAsync()).Entries).ColourScheme);
     }
@@ -345,6 +357,7 @@ public class VisualisationsManagerPageTests : BunitContext
 
         cut.Find("#visualisation-palette").Change("Single");
         cut.Find("#visualisation-colour").Change("#ff0000");
+        cut.Find("#visualisation-save").Click();
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal((VisualiserColourScheme.Single, "#ff0000"), (entry.ColourScheme, entry.Colour));
@@ -377,13 +390,14 @@ public class VisualisationsManagerPageTests : BunitContext
             && call.Arguments[1]!.ToString()!.Contains("presetName = ,")));
     }
 
-    /// <summary>A slider being dragged moves the preview, not the database.</summary>
+    /// <summary>A slider being dragged moves the preview, not the draft or the database.</summary>
     [Fact]
-    public async Task DraggingASlider_SavesNothingUntilItIsLetGo()
+    public async Task DraggingASlider_MovesOnlyThePreview()
     {
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
         cut.Find("#visualisation-add-entry").Click();
+        cut.Find("#visualisation-save").Click();
 
         cut.Find("#visualisation-brightness").Input("60");
 
@@ -399,6 +413,7 @@ public class VisualisationsManagerPageTests : BunitContext
         cut.Find("#visualisation-add-playlist").Click();
 
         cut.Find("#visualisation-shuffle").Change(true);
+        cut.Find("#visualisation-save").Click();
 
         Assert.True((await StoredAsync()).Shuffle);
     }
@@ -409,7 +424,8 @@ public class VisualisationsManagerPageTests : BunitContext
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
 
-        cut.Find("#visualisation-playlist-name").Change("Late show");
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+        cut.Find("#visualisation-save").Click();
 
         Assert.Equal("Late show", (await StoredAsync()).Name);
     }
@@ -424,6 +440,7 @@ public class VisualisationsManagerPageTests : BunitContext
         cut.Find("#visualisation-preset").Change("0:_Mig_049");
 
         cut.FindAll(".kh-visualisations__remove-entry")[0].Click();
+        cut.Find("#visualisation-save").Click();
 
         Assert.Equal(["_Mig_049"], (await StoredAsync()).Entries.Select(e => e.PresetName));
     }
@@ -510,6 +527,7 @@ public class VisualisationsManagerPageTests : BunitContext
 
         cut.Find(".kh-visualisation-look__video .kh-combobox__input").Focus();
         cut.FindAll(".kh-combobox__option").Single(o => o.TextContent.Trim() == "Waves").Click();
+        cut.Find("#visualisation-save").Click();
 
         cut.WaitForAssertion(() => Assert.Equal(_waves.Id, Assert.Single(StoredAsync().GetAwaiter().GetResult().Entries).VideoMediaId));
         return cut;
@@ -539,6 +557,7 @@ public class VisualisationsManagerPageTests : BunitContext
         var cut = await WithVideoAsync();
 
         cut.Find("#visualisation-preset").Change("0:_Mig_049");
+        cut.Find("#visualisation-save").Click();
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal((VisualiserPresetSource.Bundled, "_Mig_049", (Guid?)null), (entry.PresetSource, entry.PresetName, entry.VideoMediaId));
@@ -619,5 +638,221 @@ public class VisualisationsManagerPageTests : BunitContext
         var cut = Render<VisualisationsManagerPage>();
 
         Assert.Equal("Video not found", cut.Find(".kh-visualisations__entry-name").TextContent);
+    }
+
+    // --- held until Save ---
+
+    private const string Elsewhere = "http://localhost/settings/media-manager";
+
+    private NavigationManager Navigation => Services.GetRequiredService<NavigationManager>();
+
+    private Task<VisualisationPlaylist> StoredAsync(Guid id) => _playlists.ReadAllWithEntriesAsync()
+        .ContinueWith(all => all.Result.Single(p => p.Id == id));
+
+    private static bool IsDisabled(IRenderedComponent<VisualisationsManagerPage> cut, string selector)
+        => cut.Find(selector).HasAttribute("disabled");
+
+    /// <summary>Runs the answer the unsaved-changes dialog was handed, as the host clicking it would.</summary>
+    private Task AnswerAsync(IRenderedComponent<VisualisationsManagerPage> cut, bool save)
+    {
+        var call = _dialogs.ReceivedCalls().Last(c => c.GetMethodInfo().Name == nameof(IDialogService.ShowUnsavedChangesAsync));
+        return cut.InvokeAsync((Func<Task>)call.GetArguments()[save ? 0 : 1]!);
+    }
+
+    private Task AskedAsync(int times) => _dialogs.Received(times).ShowUnsavedChangesAsync(
+        Arg.Any<Func<Task>>(), Arg.Any<Func<Task>>(), Arg.Any<string?>(), Arg.Any<Action?>());
+
+    [Fact]
+    public async Task AnEdit_IsHeldUntilSave()
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+        cut.Find("#visualisation-shuffle").Change(true);
+        cut.Find("#visualisation-add-entry").Click();
+
+        var stored = await StoredAsync();
+        Assert.Equal(("New playlist", false), (stored.Name, stored.Shuffle));
+        Assert.Empty(stored.Entries);
+        Assert.Single(cut.FindAll(".kh-visualisations__unsaved"));
+        Assert.False(IsDisabled(cut, "#visualisation-save"));
+    }
+
+    [Fact]
+    public void NothingEdited_LeavesSaveAndRevertOff()
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+
+        Assert.True(IsDisabled(cut, "#visualisation-save"));
+        Assert.True(IsDisabled(cut, "#visualisation-revert"));
+        Assert.Empty(cut.FindAll(".kh-visualisations__unsaved"));
+    }
+
+    /// <summary>Compared with what is stored, rather than tracking that a field was touched.</summary>
+    [Fact]
+    public void EditingBackToWhatIsStored_IsNotAChange()
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+        cut.Find("#visualisation-playlist-name").Input("New playlist");
+
+        Assert.True(IsDisabled(cut, "#visualisation-save"));
+    }
+
+    [Fact]
+    public async Task Revert_PutsBackWhatIsStored()
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+        cut.Find("#visualisation-shuffle").Change(true);
+        cut.Find("#visualisation-add-entry").Click();
+
+        cut.Find("#visualisation-revert").Click();
+
+        Assert.False(cut.Find("#visualisation-shuffle").HasAttribute("checked"));
+        Assert.Empty(cut.FindAll(".kh-visualisations__entry"));
+        Assert.True(IsDisabled(cut, "#visualisation-save"));
+        Assert.False((await StoredAsync()).Shuffle);
+    }
+
+    [Fact]
+    public async Task ABlankName_CannotBeSaved()
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+
+        cut.Find("#visualisation-playlist-name").Input("   ");
+
+        Assert.True(IsDisabled(cut, "#visualisation-save"));
+        Assert.Equal("New playlist", (await StoredAsync()).Name);
+    }
+
+    [Fact]
+    public async Task SwitchingPlaylists_WithNoEdits_AsksNothing()
+    {
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Party" });
+        var cut = Render<VisualisationsManagerPage>();
+
+        cut.FindAll(".kh-visualisations__playlist").Single(r => r.TextContent.Contains("Party")).Click();
+
+        await AskedAsync(0);
+        Assert.Equal("Party", cut.Find("#visualisation-playlist-name").GetAttribute("value"));
+    }
+
+    [Fact]
+    public async Task SwitchingPlaylists_WithEdits_AsksAndStaysUntilAnswered()
+    {
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Party" });
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+
+        cut.FindAll(".kh-visualisations__playlist").Single(r => r.TextContent.Contains("Party")).Click();
+
+        await AskedAsync(1);
+        Assert.Equal("Late show", cut.Find("#visualisation-playlist-name").GetAttribute("value"));
+    }
+
+    [Fact]
+    public async Task SwitchingPlaylists_Discarding_OpensTheOtherAndSavesNothing()
+    {
+        var night = await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Party" });
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+        cut.FindAll(".kh-visualisations__playlist").Single(r => r.TextContent.Contains("Party")).Click();
+
+        await AnswerAsync(cut, save: false);
+
+        Assert.Equal("Party", cut.Find("#visualisation-playlist-name").GetAttribute("value"));
+        Assert.Equal("Night", (await StoredAsync(night.Id)).Name);
+    }
+
+    [Fact]
+    public async Task SwitchingPlaylists_Saving_WritesTheEditsThenOpensTheOther()
+    {
+        var night = await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Party" });
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+        cut.FindAll(".kh-visualisations__playlist").Single(r => r.TextContent.Contains("Party")).Click();
+
+        await AnswerAsync(cut, save: true);
+
+        Assert.Equal("Late show", (await StoredAsync(night.Id)).Name);
+        cut.WaitForAssertion(() => Assert.Equal("Party", cut.Find("#visualisation-playlist-name").GetAttribute("value")));
+    }
+
+    [Fact]
+    public async Task AddingAPlaylist_WithEdits_AsksFirst()
+    {
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+
+        cut.Find("#visualisation-add-playlist").Click();
+
+        await AskedAsync(1);
+        Assert.Single(await _playlists.ReadAllWithEntriesAsync());
+    }
+
+    [Fact]
+    public async Task Leaving_WithEdits_HoldsTheNavigationAndAsks()
+    {
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+
+        await cut.InvokeAsync(() => Navigation.NavigateTo(Elsewhere));
+
+        Assert.DoesNotContain("media-manager", Navigation.Uri);
+        await AskedAsync(1);
+    }
+
+    [Fact]
+    public async Task Leaving_Discarding_LeavesWithoutAskingAgain()
+    {
+        var night = await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+        await cut.InvokeAsync(() => Navigation.NavigateTo(Elsewhere));
+
+        await AnswerAsync(cut, save: false);
+
+        Assert.Equal(Elsewhere, Navigation.Uri);
+        await AskedAsync(1);
+        Assert.Equal("Night", (await StoredAsync(night.Id)).Name);
+    }
+
+    /// <summary>Another page saving a playlist, or this one importing a preset, re-reads the store;
+    /// that must not wipe what the host has not saved yet.</summary>
+    [Fact]
+    public async Task AChangeElsewhere_KeepsTheUnsavedDraft()
+    {
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-playlist-name").Input("Late show");
+
+        await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Party" });
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".kh-visualisations__playlist").Count));
+        Assert.Equal("Late show", cut.Find("#visualisation-playlist-name").GetAttribute("value"));
+        Assert.False(IsDisabled(cut, "#visualisation-save"));
+    }
+
+    [Fact]
+    public async Task AChangeElsewhere_WithNoEdits_ShowsTheStoredPlaylist()
+    {
+        var night = await _playlists.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+        var cut = Render<VisualisationsManagerPage>();
+
+        await _playlists.UpdateAsync(new VisualisationPlaylist { Id = night.Id, Name = "Renamed elsewhere" });
+
+        cut.WaitForAssertion(() => Assert.Equal("Renamed elsewhere", cut.Find("#visualisation-playlist-name").GetAttribute("value")));
     }
 }
