@@ -91,6 +91,7 @@ public sealed class FfmpegSongLevelsService(
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            CreateNoWindow = true,
         };
         foreach (var argument in SongLevels.BuildArguments(inputs)) start.ArgumentList.Add(argument);
 
