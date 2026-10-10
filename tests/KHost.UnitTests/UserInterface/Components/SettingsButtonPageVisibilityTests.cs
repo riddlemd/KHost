@@ -6,7 +6,9 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components;
@@ -38,6 +40,8 @@ public class SettingsButtonPageVisibilityTests : BunitContext
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IThemeService>());
+        Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        Services.AddSingleton(Substitute.For<IHostApplicationLifetime>());
         Services.AddSingleton<IMessageBroker>(_broker);
     }
 

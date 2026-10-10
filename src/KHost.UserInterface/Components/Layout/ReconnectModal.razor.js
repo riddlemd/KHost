@@ -8,6 +8,9 @@ const resumeButton = document.querySelector(".kh-reconnect__resume-btn");
 resumeButton.addEventListener("click", resume);
 
 function handleReconnectStateChanged(event) {
+    // Exit stopped the host on purpose (host-exit.js); a rejected state would otherwise reload the page.
+    if (document.documentElement.dataset.khStopped === "true") return;
+
     if (event.detail.state === "show") {
         reconnectModal.showModal();
     } else if (event.detail.state === "hide") {

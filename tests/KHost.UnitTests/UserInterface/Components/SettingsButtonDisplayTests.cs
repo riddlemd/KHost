@@ -7,7 +7,9 @@ using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -62,6 +64,8 @@ public class SettingsButtonDisplayTests : BunitContext
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(_flash);
         Services.AddSingleton(Substitute.For<IThemeService>());
+        Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        Services.AddSingleton(Substitute.For<IHostApplicationLifetime>());
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton<IEnumerable<IDisplayProvider>>(_ => _providers);
     }

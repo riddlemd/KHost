@@ -21,6 +21,7 @@
 @use 'components/panels/now-playing-panel';
 @use 'components/panels/song-controls';
 
+@use 'components/host-stopped';
 @use 'components/settings-menu';
 @use 'components/venue-settings';
 @use 'components/visualiser-preview';

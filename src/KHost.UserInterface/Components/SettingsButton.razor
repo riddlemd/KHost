@@ -64,6 +64,16 @@
                 </button>
             </form>
         }
+
+        @if (CanExit)
+        {
+            <div class="kh-dropdown__divider"></div>
+
+            <button class="kh-dropdown__item" type="button" @onclick="ExitAsync">
+                <span class="kh-dropdown__check"><Icon Name="power" /></span>
+                Exit
+            </button>
+        }
         @if (_openSection is not null)
         {
             <div class="kh-settings-menu__flyout" @ref="_flyoutRef">
