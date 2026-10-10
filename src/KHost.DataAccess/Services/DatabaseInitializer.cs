@@ -41,6 +41,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         await context.Database.MigrateAsync();
 
         await SweepStalledDownloadsAsync();
+        await ReconcileFileLifetimeAsync();
         await EnsureShippedVisualisationPlaylistsAsync();
 
         _logger.LogInformation("Database initialization complete");
@@ -60,13 +61,45 @@ internal class DatabaseInitializer : IDatabaseInitializer
         // so each row has to be attached and marked Modified explicitly.
         foreach (var media in stalled)
         {
-            media.Status = MediaStatus.Broken;
+            // A row its provider asked the host to keep waits to be fetched again rather than for a host to mend it.
+            media.Status = media.HasFileLifetime() && !File.Exists(media.FilePath) ? MediaStatus.NotDownloaded : MediaStatus.Broken;
             context.Update(media);
         }
 
         await context.SaveChangesAsync();
 
         _logger.LogWarning("Swept {Count} stalled download(s) left mid-download by an unclean shutdown to Broken", stalled.Count);
+    }
+
+    /// <summary>Squares a marked row's status with its file: a file gone while KHost was not looking
+    /// (a kill before the close pass, a hand delete) waits to be fetched again, and one put back is playable.</summary>
+    internal async Task ReconcileFileLifetimeAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var marked = await context.Media.Where(m => m.IsEphemeral || m.IsSingleUse).ToListAsync();
+        var moved = 0;
+
+        foreach (var media in marked)
+        {
+            var next = media.Status switch
+            {
+                MediaStatus.Ready when !File.Exists(media.FilePath) => MediaStatus.NotDownloaded,
+                MediaStatus.NotDownloaded when File.Exists(media.FilePath) => MediaStatus.Ready,
+                var same => same,
+            };
+
+            if (next == media.Status) continue;
+
+            media.Status = next;
+            context.Update(media);
+            moved++;
+        }
+
+        if (moved == 0) return;
+
+        await context.SaveChangesAsync();
+        _logger.LogInformation("Squared {Count} ephemeral or single-use row(s) with their files at startup", moved);
     }
 
     /// <summary>Puts either shipped playlist back if it is somehow gone. The migrations seed new

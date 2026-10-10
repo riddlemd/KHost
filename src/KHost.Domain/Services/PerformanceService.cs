@@ -1,3 +1,4 @@
+using KHost.Domain.Services.MediaLifetime;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
@@ -121,6 +122,14 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             return new EnqueueResult(EnqueueResultType.RefusedByProvider, Reason: refusal);
         }
 
+        // A song whose file the host removed is fetched again here, so the turn queues behind a
+        // download exactly as a fresh pick from its provider does.
+        if (await RefusedForItsMissingFileAsync(performance.MediaId) is { } missing)
+        {
+            Logger.LogInformation("Enqueue of media {MediaId} refused: {Reason}", performance.MediaId, missing);
+            return new EnqueueResult(EnqueueResultType.RefusedByProvider, Reason: missing);
+        }
+
         // Filled here, not by each of the five callers (two in plugins): a line each is what goes missing.
         // A caller with its own name to record (a remote nickname) has already set it; this leaves it.
         if (string.IsNullOrWhiteSpace(performance.SungAs))
@@ -159,6 +168,20 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         AnnounceChange();
 
         return new EnqueueResult(EnqueueResultType.Queued, performance);
+    }
+
+    /// <summary>Why a song whose file was removed cannot be queued, or null when it has its file or
+    /// its provider has started fetching it again.</summary>
+    private async Task<string?> RefusedForItsMissingFileAsync(Guid mediaId)
+    {
+        if (await _mediaService.ReadAsync(mediaId) is not { Status: MediaStatus.NotDownloaded } media)
+            return null;
+
+        if (_services.GetService<IMediaLifetimeService>() is { } lifetime && await lifetime.RefetchAsync(media))
+            return null;
+
+        var from = string.IsNullOrWhiteSpace(media.Source) ? "the plugin that made it" : media.Source;
+        return $"'{media.Title}' needs downloading again, and {from} cannot do it: it may need installing, enabling or updating.";
     }
 
     /// <summary>The reason a provider will not let this song play, or null when it will.</summary>
@@ -275,6 +298,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             await Repository.UpdateAsync(performance);
 
             Logger.LogInformation("Dequeued performance {PerformanceId} for singer {SingerId}", performanceId, singerId);
+
+            await RemoveSingleUseFileIfDoneAsync(performance.MediaId);
         }
         else
         {
@@ -282,6 +307,22 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         }
 
         AnnounceChange();
+    }
+
+    // A failure here costs only the cleanup; the turn has already moved into history.
+    private async Task RemoveSingleUseFileIfDoneAsync(Guid mediaId)
+    {
+        try
+        {
+            if (_services.GetService<IMediaLifetimeService>() is not { } lifetime) return;
+
+            var queued = (await ReadQueuedAsync()).Select(p => p.MediaId).ToHashSet();
+            await lifetime.RemoveSingleUseFileIfDoneAsync(mediaId, queued);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not remove the file of single-use media {MediaId}", mediaId);
+        }
     }
 
     public async Task<Performance?> UpdateSettingsAsync(Guid performanceId, PerformanceSettings settings)

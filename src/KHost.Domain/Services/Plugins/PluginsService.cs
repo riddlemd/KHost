@@ -13,13 +13,15 @@ public class PluginsService : BaseService, IPluginsService
     private readonly IMessageBroker _broker;
     private readonly ICacheService _cache;
     private readonly IPluginRegistry _registry;
+    private readonly PluginSettingsConfiguration _settings;
 
-    public PluginsService(ILogger<PluginsService> logger, ICacheService cache, IPluginRegistry registry, IMessageBroker broker)
+    public PluginsService(ILogger<PluginsService> logger, ICacheService cache, IPluginRegistry registry, IMessageBroker broker, PluginSettingsConfiguration settings)
         : base(logger)
     {
         _broker = broker;
         _cache = cache;
         _registry = registry;
+        _settings = settings;
     }
 
     public IReadOnlyList<DiscoveredPlugin> Plugins => _registry.Plugins;
@@ -55,15 +57,18 @@ public class PluginsService : BaseService, IPluginsService
 
     public async Task SaveSettingsAsync(string pluginId, Dictionary<string, JsonElement> values)
     {
-        await MutateStateAsync(state => state.Settings[pluginId] = values);
+        // No restart: the plugin reads its settings through an IOptionsMonitor this reload moves.
+        await MutateStateAsync(state => state.Settings[pluginId] = values, restart: false);
 
-        Logger.LogInformation("Settings saved for plugin '{PluginId}'; restart required", pluginId);
+        _settings.SetSaved(pluginId, values);
+
+        Logger.LogInformation("Settings saved for plugin '{PluginId}'", pluginId);
     }
 
     private async Task<PluginsState> LoadStateAsync()
         => await _cache.LoadAsync<PluginsState>(PluginsState.CacheKey) ?? new PluginsState();
 
-    private async Task MutateStateAsync(Action<PluginsState> mutate)
+    private async Task MutateStateAsync(Action<PluginsState> mutate, bool restart = true)
     {
         await _lock.WaitAsync();
 
@@ -75,7 +80,7 @@ public class PluginsService : BaseService, IPluginsService
 
             await _cache.SaveAsync(PluginsState.CacheKey, state);
 
-            RestartRequired = true;
+            RestartRequired |= restart;
         }
         finally
         {

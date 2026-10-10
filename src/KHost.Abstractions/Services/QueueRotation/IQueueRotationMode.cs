@@ -1,3 +1,4 @@
+using KHost.Abstractions.Services;
 namespace KHost.Abstractions.Services.QueueRotation;
 
 /// <summary>A selectable rotation mode; plugins add modes, resolved by the venue's configured Id.</summary>
@@ -11,6 +12,7 @@ namespace KHost.Abstractions.Services.QueueRotation;
 /// <para>A venue whose stored id matches no loaded mode, such as one whose plugin was removed,
 /// rotates with the built-in <c>fifo</c> mode instead.</para>
 /// </remarks>
+[PluginExtensionPoint("Queue rotation", Order = 2)]
 public interface IQueueRotationMode : IQueueRotationStrategy
 {
     /// <summary>Stable machine id (e.g. "fifo"); an id already taken by the host or a plugin wins.</summary>

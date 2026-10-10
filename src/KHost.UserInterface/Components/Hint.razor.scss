@@ -1,0 +1,51 @@
+// The text sits above what it explains and never takes layout space, so a hint added to a row
+// moves nothing around it.
+.kh-hint {
+    position: relative;
+    display: inline-flex;
+    cursor: help;
+
+    &:focus-visible {
+        outline: 2px solid var(--kh-success);
+        outline-offset: 2px;
+        border-radius: var(--kh-radius);
+    }
+
+    &:hover .kh-hint__text,
+    &:focus-visible .kh-hint__text {
+        visibility: visible;
+        opacity: 1;
+    }
+}
+
+.kh-hint__text {
+    position: absolute;
+    z-index: 20;
+    left: 0;
+    bottom: calc(100% + 8px);
+    width: max-content;
+    max-width: 18rem;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--kh-border-bright);
+    border-radius: var(--kh-radius);
+    background: var(--kh-bg-elevated);
+    color: var(--kh-text);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.45;
+    white-space: normal;
+    text-align: left;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+
+    &--open {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        transition: opacity var(--kh-transition), visibility var(--kh-transition);
+    }
+}

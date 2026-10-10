@@ -1,6 +1,7 @@
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Displays.LocalScreen;
+using KHost.Domain.Services.MediaLifetime;
 using KHost.IPC.SignalR.Contracts;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -96,6 +97,20 @@ internal static class HostLifetime
             catch (Exception ex)
             {
                 Log.Warning(ex, "Could not close active media streams while shutting down");
+            }
+
+            // After the streams close, so no encode still holds a file open while it is deleted.
+            try
+            {
+                // After the queue clear above, so only a venue that keeps its queue leaves turns to spare.
+                var queued = app.Services.GetRequiredService<IPerformanceService>().ReadQueuedAsync().GetAwaiter().GetResult()
+                    .Select(p => p.MediaId).ToHashSet();
+
+                app.Services.GetRequiredService<IMediaLifetimeService>().RemoveFilesOnCloseAsync(queued).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not remove ephemeral or single-use media files while shutting down");
             }
         });
 

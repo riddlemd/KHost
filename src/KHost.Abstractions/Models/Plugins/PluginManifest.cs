@@ -32,8 +32,8 @@ public class PluginManifest
     /// <summary>A Bootstrap Icons glyph, or <see cref="PluginIcon.ImageSpecifier"/> for its image.</summary>
     public string? Icon { get; set; }
 
-    /// <summary>Settings the host prompts for on the Plugins page and hands back through
-    /// <see cref="Services.IPluginContext"/>.</summary>
+    /// <summary>Settings the host prompts for on the Plugins page and hands back as the options of the
+    /// class the plugin names with <see cref="Services.IPlugin{TSettings}"/>.</summary>
     public List<PluginSettingDefinition> Settings { get; set; } = [];
 
     /// <summary>Buttons the host draws, run through <see cref="Services.IPluginButtonHandler"/>.</summary>

@@ -70,7 +70,7 @@ public class PluginInitializerTests
 
         var discovered = new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };
 
-        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered, new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance), Substitute.For<IFlashService>(), NullLogger<PluginContext>.Instance));
+        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, discovered, new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance), Substitute.For<IFlashService>(), NullLogger<PluginContext>.Instance));
     }
 
     private sealed class SpyPlugin : IPlugin

@@ -146,6 +146,57 @@ public class TimedLyricsServiceTests
         Assert.NotNull(lyrics!.Pages[0].Lines[0].LeadIn);
     }
 
+    /// <summary>Both the screen and the burn-in read through here, so one offset moves both.</summary>
+    [Fact]
+    public async Task GetTimedLyricsAsync_AnOffset_MovesTheWordsByIt()
+    {
+        _options.LyricsOffsetMilliseconds = -250;
+
+        var lyrics = await Service(Provider(claims: true, answer: AfterASilence())).GetTimedLyricsAsync(SourceFile);
+
+        var before = AfterASilence();
+        Assert.Equal(before.Pages[0].ShowFromSeconds - 0.25, lyrics!.Pages[0].ShowFromSeconds, 9);
+        Assert.Equal(
+            before.Pages[0].Lines[0].Syllables[0].StartSeconds - 0.25,
+            lyrics.Pages[0].Lines[0].Syllables[0].StartSeconds, 9);
+    }
+
+    /// <summary>A lead-in the host adds leads into the words where they will be sung, so it moves too.</summary>
+    [Fact]
+    public async Task GetTimedLyricsAsync_AnOffsetWithDynamicLeadIns_MovesTheAddedLeadInWithTheWords()
+    {
+        _options.DynamicLeadIns = true;
+        var bare = SomeLyrics() with
+        {
+            Pages =
+            [
+                new LyricPage
+                {
+                    ShowFromSeconds = 10,
+                    ShowUntilSeconds = 20,
+                    Lines = [new LyricLine { Position = new LyricBox(100, 100, 400, 50), Syllables = [new LyricSyllable(15, 16, "la")] }],
+                },
+            ],
+        };
+        var unshifted = (await Service(Provider(claims: true, answer: bare)).GetTimedLyricsAsync(SourceFile))!
+            .Pages[0].Lines[0].LeadIn!.StartSeconds;
+
+        _options.LyricsOffsetMilliseconds = 500;
+        var shifted = await Service(Provider(claims: true, answer: bare)).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Equal(unshifted + 0.5, shifted!.Pages[0].Lines[0].LeadIn!.StartSeconds, 9);
+    }
+
+    [Fact]
+    public async Task GetTimedLyricsAsync_AnOffsetPastTheMaximum_MovesTheWordsByTheMaximum()
+    {
+        _options.LyricsOffsetMilliseconds = 9000;
+
+        var lyrics = await Service(Provider(claims: true, answer: AfterASilence())).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Equal(AfterASilence().Pages[0].ShowFromSeconds + 2, lyrics!.Pages[0].ShowFromSeconds, 9);
+    }
+
     [Fact]
     public async Task GetTimedLyricsAsync_Off_PassesTheProvidersLyricsThroughUntouched()
     {
@@ -346,7 +397,7 @@ public class TimedLyricsServiceTests
         await Task.Delay(150);
     }
 
-    public static TheoryData<string> Adjustments => ["ColorBlind", "LeadIns", "Pause"];
+    public static TheoryData<string> Adjustments => ["ColorBlind", "LeadIns", "Pause", "Offset"];
 
     [Theory]
     [MemberData(nameof(Adjustments))]
@@ -368,6 +419,7 @@ public class TimedLyricsServiceTests
             ColorBlindFriendlyLyrics = which == "ColorBlind",
             DynamicLeadIns = which is "LeadIns" or "Pause",
             DynamicLeadInPauseSeconds = which == "Pause" ? 5 : LeadInGenerator.DefaultLongPauseSeconds,
+            LyricsOffsetMilliseconds = which == "Offset" ? -120 : 0,
         };
 
         // A file watcher raises a save more than once.

@@ -17,6 +17,12 @@ public enum MediaStatus
 
     /// <summary>Cannot be played, and won't become playable without a host fixing or re-importing it.</summary>
     Broken,
+
+    /// <summary>The row is kept but its file is not on disk; the provider that made it fetches it
+    /// again when it is next queued.</summary>
+    /// <remarks>Only a row marked <see cref="Media.IsEphemeral"/> or <see cref="Media.IsSingleUse"/>
+    /// reaches this, and only the host moves a row into it.</remarks>
+    NotDownloaded = 5,
 }
 
 /// <summary>What the file is, not what it is for; an ad is composed in a playlist out of these.</summary>
@@ -101,6 +107,21 @@ public class Media : RepositoryModel
     /// computes and keeps this current, so a plugin should treat it as read-only. Null unless a
     /// <see cref="SampledHash"/> match needed confirming.</summary>
     public string? ContentHash { get; set; }
+
+    /// <summary>The providing plugin's own name for this file, such as a video id; empty when it gave none.</summary>
+    /// <remarks>Set at import and handed back to the provider when the file has to be fetched again.</remarks>
+    public string SourceKey { get; set; } = string.Empty;
+
+    /// <summary>Whether the host deletes the file when it closes, keeping the row as
+    /// <see cref="MediaStatus.NotDownloaded"/>.</summary>
+    /// <remarks>Set only by the provider that imported the file; a scanned file never has it.</remarks>
+    public bool IsEphemeral { get; set; }
+
+    /// <summary>Whether the host deletes the file once a performance of it has been sung and no
+    /// queued turn still waits on it, and in any case when it closes, keeping the row as
+    /// <see cref="MediaStatus.NotDownloaded"/>.</summary>
+    /// <remarks>Set only by the provider that imported the file; a scanned file never has it.</remarks>
+    public bool IsSingleUse { get; set; }
 
     /// <summary>When this row was added to the library, UTC.</summary>
     public DateTime DateAdded { get; set; } = DateTime.UtcNow;

@@ -21,6 +21,7 @@ namespace KHost.Abstractions.Services;
 /// a renderer whose format is stems answers with them for every target.
 /// The plugin's object is one singleton shared across every extension interface it implements, and
 /// is called from any thread.</para></remarks>
+[PluginExtensionPoint]
 public interface IMediaRenderer
 {
     /// <summary>Whether this renderer owns that file.</summary>

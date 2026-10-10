@@ -187,6 +187,99 @@ public class DatabaseInitializerTests
         finally { Delete(dbPath); }
     }
 
+    // ── rows a provider marked ephemeral or single-use ─────────────────────────────────
+
+    private static string FileThat(bool exists)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"khost-lifetime-{Guid.NewGuid():N}.mp4");
+        if (exists) File.WriteAllBytes(path, [1]);
+        return path;
+    }
+
+    private static void SeedMarked(IDbContextFactory<DefaultContext> factory, string filePath, MediaStatus status, bool ephemeral = true, bool singleUse = false)
+    {
+        using var context = factory.CreateDbContext();
+        context.Media.Add(new Media { FilePath = filePath, Title = filePath, Status = status, IsEphemeral = ephemeral, IsSingleUse = singleUse });
+        context.SaveChanges();
+    }
+
+    private static MediaStatus StatusOf(IDbContextFactory<DefaultContext> factory, string filePath)
+    {
+        using var context = factory.CreateDbContext();
+        return context.Media.Single(m => m.FilePath == filePath).Status;
+    }
+
+    /// <summary>A refetch cut short by a crash leaves no file: it waits to be fetched again, not for a host to mend it.</summary>
+    [Theory]
+    [InlineData(true, false, false, MediaStatus.NotDownloaded)]
+    [InlineData(false, true, false, MediaStatus.NotDownloaded)]
+    [InlineData(true, false, true, MediaStatus.Broken)]
+    [InlineData(false, false, false, MediaStatus.Broken)]
+    public async Task SweepStalledDownloadsAsync_AMarkedRowWithNoFile_WaitsToBeFetchedAgain(bool ephemeral, bool singleUse, bool fileThere, MediaStatus expected)
+    {
+        var (factory, dbPath) = NewDatabase();
+        var file = FileThat(fileThere);
+        try
+        {
+            SeedMarked(factory, file, MediaStatus.Downloading, ephemeral, singleUse);
+
+            await CreateSut(factory).SweepStalledDownloadsAsync();
+
+            Assert.Equal(expected, StatusOf(factory, file));
+        }
+        finally { Delete(dbPath); Delete(file); }
+    }
+
+    /// <summary>A kill before the close pass, or a hand delete, leaves a Ready row with no file.</summary>
+    [Fact]
+    public async Task ReconcileFileLifetimeAsync_AMarkedReadyRowWhoseFileIsGone_WaitsToBeFetchedAgain()
+    {
+        var (factory, dbPath) = NewDatabase();
+        var file = FileThat(exists: false);
+        try
+        {
+            SeedMarked(factory, file, MediaStatus.Ready);
+
+            await CreateSut(factory).ReconcileFileLifetimeAsync();
+
+            Assert.Equal(MediaStatus.NotDownloaded, StatusOf(factory, file));
+        }
+        finally { Delete(dbPath); }
+    }
+
+    [Fact]
+    public async Task ReconcileFileLifetimeAsync_AWaitingRowWhoseFileIsBack_IsReady()
+    {
+        var (factory, dbPath) = NewDatabase();
+        var file = FileThat(exists: true);
+        try
+        {
+            SeedMarked(factory, file, MediaStatus.NotDownloaded, ephemeral: false, singleUse: true);
+
+            await CreateSut(factory).ReconcileFileLifetimeAsync();
+
+            Assert.Equal(MediaStatus.Ready, StatusOf(factory, file));
+        }
+        finally { Delete(dbPath); Delete(file); }
+    }
+
+    /// <summary>An unmarked row is the host's own; a missing file there is a Broken it should see, not a download.</summary>
+    [Fact]
+    public async Task ReconcileFileLifetimeAsync_AnUnmarkedRowWhoseFileIsGone_IsLeftAlone()
+    {
+        var (factory, dbPath) = NewDatabase();
+        var file = FileThat(exists: false);
+        try
+        {
+            SeedMarked(factory, file, MediaStatus.Ready, ephemeral: false);
+
+            await CreateSut(factory).ReconcileFileLifetimeAsync();
+
+            Assert.Equal(MediaStatus.Ready, StatusOf(factory, file));
+        }
+        finally { Delete(dbPath); }
+    }
+
     private static void SeedMedia(IDbContextFactory<DefaultContext> factory, params (string FilePath, MediaStatus Status)[] rows)
     {
         using var context = factory.CreateDbContext();

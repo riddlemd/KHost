@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
@@ -15,6 +16,7 @@ public class PluginsServiceTests
     private readonly ICacheService _cache = Substitute.For<ICacheService>();
     private readonly IPluginRegistry _registry = Substitute.For<IPluginRegistry>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly PluginSettingsConfiguration _settings = new();
     private readonly PluginsService _service;
 
     private PluginsState? _savedState;
@@ -25,7 +27,7 @@ public class PluginsServiceTests
         _cache.SaveAsync(PluginsState.CacheKey, Arg.Do<PluginsState>(s => _savedState = s))
             .Returns(Task.CompletedTask);
 
-        _service = new PluginsService(_logger, _cache, _registry, _broker);
+        _service = new PluginsService(_logger, _cache, _registry, _broker, _settings);
     }
 
     [Fact]
@@ -85,6 +87,41 @@ public class PluginsServiceTests
         await _service.SaveSettingsAsync("khost.youtube", values);
 
         Assert.Equal("abc", _savedState!.Settings["khost.youtube"]["apiKey"].GetString());
+    }
+
+    // ── settings that apply without a restart ──────────────────────────────────────────
+
+    private const string PluginId = "00700000-0000-4000-8000-000000000799";
+
+    /// <summary>A plugin reads its settings through options this save moves, so nothing waits on a restart.</summary>
+    [Fact]
+    public async Task SaveSettingsAsync_NeverAsksForARestart()
+    {
+        await _service.SaveSettingsAsync(PluginId, new() { ["a"] = JsonSerializer.SerializeToElement(1) });
+
+        Assert.False(_service.RestartRequired);
+    }
+
+    /// <summary>The configuration is what the running plugin's options bind from, so this is what makes a save reach it.</summary>
+    [Fact]
+    public async Task SaveSettingsAsync_PutsTheValuesWhereTheRunningPluginsOptionsBindFrom()
+    {
+        var configuration = new ConfigurationBuilder().Add(_settings).Build();
+
+        await _service.SaveSettingsAsync(PluginId, new() { ["a"] = JsonSerializer.SerializeToElement(7) });
+
+        Assert.Equal("7", configuration[$"{PluginSettingsConfiguration.SectionFor(PluginId)}:a"]);
+    }
+
+    /// <summary>A restart a plugin enable asked for is still owed after a settings save.</summary>
+    [Fact]
+    public async Task SaveSettingsAsync_AfterAnEnable_KeepsTheRestartOwed()
+    {
+        await _service.SetEnabledAsync(PluginId, true);
+
+        await _service.SaveSettingsAsync(PluginId, new() { ["a"] = JsonSerializer.SerializeToElement(1) });
+
+        Assert.True(_service.RestartRequired);
     }
 
     [Fact]

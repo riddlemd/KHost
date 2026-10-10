@@ -20,6 +20,7 @@ public sealed record PluginButtonState
 /// and the host reaches it by plugin id. The plugin's object is one singleton shared across every
 /// extension interface it implements, so a sign-in button and the search it unlocks see the same
 /// session. Called from any thread.</remarks>
+[PluginExtensionPoint]
 public interface IPluginButtonHandler
 {
     /// <summary>Runs the button's action. An unknown key is a no-op.</summary>

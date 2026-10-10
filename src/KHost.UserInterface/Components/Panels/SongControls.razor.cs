@@ -28,8 +28,8 @@ public partial class SongControls : IDisposable
 
     /// <summary>Says so on the closed trigger, or a transposed song is invisible until it plays.</summary>
     private string TriggerTitle => IsChanged
-        ? $"Key {SongAdjustmentDisplay.FormatPitch(_values.Pitch)}, tempo {SongAdjustmentDisplay.FormatTempo(_values.Tempo)}"
-        : "Key and tempo";
+        ? $"Performance Settings: key {SongAdjustmentDisplay.FormatPitch(_values.Pitch)}, tempo {SongAdjustmentDisplay.FormatTempo(_values.Tempo)}"
+        : "Performance Settings";
 
     protected override void OnInitialized()
     {

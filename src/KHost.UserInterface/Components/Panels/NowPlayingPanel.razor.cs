@@ -37,6 +37,7 @@ public partial class NowPlayingPanel : IDisposable
     // Read once per song and kept: the playhead redraws twice a second, and asking the provider
     // on each of those would reopen the song's container every time.
     private Guid? _lanesMediaId;
+    private bool _hasTimedLyrics;
     private IReadOnlyList<LyricLane> _lanes = [];
     private LyricLane? _oneLane;
 
@@ -171,6 +172,7 @@ public partial class NowPlayingPanel : IDisposable
             _lanesMediaId = media?.Id;
             _lanes = [];
             _oneLane = null;
+            _hasTimedLyrics = false;
         }
 
         if (media is null) return;
@@ -181,7 +183,16 @@ public partial class NowPlayingPanel : IDisposable
         catch (Exception) { return; }
 
         // A newer song may have started while this one was being read.
-        if (lyrics is null || _lanesMediaId != media.Id) return;
+        if (_lanesMediaId != media.Id) return;
+
+        // The offset moves only words KHost draws; a CD+G or a video carries its own in the picture.
+        _hasTimedLyrics = lyrics is not null;
+
+        if (lyrics is null)
+        {
+            StateHasChanged();
+            return;
+        }
 
         _lanes = LyricLanes.SungSpansByVoice(lyrics);
         _oneLane = LyricLanes.SungSpansAsOneLane(lyrics);

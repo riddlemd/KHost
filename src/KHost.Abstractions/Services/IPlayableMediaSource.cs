@@ -18,6 +18,7 @@ namespace KHost.Abstractions.Services;
 /// host opens an encode, the first source to claim a file and return a path wins. The plugin's
 /// object is one singleton shared across every extension interface it implements, and is called
 /// from any thread.</para></remarks>
+[PluginExtensionPoint]
 public interface IPlayableMediaSource
 {
     /// <summary>Whether this source has something to do with that file. Answered from the path

@@ -21,6 +21,8 @@ public partial class EditMediaDialog
     private EditMediaModel _model = new();
     private EditContext _editContext = default!;
 
+    private bool IsNotDownloaded => _model.Status == MediaStatus.NotDownloaded;
+
     // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
     // runs exactly once with Media already bound.
     protected override void OnInitialized()

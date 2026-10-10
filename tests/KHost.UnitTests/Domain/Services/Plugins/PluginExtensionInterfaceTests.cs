@@ -4,9 +4,9 @@ using KHost.UnitTests.Conventions;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
-/// <summary>The loader binds a plugin's interfaces from a hand-written list, and leaving one off is
+/// <summary>The loader binds the interfaces marked <c>[PluginExtensionPoint]</c>, and a missing mark is
 /// silent: the plugin loads, the interface is never bound, and the host behaves as though nothing
-/// implemented it. That is how <c>IMediaProbe</c> shipped implemented, tested and unreachable.
+/// implemented it. That is how <c>IMediaProbe</c> once shipped implemented, tested and unreachable.
 /// </summary>
 public class PluginExtensionInterfaceTests
 {
@@ -32,7 +32,21 @@ public class PluginExtensionInterfaceTests
 
         Assert.True(
             missing.Count == 0,
-            $"Not bound by PluginLoader.ExtensionInterfaces, so no plugin can ever supply one: {string.Join(", ", missing)}");
+            $"Not marked [PluginExtensionPoint], so no plugin can ever supply one: {string.Join(", ", missing)}");
+    }
+
+    /// <summary>Pinned, so a mark removed by accident, or one put on a host service a plugin must not
+    /// register over, fails here rather than in a running host.</summary>
+    [Fact]
+    public void TheMarkedExtensionPoints_AreExactlyThese()
+    {
+        Assert.Equal(
+            [
+                "IBreakMusicProvider", "IDisplayProvider", "IMediaPlaybackGate", "IMediaProbe", "IMediaProvider",
+                "IMediaRefetcher", "IMediaRenderer", "IPlayableMediaSource", "IPluginButtonHandler",
+                "IQueueRotationMode", "ITimedLyricsProvider",
+            ],
+            PluginLoader.ExtensionInterfaces.Select(type => type.Name).Order());
     }
 
     /// <summary>Guards the guard: a scan that matches nothing would pass the test above forever.

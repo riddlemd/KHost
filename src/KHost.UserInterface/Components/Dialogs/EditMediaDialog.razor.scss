@@ -11,4 +11,32 @@
         justify-content: space-between;
         gap: 1rem;
     }
+
+    // Struck, not hidden: the path is still where the file comes back to.
+    &__path--gone {
+        color: var(--kh-text-muted);
+        text-decoration: line-through;
+    }
+
+    &__path-note {
+        margin-top: 0.35rem;
+    }
+
+    &__tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    &__tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.1rem 0.55rem;
+        border: 1px solid var(--kh-border-bright);
+        border-radius: var(--kh-radius);
+        background: var(--kh-bg-elevated);
+        color: var(--kh-text);
+        font-size: 0.8rem;
+    }
 }

@@ -138,6 +138,20 @@ public class SongControlsTests : BunitContext
         }
     }
 
+    /// <summary>Named for everything the panel holds, not only key and tempo, and still says what moved.</summary>
+    [Theory]
+    [InlineData(0, 0, "Performance Settings")]
+    [InlineData(2, 0, "Performance Settings: key +2, tempo 0%")]
+    public void Trigger_IsTitledPerformanceSettings_WithWhatMoved(int pitch, int tempo, string title)
+    {
+        _playback.Pitch.Returns(pitch);
+        _playback.Tempo.Returns(tempo);
+
+        var cut = Render<SongControls>();
+
+        Assert.Equal(title, cut.Find(".kh-song-controls__trigger").GetAttribute("title"));
+    }
+
     [Fact]
     public void Track_PaintsNothingAtRest()
     {

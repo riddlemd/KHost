@@ -29,5 +29,6 @@ public interface IPluginsService
     Task<Dictionary<string, JsonElement>> ReadSettingsAsync(string pluginId);
 
     /// <summary>Replaces a plugin's saved settings with <paramref name="values"/>.</summary>
+    /// <remarks>Reaches the running plugin's options at once; never sets <see cref="RestartRequired"/>.</remarks>
     Task SaveSettingsAsync(string pluginId, Dictionary<string, JsonElement> values);
 }

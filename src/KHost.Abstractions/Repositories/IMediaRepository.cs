@@ -61,4 +61,8 @@ public interface IMediaRepository : IRepository<Media>
 
     /// <summary>Persists size and hashes only, leaving every other column on the row untouched.</summary>
     Task UpdateFingerprintsAsync(IEnumerable<Media> media);
+
+    /// <summary>Rows a provider marked <see cref="Media.IsEphemeral"/> or <see cref="Media.IsSingleUse"/>,
+    /// of any status.</summary>
+    Task<IReadOnlyList<Media>> ReadWithFileLifetimeAsync();
 }

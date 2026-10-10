@@ -4,6 +4,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Common.Media;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -15,6 +16,10 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
     private readonly IMediaService _mediaService;
     private readonly IOptionsMonitor<ServiceOptions> _options;
     private readonly IDownloadsService _downloadsService;
+
+    // Rows whose file is being fetched again: they already have history, so a cancel puts them back
+    // to NotDownloaded instead of deleting them as it does a first download.
+    private readonly ConcurrentDictionary<Guid, byte> _refetching = new();
 
     public MediaAcquisitionService(
         ILogger<MediaAcquisitionService> logger,
@@ -48,7 +53,16 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
     {
         var existing = await _repository.FindByFilePathAsync(request.FilePath);
         if (existing is not null)
+        {
+            // The file is back where the row expects it, so the row is playable again.
+            if (existing.Status == MediaStatus.NotDownloaded && File.Exists(existing.FilePath))
+            {
+                existing.Status = MediaStatus.Ready;
+                await _mediaService.UpdateAsync(existing);
+            }
+
             return existing.Id;
+        }
 
         var created = await _mediaService.CreateAsync(new Media
         {
@@ -59,6 +73,9 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
             Notes = request.Notes,
             Format = Path.GetExtension(request.FilePath).TrimStart('.').ToUpperInvariant(),
             Source = request.Source,
+            SourceKey = request.SourceKey,
+            IsEphemeral = request.IsEphemeral,
+            IsSingleUse = request.IsSingleUse,
             Status = MediaStatus.Ready,
             DateAdded = DateTime.UtcNow,
         });
@@ -70,7 +87,13 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
     {
         var existing = await _repository.FindByFilePathAsync(request.FilePath);
         if (existing is not null)
+        {
+            // A provider fetching a removed file through its usual path gets the same row back, in flight.
+            if (existing.Status == MediaStatus.NotDownloaded)
+                return await BeginRefetchAsync(existing);
+
             return new ImportTicket { MediaId = existing.Id, Cancellation = TokenFor(existing, request) };
+        }
 
         var created = await _mediaService.CreateAsync(new Media
         {
@@ -81,6 +104,9 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
             Notes = request.Notes,
             Format = Path.GetExtension(request.FilePath).TrimStart('.').ToUpperInvariant(),
             Source = request.Source,
+            SourceKey = request.SourceKey,
+            IsEphemeral = request.IsEphemeral,
+            IsSingleUse = request.IsSingleUse,
             Status = MediaStatus.Downloading,
             DateAdded = DateTime.UtcNow,
         });
@@ -88,6 +114,25 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
         var token = _downloadsService.Register(created.Id, request.Title, request.Artist, request.Source);
 
         return new ImportTicket { MediaId = created.Id, Cancellation = token };
+    }
+
+    /// <summary>Moves a row whose file was removed back into Downloading, with its Downloads entry, so
+    /// its provider can fetch it again and settle it as for any import.</summary>
+    /// <remarks>Only a <see cref="MediaStatus.NotDownloaded"/> row moves; any other gets the ticket
+    /// <see cref="BeginImportAsync"/> would hand it.</remarks>
+    internal async Task<ImportTicket> BeginRefetchAsync(Media media)
+    {
+        if (media.Status != MediaStatus.NotDownloaded)
+            return new ImportTicket { MediaId = media.Id, Cancellation = media.Status.IsAcquiring()
+                ? _downloadsService.TokenForInFlight(media.Id, media.Title, media.Artist, media.Source)
+                : CancellationToken.None };
+
+        media.Status = MediaStatus.Downloading;
+        _refetching[media.Id] = 0;
+        var token = _downloadsService.Register(media.Id, media.Title, media.Artist, media.Source);
+        await _mediaService.UpdateAsync(media);
+
+        return new ImportTicket { MediaId = media.Id, Cancellation = token };
     }
 
     public Task ReportDownloadProgressAsync(Guid mediaId, double fraction)
@@ -139,9 +184,18 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 
         var media = await _mediaService.ReadAsync(mediaId);
 
+        var refetch = _refetching.TryRemove(mediaId, out _);
+
         // Ready and Broken rows are never deleted here. Only one still in flight, in either phase, is.
         if (media is null || !media.Status.IsAcquiring())
             return;
+
+        if (refetch && !File.Exists(media.FilePath))
+        {
+            media.Status = MediaStatus.NotDownloaded;
+            await _mediaService.UpdateAsync(media);
+            return;
+        }
 
         // The file is what the status stood in for, and the host can just look. A row whose file
         // outlived the cancel stays, since deleting it would leave an orphan the scan would reimport.
@@ -170,7 +224,13 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
             return;
         }
 
-        media.Status = status;
+        _refetching.TryRemove(mediaId, out _);
+
+        // A row the host keeps for its provider to fetch again is retried on its next queue rather
+        // than left Broken, which only a host could undo.
+        media.Status = status == MediaStatus.Broken && media.HasFileLifetime() && !File.Exists(media.FilePath)
+            ? MediaStatus.NotDownloaded
+            : status;
 
         // BaseRepositoryService.UpdateAsync announces the change itself.
         await _mediaService.UpdateAsync(media);

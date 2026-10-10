@@ -1,0 +1,5 @@
+<span class="kh-hint @Class" tabindex="0" aria-describedby="@_id"
+      @onclick="Toggle" @onfocusout="Close">
+    @ChildContent
+    <span class="kh-hint__text @(_open ? "kh-hint__text--open" : "")" role="tooltip" id="@_id">@Text</span>
+</span>

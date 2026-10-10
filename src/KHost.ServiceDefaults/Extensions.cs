@@ -1,9 +1,11 @@
+using System.Net;
 using KHost.Telemetry;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -26,7 +28,11 @@ public static class Extensions
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
-            http.AddStandardResilienceHandler();
+            // Every client, plugins' included, decompresses as a hand-built HttpClient was set to.
+            http.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All });
+
+            // A retried POST can replay a sign-in or anything else with side effects; only safe methods are retried.
+            http.AddStandardResilienceHandler(options => options.Retry.DisableForUnsafeHttpMethods());
 
             http.AddServiceDiscovery();
         });

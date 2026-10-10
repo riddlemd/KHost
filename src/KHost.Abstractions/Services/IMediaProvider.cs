@@ -13,6 +13,7 @@ namespace KHost.Abstractions.Services;
 ///
 /// <para>The plugin's object is one singleton shared across every extension interface it
 /// implements, and is called from any thread.</para></remarks>
+[PluginExtensionPoint("Media provider", Order = 1)]
 public interface IMediaProvider
 {
     /// <summary>What the console calls this source.</summary>

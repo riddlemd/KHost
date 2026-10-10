@@ -116,6 +116,15 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<Media>> ReadWithFileLifetimeAsync()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        return await context.Media
+            .Where(m => m.IsEphemeral || m.IsSingleUse)
+            .ToListAsync();
+    }
+
     public async Task<IReadOnlyList<Media>> GetWithoutFileSizeAsync()
     {
         using var context = await ContextFactory.CreateDbContextAsync();
