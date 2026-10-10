@@ -73,6 +73,7 @@ public sealed class FfmpegVideoBackdropEncoder(ILogger<FfmpegVideoBackdropEncode
         {
             UseShellExecute = false,
             RedirectStandardError = true,
+            CreateNoWindow = true,
         };
         foreach (var argument in BuildArguments(source, output)) start.ArgumentList.Add(argument);
 
