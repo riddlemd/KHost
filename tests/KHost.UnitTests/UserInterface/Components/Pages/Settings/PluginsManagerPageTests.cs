@@ -813,8 +813,13 @@ public class PluginsManagerPageTests : BunitContext
     };
 
     private static PluginSettingDefinition Setting(
-        string key, PluginSettingType type, string label, bool secret = false, string? section = null)
-        => new() { Key = key, Type = type, Label = label, Secret = secret, Section = section };
+        string key, PluginSettingType type, string label, bool secret = false, string? section = null,
+        string? description = null, bool optional = false)
+        => new()
+        {
+            Key = key, Type = type, Label = label, Secret = secret, Section = section,
+            Description = description, Optional = optional,
+        };
 
     private static JsonElement Json<T>(T value) => JsonSerializer.SerializeToElement(value);
 
@@ -905,6 +910,69 @@ public class PluginsManagerPageTests : BunitContext
 
         Assert.Empty(cut.FindAll(SectionSelector));
         Assert.Single(cut.FindAll(SettingInputSelector));
+    }
+
+    // ── descriptions and optional settings ─────────────────────────────────────────────
+
+    /// <summary>The note sits under the control it explains, not in the label, so a long
+    /// explanation does not push the input off its own row.</summary>
+    [Fact]
+    public void ASettingWithADescription_DrawsItAsANoteAfterTheControl()
+    {
+        Arrange(Plugin(PluginStatus.Loaded,
+            Setting("path", PluginSettingType.String, "Path", description: "Found if blank.")), enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        var note = cut.Find(".kh-plugins-manager__field > .kh-form-control + .kh-note");
+        Assert.Equal("Found if blank.", note.TextContent.Trim());
+    }
+
+    /// <summary>A checkbox has no column under it, so its note goes inside the label beside the box.</summary>
+    [Fact]
+    public void ABoolWithADescription_DrawsTheNoteInsideItsLabel()
+    {
+        Arrange(Plugin(PluginStatus.Loaded,
+            Setting("shuffle", PluginSettingType.Bool, "Shuffle", description: "Every track once.")), enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        var note = Assert.Single(cut.FindAll(".kh-plugins-manager__field .kh-note"));
+        Assert.Equal("Every track once.", note.TextContent.Trim());
+        Assert.NotNull(note.Closest(".kh-form-check-label"));
+    }
+
+    [Fact]
+    public void ASettingWithNoDescription_DrawsNoNote()
+    {
+        Arrange(Plugin(PluginStatus.Loaded,
+            Setting("a", PluginSettingType.String, "A"),
+            Setting("b", PluginSettingType.Bool, "B")), enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        Assert.Empty(cut.FindAll(".kh-plugins-manager__field .kh-note"));
+    }
+
+    /// <summary>Marked on the label of an optional setting only, so the label text no longer has
+    /// to carry "(optional)" itself.</summary>
+    [Fact]
+    public void OnlyAnOptionalSetting_IsMarkedOptional()
+    {
+        Arrange(Plugin(PluginStatus.Loaded,
+            Setting("required", PluginSettingType.String, "Required"),
+            Setting("extra", PluginSettingType.String, "Extra", optional: true),
+            Setting("key", PluginSettingType.String, "Key", secret: true, optional: true)), enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        var marked = cut.FindAll(".kh-plugins-manager__optional")
+            .Select(e => e.Closest(".kh-plugins-manager__label")!.FirstChild!.TextContent.Trim());
+        Assert.Equal(["Extra", "Key"], marked);
     }
 
     private static SettingField Field(string key, string? section = null)

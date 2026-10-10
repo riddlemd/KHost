@@ -296,14 +296,27 @@ public class BreakMusicServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SuspendAsync_WhilePlaying_StopsTheProviderWithAFade()
+    public async Task SuspendAsync_WhilePlaying_StopsTheProviderWithTheConfiguredFade()
     {
+        _appSettings.FadeDuration = TimeSpan.FromSeconds(3);
         await PlayingAsync();
 
         await _service.SuspendAsync();
 
         Assert.Equal(BreakMusicState.Suspended, _service.State);
-        await _provider.Received(1).StopAsync(Arg.Is<TimeSpan?>(f => f > TimeSpan.Zero), Arg.Any<CancellationToken>());
+        await _provider.Received(1).StopAsync(TimeSpan.FromSeconds(3), Arg.Any<CancellationToken>());
+    }
+
+    // The contract promises a provider never sees a negative fade, whatever the overlay says.
+    [Fact]
+    public async Task SuspendAsync_WithANegativeFadeConfigured_StopsWithNone()
+    {
+        _appSettings.FadeDuration = TimeSpan.FromSeconds(-2);
+        await PlayingAsync();
+
+        await _service.SuspendAsync();
+
+        await _provider.Received(1).StopAsync(TimeSpan.Zero, Arg.Any<CancellationToken>());
     }
 
     // The host paused it deliberately, so the song ending must not undo that.

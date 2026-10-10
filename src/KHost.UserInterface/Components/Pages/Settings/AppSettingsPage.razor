@@ -130,6 +130,19 @@
                                                   Label="BreakMusicLabel" />
                                 </ChildContent>
                             </SettingRow>
+                            <SettingRow Label="Fade" Applies="applies immediately">
+                                <Note>
+                                    <span class="kh-note">
+                                        How long break music takes to fade down when a singer starts or it is
+                                        paused, and back up when it starts or resumes.
+                                    </span>
+                                </Note>
+                                <ChildContent>
+                                    <ChoiceSelect TValue="double" Id="break-music-fade" Choices="BreakMusicFadeChoices"
+                                                  Value="_model.BreakMusicFadeSeconds" ValueChanged="v => _model.BreakMusicFadeSeconds = v"
+                                                  Label="BreakMusicFadeLabel" />
+                                </ChildContent>
+                            </SettingRow>
                         </div>
                     </section>
 

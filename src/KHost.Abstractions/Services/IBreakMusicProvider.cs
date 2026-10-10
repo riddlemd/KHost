@@ -65,8 +65,8 @@ public interface IBreakMusicProvider
     Task ResumeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Ends the session. <paramref name="fadeDuration"/> is a hint a provider may ignore.</summary>
-    /// <remarks>Called with a short fade when a song or an ad with its own audio takes the room, and
-    /// with none when the host stops the music or switches provider. The call is awaited, so a
+    /// <remarks>Called with <see cref="IBreakMusicSettings.FadeDuration"/> when a song or an ad with
+    /// its own audio takes the room, and with none when the host stops the music or switches provider. The call is awaited, so a
     /// provider that blocks for its fade holds the song's start for that long.</remarks>
     Task StopAsync(TimeSpan? fadeDuration = null, CancellationToken cancellationToken = default);
 

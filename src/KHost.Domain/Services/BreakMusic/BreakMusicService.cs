@@ -9,9 +9,6 @@ namespace KHost.Domain.Services.BreakMusic;
 
 public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 {
-    /// <summary>Long enough not to clip, short enough that the singer is not waiting on it.</summary>
-    private static readonly TimeSpan SuspendFade = TimeSpan.FromSeconds(2);
-
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IMessageBroker _broker;
     private readonly SubscriptionSet _subscriptions = new();
@@ -258,7 +255,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             if (State != BreakMusicState.Playing)
                 return false;
 
-            await provider.StopAsync(SuspendFade, cancellationToken);
+            await provider.StopAsync(_options.CurrentValue.Fade, cancellationToken);
 
             State = BreakMusicState.Suspended;
             return true;
@@ -355,5 +352,13 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         /// <summary>The <see cref="IBreakMusicProvider.SourceName"/> every venue plays from.</summary>
         public string? Provider { get; set; }
+
+        /// <summary>Every break music fade, down and up; see <see cref="IBreakMusicSettings.FadeDuration"/>.</summary>
+        public TimeSpan FadeDuration { get; set; } = DefaultFadeDuration;
+
+        public static readonly TimeSpan DefaultFadeDuration = TimeSpan.FromSeconds(1.5);
+
+        // A hand-edited negative reaches providers as zero: the contract promises never negative.
+        internal TimeSpan Fade => FadeDuration < TimeSpan.Zero ? TimeSpan.Zero : FadeDuration;
     }
 }

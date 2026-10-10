@@ -60,3 +60,22 @@
     font-size: 0.88rem;
     color: var(--kh-success);
 }
+
+// Muted and normal weight, so the label stays the thing read first. Spaced by margin: Razor drops
+// the whitespace between the label text and this span.
+.kh-plugins-manager__optional {
+    margin-left: 0.3em;
+    font-weight: 400;
+    color: var(--kh-text-muted);
+}
+
+// The field's own gap already spaces the note from its control, and the settings grid spaces the
+// fields; .kh-note's bottom margin would double that.
+.kh-plugins-manager__field .kh-note {
+    margin-bottom: 0;
+}
+
+// A note inside the checkbox's label must wrap, and stack under the label words.
+.kh-plugins-manager__toggle .kh-form-check-label {
+    min-width: 0;
+}

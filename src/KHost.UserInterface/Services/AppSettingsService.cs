@@ -84,6 +84,8 @@ internal sealed class AppSettingsService : IAppSettingsService
             : SongControlStyle.Sliders,
         DefaultSearchMode = SearchModeOrDefault(_configuration["Search:DefaultMode"]),
         BreakMusicProvider = Blank(_configuration[BreakMusicProviderKey]) ?? _breakMusic.ActiveProvider?.SourceName,
+        BreakMusicFadeSeconds = BreakMusicFadeChoice(
+            (_configuration.GetValue<TimeSpan?>(BreakMusicFadeKey) ?? BreakMusicService.ServiceOptions.DefaultFadeDuration).TotalSeconds),
         // Parsed rather than bound: a hand-edited word that names no playlist reads as Basic.
         NewVenueBackgrounds = Enum.TryParse<VenueBackgrounds>(
             _configuration[NewVenueBackgroundsKey], ignoreCase: true, out var backgrounds)
@@ -105,6 +107,7 @@ internal sealed class AppSettingsService : IAppSettingsService
     private const string NewVenuePlaceholderImageScalingKey = NewVenueBackgroundsSection + ":NewVenuePlaceholderImageScaling";
 
     private const string BreakMusicProviderKey = BreakMusicService.ServiceOptions.SectionName + ":Provider";
+    private const string BreakMusicFadeKey = BreakMusicService.ServiceOptions.SectionName + ":FadeDuration";
 
     /// <summary>Whether the overlay names a break music mode; <see cref="Current"/> cannot say, since it
     /// falls back to whichever provider is active.</summary>
@@ -120,6 +123,10 @@ internal sealed class AppSettingsService : IAppSettingsService
     // Read as well as save: a hand-edited value the select does not offer would show as none of them.
     private static double StopFadeChoice(double seconds) =>
         AppSettings.StopFadeChoices.MinBy(choice => Math.Abs(choice - seconds));
+
+    // Read as well as save: a hand-edited value the select does not offer would show as none of them.
+    private static double BreakMusicFadeChoice(double seconds) =>
+        AppSettings.BreakMusicFadeChoices.MinBy(choice => Math.Abs(choice - seconds));
 
     private static int SegmentClamp(int seconds) =>
         Math.Clamp(seconds, AppSettings.MinSegmentSeconds, AppSettings.MaxSegmentSeconds);
@@ -197,6 +204,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         overlay[BreakMusicService.ServiceOptions.SectionName] = new Dictionary<string, object?>
         {
             ["Provider"] = Blank(settings.BreakMusicProvider),
+            ["FadeDuration"] = TimeSpan.FromSeconds(BreakMusicFadeChoice(settings.BreakMusicFadeSeconds)).ToString(),
         };
 
         overlay[NewVenueBackgroundsSection] = new Dictionary<string, object?>

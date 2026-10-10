@@ -18,6 +18,18 @@ public class PluginSettingDefinition
     /// <summary>Shown beside the control on the Plugins page.</summary>
     public required string Label { get; set; }
 
+    /// <summary>A line of explanation shown under the control on the Plugins page, or null for
+    /// none.</summary>
+    /// <remarks>Says what the setting does or what leaving it blank means, so the label can stay a
+    /// short name.</remarks>
+    public string? Description { get; set; }
+
+    /// <summary>Marks the setting as one the plugin works without; the Plugins page says so beside
+    /// the label.</summary>
+    /// <remarks>Not drawn for <see cref="PluginSettingType.Bool"/>, which always holds a value.
+    /// The host enforces nothing either way: a plugin still reads a missing value as missing.</remarks>
+    public bool Optional { get; set; }
+
     /// <summary>Heading this setting sits under on the Plugins page, or null to sit above the
     /// first one.</summary>
     /// <remarks>Grouped by first appearance, so the order settings are declared in is the order

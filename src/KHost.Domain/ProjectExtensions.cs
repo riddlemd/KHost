@@ -177,6 +177,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaPoolService, MediaPoolService>();
             serviceCollection.AddSingleton<IBreakMusicProvider, LibraryBreakMusicProvider>();
             serviceCollection.AddSingleton<IBreakMusicService, BreakMusicService>();
+            serviceCollection.AddSingleton<IBreakMusicSettings, BreakMusicSettings>();
             serviceCollection.AddSingleton<IAdService, AdService>();
             serviceCollection.AddSingleton<IVisualisationPlaylistService, VisualisationPlaylistService>();
             serviceCollection.AddSingleton<IVisualiserPresetService, VisualiserPresetService>();
