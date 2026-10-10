@@ -562,6 +562,20 @@ public class VisualisationsManagerPageTests : BunitContext
     }
 
     [Fact]
+    public async Task AVideoEntry_OffersToBrowseForAVideoFile()
+    {
+        _uploader.ExtensionsFor(Arg.Is<IReadOnlyList<MediaType>>(types => types.SequenceEqual(new[] { MediaType.Video })))
+            .Returns([".mp4"]);
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+        cut.Find("#visualisation-add-entry").Click();
+
+        cut.Find("#visualisation-preset").Change(VisualisationLookEditor.VideoKey);
+
+        cut.WaitForAssertion(() => Assert.Equal(".mp4", cut.Find("#visualisation-video-browse").GetAttribute("accept")));
+    }
+
+    [Fact]
     public async Task AVideoTheScreenPlaysAsItIs_IsSentToThePreview_WithNoNote()
     {
         var cut = await WithVideoAsync();
