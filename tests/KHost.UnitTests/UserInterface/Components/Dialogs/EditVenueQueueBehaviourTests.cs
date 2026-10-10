@@ -5,6 +5,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
+using KHost.UserInterface.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
@@ -60,6 +61,35 @@ public class EditVenueQueueBehaviourTests : BunitContext
         userGroups.ReadAllAsync(1, Arg.Any<int>())
             .Returns(new PaginatedResult<KHostUserGroup> { Items = [], TotalCount = 0, PageNumber = 1, PageSize = 1000 });
         Services.AddSingleton(userGroups);
+    }
+
+    // Ticked through the rendered box: a binding wired to the wrong field passes any model test.
+    [Theory]
+    [InlineData("#venue-clear-queue", nameof(EditVenueModel.ClearQueueOnClose))]
+    [InlineData("#venue-clear-queued-songs", nameof(EditVenueModel.ClearQueuedSongsOnClose))]
+    [InlineData("#venue-remove-unsung-singers", nameof(EditVenueModel.RemoveUnsungSingersOnClose))]
+    public void ClosingBoxes_EachSetsItsOwnSetting(string box, string setting)
+    {
+        var model = new EditVenueModel
+        {
+            ClearQueueOnClose = false,
+            ClearQueuedSongsOnClose = false,
+            RemoveUnsungSingersOnClose = false,
+        };
+        // The dialog's form supplies this; its validation messages throw without one.
+        var cut = Render<EditVenueQueueBehaviour>(parameters => parameters
+            .Add(p => p.Model, model)
+            .AddCascadingValue(new Microsoft.AspNetCore.Components.Forms.EditContext(model)));
+
+        cut.Find(box).Change(true);
+
+        bool Read(string name) => (bool)typeof(EditVenueModel).GetProperty(name)!.GetValue(model)!;
+
+        Assert.True(Read(setting));
+        Assert.All(
+            new[] { nameof(EditVenueModel.ClearQueueOnClose), nameof(EditVenueModel.ClearQueuedSongsOnClose), nameof(EditVenueModel.RemoveUnsungSingersOnClose) }
+                .Where(name => name != setting),
+            name => Assert.False(Read(name)));
     }
 
     [Fact]

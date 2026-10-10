@@ -82,6 +82,17 @@ public class Venue : RepositoryModel
         /// <summary>Whether the queue is emptied automatically when the venue's show is closed.</summary>
         public bool ClearQueueOnClose { get; set; } = true;
 
+        /// <summary>Whether songs still waiting to be sung are deleted when the venue's show is
+        /// closed. Songs already sung are kept either way.</summary>
+        /// <remarks>Null, as on a venue saved before this existed, follows
+        /// <see cref="ClearQueueOnClose"/>, which used to decide both.</remarks>
+        public bool? ClearQueuedSongsOnClose { get; set; }
+
+        /// <summary>Whether singers who never sang are deleted when the venue's show is closed.</summary>
+        /// <remarks>Off unless set. Runs after any queued songs are cleared, and keeps a singer
+        /// still in the queue, or with a performance, a tip, a group, a linked account or a login.</remarks>
+        public bool RemoveUnsungSingersOnClose { get; set; }
+
         // Nullable: EF reads venue rows saved before this key existed as null (initializers
         // are ignored for missing JSON keys); callers fall back to a default config.
         /// <summary>This venue's queue rotation rules. Null means the venue has never set any;

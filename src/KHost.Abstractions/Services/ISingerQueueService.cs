@@ -70,8 +70,8 @@ public interface ISingerQueueService
     /// <summary>Re-reads every singer's details and announces, for after a singer was edited.</summary>
     Task RefreshAsync();
 
-    /// <summary>Empties the queue and deletes every queued song, but only when the venue is set to
-    /// clear its queue on close; otherwise does nothing.</summary>
+    /// <summary>What the venue asks for on close: empties the queue, deletes queued songs, and
+    /// deletes singers who never sang, each only when the venue's setting says so.</summary>
     /// <remarks>Announces nothing.</remarks>
     Task ClearAsync();
 
