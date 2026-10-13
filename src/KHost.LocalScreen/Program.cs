@@ -106,13 +106,14 @@ internal static class Program
 
                     // Before full screen, and here rather than at construction because both need a
                     // window that exists — the page being ready is the first moment that is true.
-                    FitOntoMonitors(_screenWindow!, logger);
+                    var movedToSecondary = FitOntoMonitors(_screenWindow!, logger);
 
                     // After the fit, so un-maximising returns to a rect that is on a monitor now.
-                    if (stored?.Maximised == true)
+                    if (stored?.Maximised == true && !movedToSecondary)
                         _chrome!.Maximise();
 
-                    if (stored?.FullScreen == true)
+                    // A screen carried onto the room's display is there to fill it.
+                    if (stored?.FullScreen == true || movedToSecondary)
                         SetFullScreen(window!, true, logger);
 
                     return;
@@ -180,24 +181,35 @@ internal static class Program
         }
     }
 
-    /// <summary>Moves a remembered window onto the monitors there are now; see <see cref="MonitorSpace.Fit"/>.</summary>
-    private static void FitOntoMonitors(PhotinoScreenWindow window, Microsoft.Extensions.Logging.ILogger logger)
+    /// <summary>Moves a remembered window onto the monitors there are now; see <see cref="MonitorSpace.Fit"/>
+    /// and <see cref="MonitorSpace.OntoSecondary"/>.</summary>
+    /// <returns>Whether the window was carried off the primary onto another monitor.</returns>
+    private static bool FitOntoMonitors(PhotinoScreenWindow window, Microsoft.Extensions.Logging.ILogger logger)
     {
         try
         {
             var current = window.Bounds;
-            var fitted = MonitorSpace.Fit(current, window.Monitors, DefaultBounds);
-            if (fitted == current) return;
+            var monitors = window.Monitors;
+            var fitted = MonitorSpace.Fit(current, monitors, DefaultBounds);
 
-            logger.LogWarning("The stored placement {Stored} does not fit the monitors there are now; opening at {Fitted}",
-                current, fitted);
+            if (fitted != current)
+                logger.LogWarning("The stored placement {Stored} does not fit the monitors there are now; opening at {Fitted}",
+                    current, fitted);
 
-            window.SetBounds(fitted);
+            var placed = MonitorSpace.OntoSecondary(fitted, monitors);
+
+            if (placed != fitted)
+                logger.LogInformation("Opening on the second monitor at {Placed} rather than the primary at {Fitted}", placed, fitted);
+
+            if (placed != current) window.SetBounds(placed);
+
+            return placed != fitted;
         }
         catch (Exception ex)
         {
             // Never worth failing a screen over: a window in an odd place still shows the song.
             logger.LogWarning(ex, "Could not check the window is on a monitor");
+            return false;
         }
     }
 
@@ -371,11 +383,15 @@ internal static class Program
             }
             else
             {
-                window.SetSize(_restoreWidth, _restoreHeight);
-                window.SetLeft(_restoreLeft);
-                window.SetTop(_restoreTop);
+                var remembered = new WindowBounds(_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight);
+                var target = _chrome?.LeaveFullScreenTo(remembered, DefaultBounds) ?? remembered;
+                (_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight) = target;
 
-                logger.LogInformation("Restored to {X},{Y} {Width}x{Height}", _restoreLeft, _restoreTop, _restoreWidth, _restoreHeight);
+                window.SetSize(target.Width, target.Height);
+                window.SetLeft(target.Left);
+                window.SetTop(target.Top);
+
+                logger.LogInformation("Restored to {X},{Y} {Width}x{Height}", target.Left, target.Top, target.Width, target.Height);
             }
 
             _isFullScreen = fullScreen;

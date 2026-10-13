@@ -120,6 +120,54 @@ public class WindowChromeTests
     }
 
     [Fact]
+    public void LeaveFullScreenTo_RememberedRectElsewhere_ReturnsItAndKeepsTheMaximisedFlag()
+    {
+        _chrome.Maximise();
+        var fullScreen = new WindowBounds(0, 0, 1920, 1080);
+        _window.Bounds.Returns(fullScreen);
+
+        var target = _chrome.LeaveFullScreenTo(WorkArea, new WindowBounds(80, 80, 1280, 720));
+
+        Assert.Equal(WorkArea, target);
+        Assert.True(_chrome.IsMaximised);
+    }
+
+    /// <summary>macOS: full screen is the work area, so a maximised window would leave to where it already is.</summary>
+    [Fact]
+    public void LeaveFullScreenTo_MaximisedWindowAlreadyAtTheRememberedRect_ReturnsItsSizeBeforeMaximising()
+    {
+        _chrome.Maximise();
+        _window.Bounds.Returns(WorkArea);
+
+        var target = _chrome.LeaveFullScreenTo(WorkArea, new WindowBounds(80, 80, 1280, 720));
+
+        Assert.Equal(Windowed, target);
+        Assert.False(_chrome.IsMaximised);
+    }
+
+    [Fact]
+    public void LeaveFullScreenTo_MaximisedFromTheWorkAreaItself_CentresTheFallbackOnTheWorkArea()
+    {
+        _window.Bounds.Returns(WorkArea);
+        _chrome.Maximise();
+
+        var target = _chrome.LeaveFullScreenTo(WorkArea, new WindowBounds(80, 80, 1280, 720));
+
+        Assert.Equal(new WindowBounds(320, 192, 1280, 720), target);
+        Assert.False(_chrome.IsMaximised);
+    }
+
+    [Fact]
+    public void LeaveFullScreenTo_UnmaximisedWindowAlreadyAtTheRememberedRect_CentresTheFallbackOnTheWorkArea()
+    {
+        _window.Bounds.Returns(WorkArea);
+
+        var target = _chrome.LeaveFullScreenTo(WorkArea, new WindowBounds(80, 80, 1280, 720));
+
+        Assert.Equal(new WindowBounds(320, 192, 1280, 720), target);
+    }
+
+    [Fact]
     public void Maximise_InFullScreen_LeavesTheWindowAlone()
     {
         _chrome.FullScreen = true;
