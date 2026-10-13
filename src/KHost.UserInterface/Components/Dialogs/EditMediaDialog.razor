@@ -36,7 +36,19 @@
             </div>
             <div >
                 <label class="kh-form-label">File Path</label>
-                <input type="text" class="kh-form-control @(IsNotDownloaded ? $"{_rootClassName}__path--gone" : "")" readonly value="@Media?.FilePath" />
+                <div class="@(_rootClassName)__path-field">
+                    <input type="text" class="kh-form-control @(_rootClassName)__path @(IsNotDownloaded ? $"{_rootClassName}__path--gone" : "")" readonly value="@Media?.FilePath" />
+                    @if (CanReveal)
+                    {
+                        <button type="button"
+                                class="@(_rootClassName)__reveal-btn kh-button--icon-minimal"
+                                title="@FileReveal.Label"
+                                aria-label="@FileReveal.Label"
+                                @onclick="Reveal">
+                            <Icon Name="folder2-open" />
+                        </button>
+                    }
+                </div>
                 @if (IsNotDownloaded)
                 {
                     <p class="kh-note @(_rootClassName)__path-note">
