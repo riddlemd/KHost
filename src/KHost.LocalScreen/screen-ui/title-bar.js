@@ -52,6 +52,10 @@ function createTitleBar({ doc, send, requestFrame, setTimer = setTimeout, clearT
         begin(e, root, null);
     });
 
+    // A press on a still or a QR code would otherwise also start the OS's own image drag, which
+    // carries the picture out of the window into text fields and the desktop.
+    doc.addEventListener('dragstart', (e) => e.preventDefault());
+
     for (const edge of doc.querySelectorAll('.kh-resize-edge')) {
         edge.addEventListener('dblclick', (e) => e.stopPropagation());
         edge.addEventListener('pointerdown', (e) => {
