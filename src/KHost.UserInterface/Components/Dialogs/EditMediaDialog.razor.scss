@@ -12,6 +12,23 @@
         gap: 1rem;
     }
 
+    // The button sits inside the field, left of the readonly padlock the shared input style draws.
+    &__path-field {
+        position: relative;
+    }
+
+    // [readonly] to outrank the shared readonly rule, which sets the padlock's narrower padding.
+    &__path[readonly] {
+        padding-right: 4rem;
+    }
+
+    &__reveal-btn {
+        position: absolute;
+        top: 50%;
+        right: 2rem;
+        transform: translateY(-50%);
+    }
+
     // Struck, not hidden: the path is still where the file comes back to.
     &__path--gone {
         color: var(--kh-text-muted);

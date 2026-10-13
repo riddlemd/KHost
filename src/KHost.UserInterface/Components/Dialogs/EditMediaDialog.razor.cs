@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 
@@ -11,6 +12,7 @@ public partial class EditMediaDialog
     private const string _rootClassName = "kh-media-edit-dialog";
 
     [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
+    [Inject] private IFileRevealService FileReveal { get; set; } = default!;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Media? Media { get; set; }
@@ -22,6 +24,8 @@ public partial class EditMediaDialog
     private EditContext _editContext = default!;
 
     private bool IsNotDownloaded => _model.Status == MediaStatus.NotDownloaded;
+
+    private bool CanReveal => FileReveal.CanReveal(Media?.FilePath);
 
     // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
     // runs exactly once with Media already bound.
@@ -93,6 +97,11 @@ public partial class EditMediaDialog
     private void SwapTitleAndArtist()
     {
         (_model.Title, _model.Artist) = (_model.Artist, _model.Title);
+    }
+
+    private void Reveal()
+    {
+        if (Media?.FilePath is { Length: > 0 } path) FileReveal.Reveal(path);
     }
 
     public async Task CloseAsync()

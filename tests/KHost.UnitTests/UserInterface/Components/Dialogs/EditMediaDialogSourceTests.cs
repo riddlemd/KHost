@@ -2,6 +2,7 @@ using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Components.Dialogs;
+using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
@@ -19,6 +20,7 @@ public class EditMediaDialogSourceTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         _search.Providers.Returns([]);
         Services.AddSingleton(_search);
+        Services.AddSingleton(Substitute.For<IFileRevealService>());
     }
 
     /// <summary>The folder scan names nothing, so an empty column is the local library rather than
