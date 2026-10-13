@@ -134,6 +134,48 @@ public class MonitorSpaceTests
     }
 
     [Fact]
+    public void OntoSecondary_OnThePrimary_CentresItOnTheOtherMonitorAtItsOwnSize()
+    {
+        var placed = MonitorSpace.OntoSecondary(new WindowBounds(80, 80, 1280, 720), Monitors);
+
+        Assert.Equal(new WindowBounds(1470 + ((1920 - 1280) / 2), 31 + ((1049 - 720) / 2), 1280, 720), placed);
+    }
+
+    [Fact]
+    public void OntoSecondary_AlreadyOnTheOtherMonitor_IsUnchanged()
+    {
+        var window = new WindowBounds(1600, 100, 1280, 720);
+
+        Assert.Equal(window, MonitorSpace.OntoSecondary(window, Monitors));
+    }
+
+    [Fact]
+    public void OntoSecondary_OnlyOneMonitor_IsUnchanged()
+    {
+        var window = new WindowBounds(80, 80, 1280, 720);
+
+        Assert.Equal(window, MonitorSpace.OntoSecondary(window, [Monitors[0]]));
+    }
+
+    [Fact]
+    public void OntoSecondary_PrimaryListedSecond_StillMovesOffThePrimary()
+    {
+        var monitors = MonitorSpace.ToWindowSpace([ExternalReported, RetinaReported], yUp: true);
+
+        var placed = MonitorSpace.OntoSecondary(new WindowBounds(80, 80, 1280, 720), monitors);
+
+        Assert.Equal(1470 + ((1920 - 1280) / 2), placed.Left);
+    }
+
+    [Fact]
+    public void OntoSecondary_LargerThanTheOtherWorkArea_IsShrunkInsideIt()
+    {
+        var placed = MonitorSpace.OntoSecondary(new WindowBounds(0, 0, 2000, 1200), Monitors);
+
+        Assert.Equal(new WindowBounds(1470, 31, 1920, 1049), placed);
+    }
+
+    [Fact]
     public void Fit_NoMonitorsReported_LeavesTheWindowWhereItWas()
     {
         var remembered = new WindowBounds(5000, 5000, 1280, 720);

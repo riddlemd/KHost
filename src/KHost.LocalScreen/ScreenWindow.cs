@@ -101,9 +101,7 @@ internal static class MonitorSpace
         if (monitors.Count == 0) return remembered;
 
         var onSomeMonitor = monitors.Any(m => Overlap(remembered, m.WorkArea) > 0);
-        // The primary sits at the origin on every OS once in window space.
-        var primary = monitors.FirstOrDefault(m => m.Area.Left == 0 && m.Area.Top == 0, monitors[0]);
-        var work = onSomeMonitor ? MonitorUnder(remembered, monitors).WorkArea : primary.WorkArea;
+        var work = onSomeMonitor ? MonitorUnder(remembered, monitors).WorkArea : Primary(monitors).WorkArea;
 
         var bounds = remembered;
 
@@ -123,6 +121,27 @@ internal static class MonitorSpace
         return ClampInto(bounds, work);
     }
 
+    /// <summary>Where a launching window goes when there is a monitor besides the primary.</summary>
+    /// <remarks>The primary carries the console, so a window on it moves to the first other monitor
+    /// listed, keeping its size, centred and inside that work area. A window already on another
+    /// monitor stays, so a venue with three displays keeps the one it chose.</remarks>
+    internal static WindowBounds OntoSecondary(WindowBounds window, IReadOnlyList<ScreenMonitor> monitors)
+    {
+        if (monitors.Count < 2) return window;
+
+        var primary = Primary(monitors);
+        if (MonitorUnder(window, monitors) != primary) return window;
+
+        var work = monitors.First(m => m != primary).WorkArea;
+        return ClampInto(
+            window with
+            {
+                Left = work.Left + ((work.Width - window.Width) / 2),
+                Top = work.Top + ((work.Height - window.Height) / 2),
+            },
+            work);
+    }
+
     /// <summary>No larger than the area, and moved the least distance to sit wholly inside it.</summary>
     internal static WindowBounds ClampInto(WindowBounds bounds, WindowBounds area)
     {
@@ -135,6 +154,10 @@ internal static class MonitorSpace
             width,
             height);
     }
+
+    // The primary sits at the origin on every OS once in window space.
+    private static ScreenMonitor Primary(IReadOnlyList<ScreenMonitor> monitors)
+        => monitors.FirstOrDefault(m => m.Area.Left == 0 && m.Area.Top == 0, monitors[0]);
 
     private static long Overlap(WindowBounds a, WindowBounds b)
     {
