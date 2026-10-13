@@ -103,6 +103,35 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         PublishState();
     }
 
+    /// <summary>Where leaving full screen puts the window, given where it was when it went full screen.</summary>
+    /// <remarks>On macOS full screen fills the work area, as maximising does, so a window that went
+    /// full screen maximised would return to the rect it already fills and only the buttons would
+    /// come back. Such a window leaves to its size before maximising, or to
+    /// <paramref name="fallback"/>'s size centred on its monitor, and is no longer maximised.</remarks>
+    public WindowBounds LeaveFullScreenTo(WindowBounds remembered, WindowBounds fallback)
+    {
+        lock (_gate)
+        {
+            var current = window.Bounds;
+            if (remembered != current) return remembered;
+
+            var wasMaximised = _maximised;
+            _maximised = false;
+
+            if (wasMaximised && _restore != current && _restore.Width > 0 && _restore.Height > 0)
+                return _restore;
+
+            var area = window.WorkArea;
+            return MonitorSpace.ClampInto(
+                fallback with
+                {
+                    Left = area.Left + ((area.Width - fallback.Width) / 2),
+                    Top = area.Top + ((area.Height - fallback.Height) / 2),
+                },
+                area);
+        }
+    }
+
     private void ToggleMaximised()
     {
         lock (_gate)
