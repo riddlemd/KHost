@@ -34,10 +34,10 @@ public class NowPlayingPanelPlayNextShortcutTests : BunitContext
 
     public NowPlayingPanelPlayNextShortcutTests()
     {
+        this.AddKHostTestDefaults(broker: _broker, media: _mediaService);
+
         _performance = new Performance { Id = Guid.NewGuid(), SingerId = _first.Id, MediaId = Guid.NewGuid() };
         _media = new Media { Id = _performance.MediaId, FilePath = "/music/song.mp4", Title = "Song", Status = MediaStatus.Ready };
-
-        JSInterop.Mode = JSRuntimeMode.Loose;
 
         // No song loaded: only then does the console offer the idle-state buttons at all.
         _playback.CurrentPerformance.Returns((Performance?)null);
@@ -58,13 +58,9 @@ public class NowPlayingPanelPlayNextShortcutTests : BunitContext
         Services.AddSingleton(venues);
         Services.AddSingleton(_playback);
         Services.AddSingleton(_nextSingerCard);
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(appSettings);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_queue);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(_mediaService);
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<ITimedLyricsService>());
         Services.AddSingleton(Substitute.For<IBreakMusicService>());
         Services.AddSingleton(Substitute.For<IAdService>());

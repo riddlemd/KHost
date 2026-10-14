@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
-using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -16,13 +14,14 @@ public class SingerQueuePanelRemoteSingerTests : BunitContext
     private const string RemoteMarkSelector = ".kh-singer-queue-panel__singer-queue__singer__remote";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     private readonly KHostUser _typedIn = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly KHostUser _fromAPhone = new() { Id = Guid.NewGuid(), Name = "Bob" };
 
     public SingerQueuePanelRemoteSingerTests()
     {
+        this.AddKHostTestDefaults();
+
         _fromAPhone.ForeignKeys.Add(new KHostUserForeignKey
         {
             UserId = _fromAPhone.Id,
@@ -34,8 +33,6 @@ public class SingerQueuePanelRemoteSingerTests : BunitContext
         _queue.Users.Returns(_ => [_typedIn, _fromAPhone]);
         _queue.SelectedUserId.Returns(_ => _typedIn.Id);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         var venues = Substitute.For<IVenuesService>();
         venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
 
@@ -43,14 +40,9 @@ public class SingerQueuePanelRemoteSingerTests : BunitContext
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]

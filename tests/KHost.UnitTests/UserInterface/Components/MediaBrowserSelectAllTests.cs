@@ -3,12 +3,10 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.DataAccess.Repositories;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
@@ -21,10 +19,11 @@ public class MediaBrowserSelectAllTests : BunitContext
 
     private readonly IMediaImportService _importService = Substitute.For<IMediaImportService>();
     private readonly IMediaRepository _mediaRepository = Substitute.For<IMediaRepository>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public MediaBrowserSelectAllTests()
     {
+        this.AddKHostTestDefaults();
+
         Directory.CreateDirectory(_tempDir);
         File.WriteAllText(Path.Combine(_tempDir, "song.cdg"), "");
         File.WriteAllText(Path.Combine(_tempDir, "song.mp3"), "");
@@ -37,11 +36,7 @@ public class MediaBrowserSelectAllTests : BunitContext
         Services.AddSingleton(_importService);
         Services.AddSingleton(_mediaRepository);
         Services.AddSingleton(Substitute.For<IMediaFileParsingService>());
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(ReaderWithNoMusicFolder());
-
-        // The dialog and the split button's dropdown module both reach for JS on render.
-        JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
     [Fact]

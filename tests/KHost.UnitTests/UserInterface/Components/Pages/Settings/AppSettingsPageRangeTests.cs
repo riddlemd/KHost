@@ -11,7 +11,8 @@ public class AppSettingsPageRangeTests : BunitContext
 {
     public AppSettingsPageRangeTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddNewVenuesSection();
 
         var settings = Substitute.For<IAppSettingsService>();
@@ -19,9 +20,6 @@ public class AppSettingsPageRangeTests : BunitContext
         settings.DefaultMediaDirectory.Returns("/karaoke");
 
         Services.AddSingleton(settings);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
         Services.AddSearchSection();
         Services.AddBreakMusicSection();

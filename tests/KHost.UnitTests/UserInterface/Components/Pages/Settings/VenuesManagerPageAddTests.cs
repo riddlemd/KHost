@@ -2,11 +2,9 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 
@@ -16,11 +14,10 @@ public class VenuesManagerPageAddTests : BunitContext
 {
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IDialogService _dialogService = Substitute.For<IDialogService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public VenuesManagerPageAddTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(dialogs: _dialogService);
 
         _venuesService.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<SortDescriptor?>())
             .Returns(Task.FromResult(new PaginatedResult<Venue> { Items = [], TotalCount = 0, PageNumber = 1, PageSize = AppSettings.DefaultPageSize }));
@@ -29,9 +26,7 @@ public class VenuesManagerPageAddTests : BunitContext
         appSettings.Current.Returns(new AppSettings());
 
         Services.AddSingleton(_venuesService);
-        Services.AddSingleton(_dialogService);
         Services.AddSingleton(appSettings);
-        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     [Fact]

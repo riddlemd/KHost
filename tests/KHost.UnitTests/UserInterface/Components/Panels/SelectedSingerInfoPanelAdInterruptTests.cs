@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
-using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -16,7 +14,6 @@ public class SelectedSingerInfoPanelAdInterruptTests : BunitContext
     private const string PlayButtonSelector = ".kh-selected-singer-info-panel__row .kh-split-btn__primary";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
@@ -26,6 +23,8 @@ public class SelectedSingerInfoPanelAdInterruptTests : BunitContext
 
     public SelectedSingerInfoPanelAdInterruptTests()
     {
+        this.AddKHostTestDefaults(media: _mediaService);
+
         _performance = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
         _media = new Media { Id = _performance.MediaId, FilePath = "/music/song.mp4", Title = "Song", Status = MediaStatus.Ready };
 
@@ -36,21 +35,15 @@ public class SelectedSingerInfoPanelAdInterruptTests : BunitContext
 
         _playback.HasConnectedScreenAsync().Returns(true);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         var venues = Substitute.For<IVenuesService>();
         venues.ReadSelectedVenueAsync().Returns(new Venue { Id = Guid.NewGuid(), Name = "Bar" });
 
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_performances);
         Services.AddSingleton(venues);
-        Services.AddSingleton(_mediaService);
         Services.AddSingleton(_playback);
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<ITipsService>());
     }
 

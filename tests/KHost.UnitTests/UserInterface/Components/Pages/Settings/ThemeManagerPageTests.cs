@@ -25,7 +25,7 @@ public class ThemeManagerPageTests : BunitContext
 
     public ThemeManagerPageTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker, dialogs: _dialogs);
 
         _themes.CurrentTheme.Returns("grape");
         _themes.AllThemes.Returns(
@@ -36,8 +36,6 @@ public class ThemeManagerPageTests : BunitContext
         ]);
 
         Services.AddSingleton(_themes);
-        Services.AddSingleton(_dialogs);
-        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     [Fact]

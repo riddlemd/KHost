@@ -15,12 +15,11 @@ public class SetupPageTests : BunitContext
 
     public SetupPageTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         Services.AddSingleton(_venuesService);
         Services.AddSingleton(_appSettings);
         Services.AddSingleton(_presets);
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddNewVenuesSection();
         _presets.ReadAll().Returns([]);
 

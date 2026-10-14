@@ -2,10 +2,8 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 
@@ -18,12 +16,11 @@ public class EditVenueDialogAliasTests : BunitContext
 
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
-    private readonly IMediaService _media = Substitute.For<IMediaService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public EditVenueDialogAliasTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -33,15 +30,12 @@ public class EditVenueDialogAliasTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
 
         // The dialog reads the visualisation playlists as it opens; none is all these need.
         var visualisations = Substitute.For<IVisualisationPlaylistService>();
         visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
         Services.AddSingleton(visualisations);
-        Services.AddSingleton(_media);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         // The dialog reads the venue's background folder on open; an empty pack is the
         // shape a venue that has never chosen one has.
@@ -70,26 +64,26 @@ public class EditVenueDialogAliasTests : BunitContext
 
     /// <summary>Read into the model but never saved back, this looked fine yet never took effect.</summary>
     [Fact]
-    public void SwitchingItOn_ReachesTheVenueThatIsSaved()
+    public async Task SwitchingItOn_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
         cut.Find(AliasSelector).Change(true);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.True(saved!.Settings.AllowAliases);
     }
 
     [Fact]
-    public void SwitchingItOff_ReachesTheVenueThatIsSaved()
+    public async Task SwitchingItOff_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { AllowAliases = true }, venue => saved = venue);
 
         cut.Find(AliasSelector).Change(false);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.False(saved!.Settings.AllowAliases);

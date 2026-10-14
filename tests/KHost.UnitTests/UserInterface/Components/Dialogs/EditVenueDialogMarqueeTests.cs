@@ -2,10 +2,8 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 
@@ -31,12 +29,11 @@ public class EditVenueDialogMarqueeTests : BunitContext
 
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
-    private readonly IMediaService _media = Substitute.For<IMediaService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public EditVenueDialogMarqueeTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -46,15 +43,12 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
 
         // The dialog reads the visualisation playlists as it opens; none is all these need.
         var visualisations = Substitute.For<IVisualisationPlaylistService>();
         visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
         Services.AddSingleton(visualisations);
-        Services.AddSingleton(_media);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         // The dialog reads the venue's background folder on open; an empty pack is the
         // shape a venue that has never chosen one has.
@@ -153,13 +147,13 @@ public class EditVenueDialogMarqueeTests : BunitContext
     }
 
     [Fact]
-    public void MarqueeOn_PickingLarge_SavesItsPixels()
+    public async Task MarqueeOn_PickingLarge_SavesItsPixels()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true }, venue => saved = venue);
 
         cut.Find(FontSizeSelector).Change("40");
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal(40, saved!.Settings.MarqueeFontSizePixels);
     }
@@ -288,7 +282,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
     /// <summary>What the host picks in the dialog reaches the saved venue, opacity included, and a
     /// value out of range is clamped rather than rejected.</summary>
     [Fact]
-    public void WhatTheHostPicksForTheDivider_ReachesTheSavedVenue()
+    public async Task WhatTheHostPicksForTheDivider_ReachesTheSavedVenue()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true }, venue => saved = venue);
@@ -298,7 +292,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
         cut.Find(SongColorSelector).Change("#00ffaa");
         cut.Find(DividerColorSelector).Change("#8888ff");
         cut.Find(DividerShapeSelector).Change(nameof(MarqueeDividerShape.Star));
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.Equal(40, saved!.Settings.MarqueeBackgroundOpacity);
@@ -317,27 +311,27 @@ public class EditVenueDialogMarqueeTests : BunitContext
     }
 
     [Fact]
-    public void CheckingHideDuringSong_ReachesTheSavedVenue()
+    public async Task CheckingHideDuringSong_ReachesTheSavedVenue()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true }, venue => saved = venue);
 
         cut.Find(HideDuringSongSelector).Change(true);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.True(saved!.Settings.MarqueeHideDuringSong);
     }
 
     [Fact]
-    public void UncheckingHideDuringSong_ReachesTheSavedVenue()
+    public async Task UncheckingHideDuringSong_ReachesTheSavedVenue()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeHideDuringSong = true }, venue => saved = venue);
 
         Assert.True(cut.Find(HideDuringSongSelector).HasAttribute("checked"));
         cut.Find(HideDuringSongSelector).Change(false);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.False(saved!.Settings.MarqueeHideDuringSong);

@@ -21,8 +21,7 @@ public class PluginTableDialogTests : BunitContext
 
     public PluginTableDialogTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
-        Services.AddSingleton<IMessageBroker>(_broker);
+        this.AddKHostTestDefaults(broker: _broker);
     }
 
     private static PluginTableColumn[] Columns =>
