@@ -4,13 +4,11 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Common.Display;
 using KHost.Common.Media;
-using KHost.Domain.Services.Visualisations;
 using KHost.IPC.SignalR.Contracts;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using QRCoder;
 
 namespace KHost.Domain.Services.Displays.LocalScreen;
 
@@ -38,16 +36,6 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     /// <summary>Full level, what a screen is sent on connect; the room's mixer sets the real one.</summary>
     private const float FullVolume = 1.0f;
-
-    /// <summary>One module of white: the standard four-module border reads as a slab over video.</summary>
-    private const int DefaultSafeZone = 1;
-
-    /// <summary>Almost flush, as a fraction of the shorter side: overscan crops a flush edge. Shared by
-    /// everything in a corner, since the inset belongs to the corner and not to what sits in it.</summary>
-    private const double DefaultOffset = 0.2;
-
-    /// <summary>Bottom-left, away from the code's default corner, so the two stack when unset.</summary>
-    private const OverlayCorner DefaultBreakMusicCardCorner = OverlayCorner.BottomLeft;
 
     /// <summary>A screen takes seconds to register once launched; this is how long ConnectAsync
     /// waits for it before reporting a launch that never came back rather than a refusal.</summary>
@@ -89,28 +77,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     private Guid? _lyricsSentOn;
     private readonly TimeSpan _registrationTimeout;
 
-    // Serialises visualiser sends: a load and a venue edit can both decide it at once.
-    private readonly SemaphoreSlim _visualiserLock = new(1, 1);
-
-    /// <summary>The song the visualiser was decided for, by identity, and the playlist entry picked
-    /// for it: a rebuild or a rejoin reloads the same program and must keep the same picture.</summary>
-    private PlaybackProgram.Playing? _visualiserFor;
-    private (Guid PlaylistId, Guid EntryId)? _visualiserPick;
-    private DisplayLoad? _visualiserLoad;
-
-    /// <summary>The probe's answer for <see cref="_visualiserFor"/>, asked once per song.</summary>
-    private bool? _visualiserSourceHasPicture;
-
-    /// <summary>Where <see cref="_visualiserFor"/>'s levels are served, once a read was started.
-    /// Kept across a key change's reload: the levels are indexed by song time.</summary>
-    private string? _visualiserLevelsUrl;
-
-    /// <summary>The video entry's URL for <see cref="_visualiserFor"/>, null when it cannot be had; asked
-    /// once per song and video, since the first ask may encode for seconds.</summary>
-    private (Guid MediaId, string? Url)? _visualiserVideo;
-
-    /// <summary>The video being resolved off the load path for <see cref="_visualiserFor"/>.</summary>
-    private Guid? _visualiserVideoPending;
+    private readonly LocalScreenVisualiser _visualiser;
 
     // Every venue edit and every song redraws the codes, and the picture only changes when the
     // payload does. Encoding a few times a minute for an unchanged string is work for nothing.
@@ -121,10 +88,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     private readonly Dictionary<Type, string> _overlaysSent = [];
     private Guid? _overlaysSentOn;
 
-    private readonly TimeSpan _redrawSettle;
-    private readonly Lock _redrawGate = new();
-    private Overlay _redrawOwed;
-    private bool _redrawRunning;
+    private readonly SettlingRedraw<Overlay> _redraw;
 
     private bool _launching;
 
@@ -172,8 +136,11 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _venuesService = venuesService;
         _registrationTimeout = registrationTimeout ?? DefaultRegistrationTimeout;
         _services = services;
-        _redrawSettle = redrawSettle ?? DefaultRedrawSettle;
         _playbackOptions = playbackOptions;
+        _visualiser = new LocalScreenVisualiser(
+            logger, services, SendAsync, song => ReferenceEquals(song, _lyricsFor) ? _lyrics : null, ReadVenueSettingsAsync);
+        _redraw = new SettlingRedraw<Overlay>(
+            redrawSettle ?? DefaultRedrawSettle, RedrawAsync, ex => _logger.LogWarning(ex, "Could not redraw the screen"));
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
@@ -373,8 +340,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <summary>Sent whole, so the stems ride along with it; the page mixes when there are any.</summary>
     public async Task LoadAsync(DisplayLoad load, CancellationToken cancellationToken = default)
     {
+        var venue = new VenueRead(ReadSelectedVenueAsync);
+
         // Ahead of the load, so the venue's card is down before the song's first frame.
-        await DrawPictureAsync(PictureCause.ProgramMoved);
+        await DrawPictureAsync(PictureCause.ProgramMoved, venue);
         _loadedStreamUrl = load.StreamUrl ?? string.Empty;
         await SendAsync(ToCommand(load, IsGraphicsOnly(_services?.GetService<IPlaybackService>()?.CurrentProgram)));
 
@@ -384,7 +353,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         await SendTimedLyricsAsync();
 
         // After the words, which it is decided on.
-        await SendVisualiserAsync(load);
+        await _visualiser.SendAsync(load, venue.SettingsAsync);
     }
 
     public Task PlayAsync(CancellationToken cancellationToken = default) => SendAsync(new PlayCommand());
@@ -432,54 +401,6 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// a display is asked to load it.</remarks>
     internal static bool IsGraphicsOnly(PlaybackProgram? program)
         => program is PlaybackProgram.Playing { Media.FilePath: { } path } && MediaFormats.IsCompactDiscGraphics(path);
-
-    /// <summary>The marquee as the screen draws it, whole, from the venue's settings and who is next.</summary>
-    /// <remarks>Disabled with no venue selected, one that has the marquee off, or one that hides it
-    /// while <paramref name="performanceUnderWay"/>. The singers are
-    /// exactly what <see cref="IUpNextService"/> answers for the venue's count, so the band and
-    /// anything else naming who is next cannot disagree.</remarks>
-    internal static async Task<SetMarqueeCommand> BuildMarqueeAsync(
-        Venue.VenueSettings? settings, IUpNextService upNext, bool performanceUnderWay = false)
-    {
-        if (settings is null || !settings.MarqueeEnabled)
-            return new SetMarqueeCommand { Enabled = false };
-
-        if (settings.MarqueeHideDuringSong && performanceUnderWay)
-            return new SetMarqueeCommand { Enabled = false };
-
-        var upcoming = await upNext.ReadAsync(settings.MarqueeSingerCount);
-        var glyph = MarqueeEntrySegmenter.ResolveGlyph(settings.MarqueeDividerShape);
-        var colours = settings.ResolveScreenColours();
-
-        var segments = new List<MarqueeSegment>();
-        foreach (var (entry, index) in upcoming.Select((entry, index) => (entry, index)))
-        {
-            // Glyph null means "None" was chosen: entries run together with no divider at all.
-            if (index > 0 && glyph is not null)
-                segments.Add(new MarqueeSegment { Text = "", Kind = MarqueeSegmentKind.Separator });
-
-            segments.AddRange(MarqueeEntrySegmenter.ComposeSegments(entry, settings.MarqueeEntryFormat));
-        }
-
-        return new SetMarqueeCommand
-        {
-            Enabled = true,
-            Entries = segments,
-            Message = MarqueeText.CollapseToOneLine(settings.MarqueeMessage),
-            Position = settings.MarqueePosition,
-
-            BackgroundColor = colours.MarqueeBackground,
-            TextColor = colours.MarqueeText,
-            SingerColor = colours.MarqueeSinger,
-            SongColor = colours.MarqueeSong,
-            DividerColor = colours.MarqueeDivider,
-            DividerGlyph = glyph,
-            BackgroundOpacityPercent = settings.MarqueeBackgroundOpacity,
-            FontSizePixels = settings.MarqueeFontSizePixels,
-            ScrollSpeed = settings.MarqueeScrollSpeed,
-            PinLabel = settings.MarqueePinLabel,
-        };
-    }
 
     /// <summary>A failed send never costs the song: a screen that has gone is not an error here.</summary>
     private async Task<bool> SendAsync(IScreenCommand command)
@@ -628,276 +549,19 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         };
     }
 
-    private static SetVisualiserCommand VisualiserOff => new() { Enabled = false };
-
-    /// <summary>Tells the screen whether to draw a visualiser under the playing song, and which.</summary>
-    /// <remarks>On a load, decided for that load; with none (a venue edit), re-decided for the song
-    /// already loaded, and skipped for a song whose own load has not decided it yet. Never throws:
-    /// the visualiser is decoration, and a song plays over black without it.</remarks>
-    private async Task SendVisualiserAsync(DisplayLoad? load)
-    {
-        if (_services?.GetService<IPlaybackService>()?.CurrentProgram is not PlaybackProgram.Playing song)
-            return;
-
-        await _visualiserLock.WaitAsync();
-        try
-        {
-            if (!ReferenceEquals(song, _visualiserFor))
-            {
-                if (load is null) return;
-
-                _visualiserFor = song;
-                _visualiserPick = null;
-                _visualiserSourceHasPicture = null;
-                _visualiserLevelsUrl = null;
-                _visualiserVideo = null;
-                _visualiserVideoPending = null;
-            }
-
-            if (load is not null) _visualiserLoad = load;
-            if (_visualiserLoad is not { } loaded) return;
-
-            await SendAsync(await DecideVisualiserAsync(song, loaded));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not decide the visualiser for '{Title}'", song.Media.Title);
-        }
-        finally
-        {
-            _visualiserLock.Release();
-        }
-    }
-
-    /// <summary>On only for a performance with timed words and nothing of its own to show under them
-    /// (<see cref="SongBackdrops.ForPlaying"/> answering black): the performance's own background
-    /// when it names one, else an entry from the venue's visualisation playlist.</summary>
-    /// <remarks>Any preset the timing names is ignored. A background that is black draws nothing; a
-    /// look that does not resolve draws the venue's playlist. An ad reads no words
-    /// (<see cref="SendTimedLyricsAsync"/>), so it never gets one.</remarks>
-    private async Task<SetVisualiserCommand> DecideVisualiserAsync(PlaybackProgram.Playing song, DisplayLoad load)
-    {
-        var venue = await ReadVenueSettingsAsync();
-        var playlistId = venue?.VisualisationPlaylistId;
-        var background = await ReadBackgroundAsync(song);
-
-        // Ahead of the probe below: a venue with no playlist and a song with no look of its own
-        // draws nothing, and must not cost a read of the file.
-        if (playlistId is null && background is not { Type: PerformanceBackgroundType.Look }) return VisualiserOff;
-
-        var lyrics = ReferenceEquals(song, _lyricsFor) ? _lyrics : null;
-        if (lyrics is not { Pages.Count: > 0 }) return VisualiserOff;
-
-        var path = song.Media.FilePath;
-        var backdrop = SongBackdrops.ForPlaying(hasTimedLyrics: true, path, await PlaysOwnPictureAsync(path, load));
-        if (backdrop != SongBackdrop.Black) return VisualiserOff;
-
-        if (background is { Type: PerformanceBackgroundType.Black }) return VisualiserOff;
-
-        if (background is { Type: PerformanceBackgroundType.Look }
-            && LookForSong(song, background, () => LevelsUrlFor(path, load), venue) is { } own)
-            return own;
-
-        if (playlistId is not { } venuePlaylistId) return VisualiserOff;
-        if (_services?.GetService<IVisualisationPlaylistService>() is not { } playlists) return VisualiserOff;
-
-        // Picked only once the song is known to draw one, so a video does not use up a turn.
-        if (await EntryForSongAsync(playlists, venuePlaylistId) is not { } entry) return VisualiserOff;
-
-        // Never through the levels: a video is drawn muted and does not follow the song.
-        if (entry.PresetSource == VisualiserPresetSource.Video) return VideoVisualiserFor(song, entry, entry.Id) ?? VisualiserOff;
-
-        return VisualiserFor(entry, song.Media.Title, () => LevelsUrlFor(path, load), venue) ?? VisualiserOff;
-    }
-
-    /// <summary>The performance's own background, read afresh: the program carries the row as it was
-    /// at load. Null when it names none, or it cannot be read.</summary>
-    private async Task<PerformanceBackground?> ReadBackgroundAsync(PlaybackProgram.Playing song)
-    {
-        if (song.Performance is not { } performance || _services?.GetService<IPerformanceService>() is not { } performances)
-            return null;
-
-        return (await performances.ReadAsync(performance.Id))?.Background;
-    }
-
-    /// <summary>The command that draws the performance's own look; null when it does not resolve,
-    /// so the venue's playlist draws instead. A video whose URL is still being found is drawn as
-    /// off meanwhile, not handed to the playlist.</summary>
-    private SetVisualiserCommand? LookForSong(
-        PlaybackProgram.Playing song, PerformanceBackground look, Func<string?> levelsUrl, Venue.VenueSettings? venue)
-    {
-        if (look.PresetSource != VisualiserPresetSource.Video) return VisualiserFor(look, song.Media.Title, levelsUrl, venue);
-
-        // Known not to play, or naming none: the playlist answers, and keeps its own pick.
-        if (look.VideoMediaId is not { } mediaId || _visualiserVideo is { Url: null } known && known.MediaId == mediaId)
-            return null;
-
-        var pick = LookPick(song);
-        _visualiserPick = pick;
-        return VideoVisualiserFor(song, look, pick.EntryId) ?? VisualiserOff;
-    }
-
-    /// <summary>The pick a performance's own look is kept under: no playlist has an empty id, so it
-    /// never matches a playlist's entry, and a late video URL for it is still this song's.</summary>
-    private static (Guid PlaylistId, Guid EntryId) LookPick(PlaybackProgram.Playing song)
-        => (Guid.Empty, song.Performance!.Id);
-
-    /// <summary>The command that draws <paramref name="entry"/>; null when its preset cannot be
-    /// found, which leaves whatever was under it.</summary>
-    /// <remarks><paramref name="levelsUrl"/> is asked only once the preset resolves: it may start a
-    /// read of the song's levels.</remarks>
-    private SetVisualiserCommand? VisualiserFor(
-        IVisualisationLook entry, string drawnFor, Func<string?> levelsUrl, Venue.VenueSettings? venue)
-    {
-        string? name = null, url = null, builtIn = null;
-        if (entry.PresetSource == VisualiserPresetSource.BuiltIn)
-        {
-            if (!VisualiserPresetService.BuiltIns.Any(b => b.Name == entry.PresetName))
-            {
-                _logger.LogWarning("The visualisation names a built-in drawing '{Preset}' the host does not have; '{Title}' draws without it",
-                    entry.PresetName, drawnFor);
-                return null;
-            }
-
-            builtIn = entry.PresetName;
-        }
-        else if (entry.PresetSource == VisualiserPresetSource.Imported)
-        {
-            if (ImportedPresetUrl(entry.PresetName) is not { } imported)
-            {
-                _logger.LogWarning("The visualisation's imported preset '{Preset}' is not there any more; '{Title}' draws without it",
-                    entry.PresetName, drawnFor);
-                return null;
-            }
-
-            url = imported;
-        }
-        else
-        {
-            name = entry.PresetName;
-        }
-
-        return new SetVisualiserCommand
-        {
-            Enabled = true,
-            PresetName = name,
-            PresetUrl = url,
-            BuiltIn = builtIn,
-            BarCount = entry.BarCount,
-            ColourScheme = entry.ColourScheme,
-            Colour = entry.Colour,
-            Brightness = entry.Brightness,
-            Saturation = entry.Saturation,
-            Sensitivity = entry.Sensitivity,
-            LevelsUrl = levelsUrl(),
-
-            // A preset's colours are its own; only the host's drawings take the venue's.
-            VenuePalette = builtIn is not null && entry.RespectsVenueTheme ? venue?.ResolveScreenColours().VisualisationPalette : null,
-        };
-    }
-
-    /// <summary>The command that plays <paramref name="entry"/>'s video, once its URL is known; null
-    /// until then, or when it cannot be had.</summary>
-    /// <remarks>The first ask for a song is answered off the load path: an encode can take seconds,
-    /// and the song must not wait on its decoration. <see cref="ResolveVideoAsync"/> decides again
-    /// once it is known.</remarks>
-    private SetVisualiserCommand? VideoVisualiserFor(PlaybackProgram.Playing song, IVisualisationLook entry, Guid pickId)
-    {
-        if (entry.VideoMediaId is not { } mediaId)
-        {
-            _logger.LogWarning("The visualisation names no video; '{Title}' draws without it", song.Media.Title);
-            return null;
-        }
-
-        if (_visualiserVideo is { } known && known.MediaId == mediaId)
-        {
-            if (known.Url is null) return null;
-
-            return new SetVisualiserCommand
-            {
-                Enabled = true,
-                VideoUrl = known.Url,
-                Brightness = entry.Brightness,
-                Saturation = entry.Saturation,
-            };
-        }
-
-        if (_visualiserVideoPending != mediaId)
-        {
-            _visualiserVideoPending = mediaId;
-            _ = Task.Run(() => ResolveVideoAsync(song, pickId, mediaId));
-        }
-
-        return null;
-    }
-
-    /// <summary>Finds where the screen plays a video entry's video, then draws it if the same song
-    /// and the same entry are still current.</summary>
-    /// <remarks>Never throws. A song that ended, or an entry replaced, while it was encoding gets
-    /// nothing.</remarks>
-    private async Task ResolveVideoAsync(PlaybackProgram.Playing song, Guid entryId, Guid mediaId)
-    {
-        string? url = null;
-        try
-        {
-            var media = _services?.GetService<IMediaService>() is { } library ? await library.ReadAsync(mediaId) : null;
-
-            if (media is null)
-                _logger.LogWarning("The visualisation's video {MediaId} is not in the library; '{Title}' draws without it", mediaId, song.Media.Title);
-            else if (media.Type != MediaType.Video)
-                _logger.LogWarning("The visualisation names '{Video}', which is not a video; '{Title}' draws without it", media.Title, song.Media.Title);
-            else if (_services?.GetService<IVideoBackdropService>() is { } backdrops)
-                url = await backdrops.UrlForAsync(media);
-
-            if (media is { Type: MediaType.Video } && url is null)
-                _logger.LogWarning("The screen cannot play '{Video}'; '{Title}' draws without it", media.Title, song.Media.Title);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not find the visualisation's video {MediaId} for '{Title}'", mediaId, song.Media.Title);
-        }
-
-        await _visualiserLock.WaitAsync();
-        try
-        {
-            if (!ReferenceEquals(song, _visualiserFor)
-                || !ReferenceEquals(song, _services?.GetService<IPlaybackService>()?.CurrentProgram))
-                return;
-
-            // Kept even for an entry since replaced: it is this song's answer for this video.
-            if (_visualiserVideoPending == mediaId) _visualiserVideoPending = null;
-            _visualiserVideo = (mediaId, url);
-
-            if (_visualiserPick?.EntryId != entryId || _visualiserLoad is not { } loaded) return;
-
-            // A playlist's video that cannot play stays black; a performance's own falls back to the playlist.
-            if (url is null && _visualiserPick?.PlaylistId != Guid.Empty) return;
-
-            // Decided whole again rather than sent as found: the venue or the entry may have moved.
-            await SendAsync(await DecideVisualiserAsync(song, loaded));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not draw the visualisation's video for '{Title}'", song.Media.Title);
-        }
-        finally
-        {
-            _visualiserLock.Release();
-        }
-    }
-
     /// <summary>Hands the screen the "Up next" card with what the venue wants behind it.</summary>
     /// <remarks>A one-shot: a venue edit while it is up reaches the next announcement, not this one.
     /// A visualisation the venue cannot draw (no playlist, an empty one, a preset gone) falls back
     /// to <see cref="NextSingerBackground.Over"/>, what a venue that never chose gets.</remarks>
     private async Task ShowNextSingerAsync(NextSingerCard card)
     {
-        var background = (await ReadVenueSettingsAsync())?.NextSingerBackground ?? NextSingerBackground.Over;
+        var venue = new VenueRead(ReadSelectedVenueAsync);
+        var background = (await venue.SettingsAsync())?.NextSingerBackground ?? NextSingerBackground.Over;
         SetVisualiserCommand? visualiser = null;
 
         if (background == NextSingerBackground.Visualisation)
         {
-            visualiser = await CardVisualiserAsync(card);
+            visualiser = await _visualiser.ForNextSingerCardAsync(card, venue.SettingsAsync);
             if (visualiser is null) background = NextSingerBackground.Over;
         }
 
@@ -909,116 +573,6 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             Background = background,
             Visualiser = visualiser,
         });
-    }
-
-    /// <summary>The venue playlist's next entry, taken the way a song takes one, with no levels:
-    /// between singers there is no song for the host to read them from.</summary>
-    /// <remarks>Never throws: the card matters more than what is behind it.</remarks>
-    private async Task<SetVisualiserCommand?> CardVisualiserAsync(NextSingerCard card)
-    {
-        try
-        {
-            var venue = await ReadVenueSettingsAsync();
-            if (venue?.VisualisationPlaylistId is not { } playlistId) return null;
-            if (_services?.GetService<IVisualisationPlaylistService>() is not { } playlists) return null;
-
-            // An empty or missing playlist answers null.
-            if (await playlists.SelectNextAsync(playlistId) is not { } entry) return null;
-
-            // The turn is taken all the same: looking on for a drawing would spend two.
-            if (entry.PresetSource == VisualiserPresetSource.Video) return null;
-
-            return VisualiserFor(entry, "the next-singer card", () => null, venue);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not pick a visualisation for the card naming {Singer}", card.Singer);
-            return null;
-        }
-    }
-
-    /// <summary>The song's entry: the one already picked while it is still in the venue's playlist,
-    /// read afresh so an edit to its settings shows mid-song; else the playlist's next.</summary>
-    private async Task<VisualisationEntry?> EntryForSongAsync(IVisualisationPlaylistService playlists, Guid playlistId)
-    {
-        // An empty or missing playlist falls through to SelectNextAsync, which answers null.
-        var playlist = await playlists.ReadWithEntriesAsync(playlistId);
-
-        if (_visualiserPick is { } pick && pick.PlaylistId == playlistId
-            && playlist?.Entries.FirstOrDefault(entry => entry.Id == pick.EntryId) is { } kept)
-            return kept;
-
-        var next = await playlists.SelectNextAsync(playlistId);
-        _visualiserPick = next is null ? null : (playlistId, next.Id);
-
-        return next;
-    }
-
-    /// <summary>Where the screen fetches an imported preset, versioned by when it was written so a
-    /// re-import reaches a screen already drawing it; null when no such preset is stored.</summary>
-    private string? ImportedPresetUrl(string name)
-    {
-        if (_services?.GetService<IVisualiserPresetService>() is not { } presets) return null;
-        if (_services.GetService<IOptionsMonitor<HlsMediaStreamService.ServiceOptions>>() is not { } options) return null;
-
-        var preset = presets.ReadAll().FirstOrDefault(p => p.Source == VisualiserPresetSource.Imported && p.Name == name);
-        if (preset is null) return null;
-
-        return $"{options.CurrentValue.BaseAddress.TrimEnd('/')}{VisualiserPresetService.RoutePrefix}"
-            + $"{Uri.EscapeDataString(name)}?v={preset.ImportedUtc?.Ticks ?? 0}";
-    }
-
-    /// <summary>Starts reading the song's levels the first time its visualiser is on, and answers
-    /// where they are served; null when there is nothing the host can read them from.</summary>
-    /// <remarks>Read for every song that draws one, whether or not the screen can listen for itself:
-    /// the screen decides which it uses, and a stem song that is later re-keyed becomes an encoded
-    /// one the screen cannot hear. A load with nothing readable is asked again on the next load.</remarks>
-    private string? LevelsUrlFor(string path, DisplayLoad load)
-    {
-        if (_visualiserLevelsUrl is not null) return _visualiserLevelsUrl;
-        if (_services?.GetService<ISongLevelsService>() is not { } levels) return null;
-
-        var stems = _services.GetService<IStemStreamService>();
-
-        // A stem song loaded already re-keyed arrives as the host's own mix of its stems.
-        var mixed = load.Stems.Count == 0 && load.StreamUrl is { } stream ? stems?.StemsMixedInto(stream) : null;
-
-        var inputs = SongLevels.InputsFor(path, load, url =>
-        {
-            try { return stems?.ResolveStemInput(url); }
-            catch (InvalidOperationException) { return null; }
-        }, mixed);
-
-        if (inputs is null) return null;
-
-        return _visualiserLevelsUrl = levels.Begin(inputs);
-    }
-
-    /// <summary>Takes the visualiser down between songs, and drops the last song's levels with it.</summary>
-    private async Task TakeDownVisualiserAsync()
-    {
-        _services?.GetService<ISongLevelsService>()?.Clear();
-        await SendAsync(VisualiserOff);
-    }
-
-    /// <summary>Whether the screen shows a picture from the song's own file for this load.</summary>
-    /// <remarks>Stems are sound only. With no probe to ask, the answer is yes: a visualiser drawn
-    /// over a singer's own video is worse than black under words.</remarks>
-    private async Task<bool> PlaysOwnPictureAsync(string path, DisplayLoad load)
-    {
-        if (load.Stems.Count > 0 || load.StreamUrl is null) return false;
-
-        // Free, and nothing from an audio file is ever shown, so the probe is skipped.
-        if (!SongBackdrops.MayShowPictureFrom(path)) return false;
-
-        if (_visualiserSourceHasPicture is { } known) return known;
-
-        if (_services?.GetService<ISourcePictureProbe>() is not { } probe) return true;
-
-        var hasPicture = await probe.HasMovingPictureAsync(path);
-        _visualiserSourceHasPicture = hasPicture;
-
-        return hasPicture;
     }
 
     /// <summary>The machine's grace, read on every send so an App Settings change needs no restart.</summary>
@@ -1047,35 +601,12 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         await SendAsync(new SetBackgroundVolumeCommand { Volume = FullVolume });
     }
 
-    /// <summary>The venue's colours for everything drawn besides the marquee; every one null, the
-    /// screen's own, with no venue selected.</summary>
-    internal static SetScreenThemeCommand BuildScreenTheme(Venue.VenueSettings? settings)
-    {
-        if (settings is null) return new SetScreenThemeCommand();
-
-        var colours = settings.ResolveScreenColours();
-        return new SetScreenThemeCommand
-        {
-            Background = colours.Background,
-            LyricsSung = colours.LyricsSung,
-            LyricsUnsung = colours.LyricsUnsung,
-            LyricsOutline = colours.LyricsOutline,
-            IntroText = colours.IntroText,
-            IntroOutline = colours.IntroOutline,
-            NextSingerText = colours.NextSingerText,
-            NextSingerName = colours.NextSingerName,
-            NextSingerPanel = colours.NextSingerPanel,
-            BreakMusicCardText = colours.BreakMusicCardText,
-            BreakMusicCardBackground = colours.BreakMusicCardBackground,
-            QrCodeFrame = colours.QrCodeFrame,
-            QrCodeCaption = colours.QrCodeCaption,
-        };
-    }
-
     /// <summary>Pulls the current state of each overlay asked for and sends it whole.</summary>
     /// <remarks>Never throws: one overlay that cannot be built must not keep the rest off the screen.</remarks>
     private async Task RedrawAsync(Overlay overlays)
     {
+        var venue = new VenueRead(ReadSelectedVenueAsync);
+
         if (overlays.HasFlag(Overlay.Volume))
         {
             try { await ApplyVolumeAsync(); }
@@ -1084,64 +615,37 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
         // Ahead of the overlays, which read the database: the picture is what the room notices late.
         if (overlays.HasFlag(Overlay.Connected))
-            await DrawPictureAsync(PictureCause.Connected);
+            await DrawPictureAsync(PictureCause.Connected, venue);
         else if (overlays.HasFlag(Overlay.Picture))
-            await DrawPictureAsync(PictureCause.ProgramMoved);
+            await DrawPictureAsync(PictureCause.ProgramMoved, venue);
         else if (overlays.HasFlag(Overlay.IdleCard))
-            await DrawPictureAsync(PictureCause.VenueChanged);
+            await DrawPictureAsync(PictureCause.VenueChanged, venue);
 
         // Ahead of what it colours, so a screen that has just joined draws them in the venue's colours.
         if (overlays.HasFlag(Overlay.Theme))
         {
-            try { await SendOverlayAsync(BuildScreenTheme(await ReadVenueSettingsAsync())); }
+            try { await SendOverlayAsync(ScreenOverlayBuilders.BuildScreenTheme(await venue.SettingsAsync())); }
             catch (Exception ex) { _logger.LogWarning(ex, "Could not send the venue's colours to the screen"); }
         }
 
         if (overlays.HasFlag(Overlay.Visualiser))
-            await SendVisualiserAsync(load: null);
+            await _visualiser.SendAsync(load: null, venue.SettingsAsync);
 
         if (overlays.HasFlag(Overlay.Marquee))
             await DrawAsync<IUpNextService>("marquee", async upNext =>
-                await BuildMarqueeAsync(await ReadVenueSettingsAsync(), upNext, PerformanceUnderWay()));
+                await ScreenOverlayBuilders.BuildMarqueeAsync(await venue.SettingsAsync(), upNext, PerformanceUnderWay()));
 
         // Sent even when there is nothing up: it is the whole state, so it also clears a code left
         // on a screen that dropped and came back.
         if (overlays.HasFlag(Overlay.QrCodes))
-            await DrawAsync<IQrCodeOfferService>("QR codes", async codes => BuildQrCodes(await codes.ReadOfferAsync()));
+            await DrawAsync<IQrCodeOfferService>("QR codes", async codes => ScreenOverlayBuilders.BuildQrCodes(await codes.ReadOfferAsync(), Encode));
 
         if (overlays.HasFlag(Overlay.BreakMusicCard))
-            await DrawAsync<IBreakMusicService>("break music card", BuildBreakMusicCardAsync);
+            await DrawAsync<IBreakMusicService>("break music card", async breakMusic =>
+                ScreenOverlayBuilders.BuildBreakMusicCard(await venue.SettingsAsync(), breakMusic));
     }
 
-    /// <summary>The offer as the screen draws it, or an empty set that clears whatever is up.</summary>
-    private SetScreenQrCodesCommand BuildQrCodes(QrCodeOffer? offer)
-    {
-        if (offer is null)
-            return new SetScreenQrCodesCommand();
-
-        var (image, modules) = Encode(offer.Payload);
-
-        return new SetScreenQrCodesCommand
-        {
-            Codes =
-            [
-                new ScreenQrCodePlacement
-                {
-                    ImageUrl = image,
-                    Modules = modules,
-                    Caption = offer.Caption,
-                    Corner = offer.Corner ?? OverlayCorner.BottomRight,
-                    Size = offer.Size ?? QrCodeSize.Medium,
-
-                    // Resolved here, not on the screen, which decides nothing.
-                    SafeZone = offer.SafeZone ?? DefaultSafeZone,
-                    Offset = offer.Offset ?? DefaultOffset,
-                },
-            ],
-        };
-    }
-
-    /// <summary>Encodes the payload as an SVG at the lowest correction level, fewer modules.</summary>
+    /// <summary>The payload's code, encoded once per payload.</summary>
     private (string Image, int Modules) Encode(string payload)
     {
         lock (_encoded)
@@ -1150,18 +654,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                 return cached;
         }
 
-        using var generator = new QRCodeGenerator();
-        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.L);
-
-        // One unit per module, so every size the screen asks for is an exact multiple of the grid.
-        // No quiet zone drawn in: the screen paints that margin, so a corner can be as tight as it likes.
-        var svg = new SvgQRCode(data).GetGraphic(1, "#000000", "#ffffff", drawQuietZones: false);
-
-        // ModuleMatrix counts the quiet zone whether or not it is drawn, so the eight rows and
-        // columns of it come off: what the screen sizes against has to be what is in the picture.
-        var encoded = (
-            $"data:image/svg+xml;base64,{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(svg))}",
-            data.ModuleMatrix.Count - 8);
+        var encoded = ScreenOverlayBuilders.EncodeQrCode(payload);
 
         lock (_encoded)
         {
@@ -1187,48 +680,17 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         return Overlay.Marquee;
     }
 
+    private async Task<Venue?> ReadSelectedVenueAsync()
+        => _venuesService is null ? null : await _venuesService.ReadSelectedVenueAsync();
+
     private async Task<Venue.VenueSettings?> ReadVenueSettingsAsync()
-        => _venuesService is null ? null : (await _venuesService.ReadSelectedVenueAsync())?.Settings;
-
-    /// <summary>Names the break music in a corner; says what is playing, not what is cued.</summary>
-    private async Task<IScreenCommand> BuildBreakMusicCardAsync(IBreakMusicService breakMusic)
-    {
-        var settings = await ReadVenueSettingsAsync();
-
-        // A venue that wants none gets none, and a console with no venue selected has nobody to
-        // have asked, which is the same answer.
-        if (settings is null || !settings.BreakMusicCardEnabled)
-            return new SetBreakMusicCardCommand { Enabled = false };
-
-        // Playing only: Paused and Suspended both mean the room is hearing something else, and a
-        // card naming a track nobody can hear is worse than no card.
-        if (breakMusic.State != BreakMusicState.Playing || breakMusic.CurrentTrack is not { } track)
-            return new SetBreakMusicCardCommand { Enabled = false };
-
-        // A provider that reports no title has nothing worth a corner of the picture.
-        if (string.IsNullOrWhiteSpace(track.Title))
-            return new SetBreakMusicCardCommand { Enabled = false };
-
-        return new SetBreakMusicCardCommand
-        {
-            Enabled = true,
-            Title = track.Title,
-
-            // Null rather than blank where the provider could not say, so the screen draws one
-            // line instead of a gap it has to reason about.
-            Artist = string.IsNullOrWhiteSpace(track.Artist) ? null : track.Artist,
-            Corner = settings.BreakMusicCardCorner ?? DefaultBreakMusicCardCorner,
-
-            // The codes' setting, because the inset belongs to the corner.
-            Offset = settings.QrCodeOffset > 0 ? settings.QrCodeOffset : DefaultOffset,
-        };
-    }
+        => (await ReadSelectedVenueAsync())?.Settings;
 
     /// <summary>Puts up the venue's card, an ad's still, or takes either down for a song.</summary>
     /// <remarks>Drawn only when the program has moved, since PlaybackChanged also means a seek or a
     /// pause. A screen that has just connected gets the picture whatever it was last sent, and a
     /// venue edit redraws only the card: a still over a singer is worse than a stale one.</remarks>
-    private async Task DrawPictureAsync(PictureCause cause)
+    private async Task DrawPictureAsync(PictureCause cause, VenueRead venue)
     {
         if (_services?.GetService<IPlaybackService>() is not { } playback) return;
 
@@ -1253,7 +715,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             switch (program)
             {
                 case PlaybackProgram.AdStill still:
-                    await TakeDownVisualiserAsync();
+                    await _visualiser.TakeDownAsync();
                     await SendAsync(new ShowImageCommand { Url = still.ImageUrl, Scaling = still.Scaling });
                     break;
 
@@ -1263,8 +725,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
                 default:
                     // Between songs is the venue's card, never the last song's visualiser.
-                    await TakeDownVisualiserAsync();
-                    await DrawIdleCardAsync();
+                    await _visualiser.TakeDownAsync();
+                    await DrawIdleCardAsync(venue);
                     break;
             }
         }
@@ -1280,9 +742,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     }
 
     /// <summary>The venue's card while nothing is playing, or a clear screen when it has none.</summary>
-    private async Task DrawIdleCardAsync()
+    private async Task DrawIdleCardAsync(VenueRead read)
     {
-        var venue = _venuesService is null ? null : await _venuesService.ReadSelectedVenueAsync();
+        var venue = await read.VenueAsync();
 
         if (venue?.Settings.BrandingImageMediaId is not { } brandingId
             || _services?.GetService<IMediaService>() is not { } library
@@ -1318,51 +780,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     }
 
     /// <summary>Detached, because broker handlers run one at a time and a redraw reads the database.</summary>
-    /// <remarks>Owed overlays pile up for <see cref="_redrawSettle"/> and are drawn once, one
-    /// redraw at a time, so a burst of announcements from one host action lands as one draw of
-    /// where it ended rather than one per step, some of them mid-way.</remarks>
-    private void Redraw(Overlay overlays)
-    {
-        lock (_redrawGate)
-        {
-            _redrawOwed |= overlays;
-
-            if (_redrawRunning) return;
-            _redrawRunning = true;
-        }
-
-        _ = Task.Run(DrainRedrawsAsync);
-    }
-
-    private async Task DrainRedrawsAsync()
-    {
-        while (true)
-        {
-            // Waited out before every draw, including one owed while the last was drawing: the
-            // window has to start at a burst's first announcement or it splits the burst.
-            await Task.Delay(_redrawSettle);
-
-            Overlay overlays;
-
-            lock (_redrawGate)
-            {
-                overlays = _redrawOwed;
-                _redrawOwed = 0;
-            }
-
-            try { await RedrawAsync(overlays); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Could not redraw the screen"); }
-
-            lock (_redrawGate)
-            {
-                if (_redrawOwed == 0)
-                {
-                    _redrawRunning = false;
-                    return;
-                }
-            }
-        }
-    }
+    private void Redraw(Overlay overlays) => _redraw.Request(overlays);
 
     // Raised on the hub thread with a plain EventHandler, so everything here that awaits is
     // detached: awaiting on it would be async void.
@@ -1439,6 +857,18 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     /// <summary>One registration of the screen; a screen that comes back is a new one.</summary>
     private sealed record ScreenSession(IScreenConnection Connection, Guid Id);
+
+    /// <summary>The selected venue, read at most once for everything one pass draws.</summary>
+    /// <remarks>Unguarded: a pass awaits each draw in turn. A failed read is kept, so each draw
+    /// that wanted it fails inside its own guard.</remarks>
+    private sealed class VenueRead(Func<Task<Venue?>> read)
+    {
+        private Task<Venue?>? _venue;
+
+        public Task<Venue?> VenueAsync() => _venue ??= read();
+
+        public async Task<Venue.VenueSettings?> SettingsAsync() => (await VenueAsync())?.Settings;
+    }
 
     [Flags]
     private enum Overlay

@@ -20,7 +20,7 @@ public class LocalScreenMarqueeTests
 
     // Through the real up-next list, which is where the singers the band names come from.
     private async Task<SetMarqueeCommand> BuildAsync()
-        => await LocalScreenDisplayProvider.BuildMarqueeAsync(
+        => await ScreenOverlayBuilders.BuildMarqueeAsync(
             (await _venues.ReadSelectedVenueAsync())?.Settings,
             new UpNextService(
                 NullLogger<UpNextService>.Instance, Substitute.For<IMessageBroker>(), _venues, _queue, _performances, _media,

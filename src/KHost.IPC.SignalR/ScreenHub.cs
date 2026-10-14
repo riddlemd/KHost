@@ -28,7 +28,7 @@ internal sealed class ScreenHub : Hub
         // The nonce every message on this connection must be signed against. Sent before the screen
         // registers, so the screen can prove it holds the key without the key ever crossing the wire.
         var nonce = _callback.BeginSession(Context.ConnectionId);
-        await Clients.Caller.SendAsync("Session", nonce);
+        await Clients.Caller.SendAsync(ScreenClientMethods.Session, nonce);
 
         await base.OnConnectedAsync();
     }
@@ -56,7 +56,7 @@ internal sealed class ScreenHub : Hub
 
             // Sent before the abort: without it the screen sees only the connection die, which reads
             // as a network failure rather than the refusal it actually was.
-            try { await Clients.Caller.SendAsync("RegistrationRefused", refusalReason); }
+            try { await Clients.Caller.SendAsync(ScreenClientMethods.RegistrationRefused, refusalReason); }
             catch (Exception ex) { _logger.LogDebug(ex, "Could not tell {ConnectionId} why it was refused", Context.ConnectionId); }
 
             Context.Abort();
