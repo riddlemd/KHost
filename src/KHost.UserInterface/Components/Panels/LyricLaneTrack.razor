@@ -1,0 +1,35 @@
+@* Percentages rather than a viewBox: a stretched viewBox scales the corner radius with the song's
+   length, so short spans would lose their pills. *@
+<svg class="kh-now-playing__lanes kh-now-playing__lanes--by-voice" aria-hidden="true">
+    @for (var i = 0; i < Lanes.Count; i++)
+    {
+        var lane = Lanes[i];
+        var (y, height) = LaneBand(i, Lanes.Count);
+        var fill = FillOf(lane);
+
+        foreach (var span in lane.Spans)
+        {
+            <rect class="kh-now-playing__lane-span @(fill is null ? "kh-now-playing__lane-span--themed" : "")"
+                  x="@PercentOf(span.StartSeconds, DurationSeconds)"
+                  width="@PercentOf(span.EndSeconds - span.StartSeconds, DurationSeconds)"
+                  y="@y" height="@height" rx="3" fill="@fill" />
+        }
+    }
+</svg>
+
+@* Drawn beside the lanes and swapped in by the container query: a panel too narrow to tell the
+   singers apart still shows where the singing is. *@
+@if (OneLane is { } one)
+{
+    var (oneY, oneHeight) = LaneBand(0, 1);
+
+    <svg class="kh-now-playing__lanes kh-now-playing__lanes--one" aria-hidden="true">
+        @foreach (var span in one.Spans)
+        {
+            <rect class="kh-now-playing__lane-span kh-now-playing__lane-span--themed"
+                  x="@PercentOf(span.StartSeconds, DurationSeconds)"
+                  width="@PercentOf(span.EndSeconds - span.StartSeconds, DurationSeconds)"
+                  y="@oneY" height="@oneHeight" rx="3" />
+        }
+    </svg>
+}

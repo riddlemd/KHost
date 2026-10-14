@@ -5,6 +5,7 @@ using KHost.Abstractions.Services;
 using KHost.DataAccess.Repositories;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,6 +38,7 @@ public class MediaBrowserImportLabelTests : BunitContext
         Services.AddSingleton(_mediaRepository);
         Services.AddSingleton(Substitute.For<IMediaFileParsingService>());
         Services.AddSingleton<IMessageBroker>(_broker);
+        Services.AddSingleton(ReaderWithNoMusicFolder());
 
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
@@ -47,8 +49,14 @@ public class MediaBrowserImportLabelTests : BunitContext
         try
         {
             var cut = Render<MediaBrowser>();
+            cut.WaitForState(() => cut.FindAll(".kh-media-importer__loading").Count == 0);
 
-            Assert.Equal("Import", cut.Find(".kh-split-btn__primary").TextContent.Trim());
+            // The header offers Import only once a folder is open.
+            cut.Find("button[title='Edit path']").Click();
+            cut.Find(".kh-media-importer__path-input").Input(_tempDir);
+            cut.Find(".kh-media-importer__path-input").KeyDown(new KeyboardEventArgs { Key = "Enter" });
+
+            Assert.Equal("Import", cut.WaitForElement(".kh-split-btn__primary").TextContent.Trim());
         }
         finally
         {
@@ -62,6 +70,8 @@ public class MediaBrowserImportLabelTests : BunitContext
         try
         {
             var cut = Render<MediaBrowser>();
+            // The default folder is asked off the circuit thread; a click landing while it answers is lost.
+            cut.WaitForState(() => cut.FindAll(".kh-media-importer__loading").Count == 0);
 
             cut.Find("button[title='Edit path']").Click();
             cut.Find(".kh-media-importer__path-input").Input(_tempDir);
@@ -77,5 +87,20 @@ public class MediaBrowserImportLabelTests : BunitContext
         {
             try { Directory.Delete(_tempDir, recursive: true); } catch { }
         }
+    }
+
+    /// <summary>The real reader, except that no default music folder exists: the browser opens on
+    /// the drive list, so nothing is read in the background while the test drives it.</summary>
+    private static IMediaFolderReader ReaderWithNoMusicFolder()
+    {
+        var real = new MediaFolderReader();
+        var reader = Substitute.For<IMediaFolderReader>();
+        reader.ExistsAsync(Arg.Any<string>()).Returns(call => real.ExistsAsync(call.Arg<string>()));
+        reader.ExistsAsync(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)).Returns(false);
+        reader.ReadAsync(Arg.Any<string>(), Arg.Any<IReadOnlySet<string>>())
+            .Returns(call => real.ReadAsync(call.ArgAt<string>(0), call.ArgAt<IReadOnlySet<string>>(1)));
+        reader.CountFilesAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<IReadOnlySet<string>>(), Arg.Any<CancellationToken>())
+            .Returns(call => real.CountFilesAsync(call.ArgAt<IReadOnlyList<string>>(0), call.ArgAt<IReadOnlySet<string>>(1), call.ArgAt<CancellationToken>(2)));
+        return reader;
     }
 }
