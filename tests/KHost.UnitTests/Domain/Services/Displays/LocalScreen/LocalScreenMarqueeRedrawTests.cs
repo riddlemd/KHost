@@ -7,6 +7,7 @@ using KHost.Domain.Services.Messaging;
 using KHost.IPC.SignalR.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 
@@ -18,6 +19,7 @@ public class LocalScreenMarqueeRedrawTests : IDisposable
     private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(50);
 
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly FakeTimeProvider _time = new();
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
@@ -44,11 +46,11 @@ public class LocalScreenMarqueeRedrawTests : IDisposable
         var provider = services.BuildServiceProvider();
 
         _upNext = new UpNextService(
-            NullLogger<UpNextService>.Instance, _broker, _venues, _queue, _performances, _media, provider, Settle);
+            NullLogger<UpNextService>.Instance, _broker, _venues, _queue, _performances, _media, provider, _time, Settle);
 
         _provider = new LocalScreenDisplayProvider(
             NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _broker, _venues,
-            services: provider, redrawSettle: Settle);
+            services: provider, redrawSettle: Settle, time: _time);
     }
 
     public void Dispose()
@@ -66,7 +68,7 @@ public class LocalScreenMarqueeRedrawTests : IDisposable
         _singers = [Singer("Ada"), Singer("Bo"), Singer("Cy")];
         _broker.Announce(new SingerQueueChanged());
 
-        Assert.True(await WaitUntilAsync(() => Sent().Any(m => Named(m) == "Ada, Bo, Cy")));
+        Assert.True(await _time.AdvanceUntilAsync(Settle, () => Sent().Any(m => Named(m) == "Ada, Bo, Cy")));
     }
 
     [Fact]
@@ -75,7 +77,7 @@ public class LocalScreenMarqueeRedrawTests : IDisposable
         await JoinAsync();
 
         _broker.Announce(new SingerQueueChanged());
-        await Task.Delay(Settle * 8);
+        _time.Advance(Settle, steps: 8);
 
         Assert.Empty(Sent());
     }
@@ -91,8 +93,8 @@ public class LocalScreenMarqueeRedrawTests : IDisposable
         _screenServer.ScreenConnected += Raise.EventWith(
             _screenServer, new ScreenConnectionEventArgs { Connection = connection });
 
-        Assert.True(await WaitUntilAsync(() => Sent().Any(m => Named(m) == "Ada, Bo")));
-        await Task.Delay(Settle * 4);
+        Assert.True(await _time.AdvanceUntilAsync(Settle, () => Sent().Any(m => Named(m) == "Ada, Bo")));
+        _time.Advance(Settle, steps: 4);
         _screenServer.ClearReceivedCalls();
     }
 
@@ -108,15 +110,4 @@ public class LocalScreenMarqueeRedrawTests : IDisposable
             .Where(call => call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
             .Select(call => call.GetArguments()[0])
             .OfType<SetMarqueeCommand>()];
-
-    private static async Task<bool> WaitUntilAsync(Func<bool> condition)
-    {
-        for (var attempt = 0; attempt < 300; attempt++)
-        {
-            if (condition()) return true;
-            await Task.Delay(10);
-        }
-
-        return false;
-    }
 }

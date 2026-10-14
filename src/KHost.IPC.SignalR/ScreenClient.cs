@@ -30,6 +30,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
     private CancellationTokenSource _lifetime = new();
     private readonly ILogger<ScreenClient> _logger;
+    private readonly TimeProvider _time;
 
     private byte[]? _key;
     private ScreenCapabilities _capabilities = ScreenCapabilities.None;
@@ -61,8 +62,9 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
     /// on a later, genuine network failure.</summary>
     public string? LastRefusalReason { get; private set; }
 
-    public ScreenClient(ILoggerFactory? loggerFactory)
+    public ScreenClient(ILoggerFactory? loggerFactory, TimeProvider? time = null)
     {
+        _time = time ?? TimeProvider.System;
         _logger = (loggerFactory ?? new Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory())
             .CreateLogger<ScreenClient>();
     }
@@ -314,7 +316,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         {
             try
             {
-                await Task.Delay(ReconnectBackoff[Math.Min(attempt, ReconnectBackoff.Length - 1)], cancellationToken);
+                await Task.Delay(ReconnectBackoff[Math.Min(attempt, ReconnectBackoff.Length - 1)], _time, cancellationToken);
 
                 await _stateLock.WaitAsync(cancellationToken);
                 try

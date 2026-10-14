@@ -23,7 +23,7 @@ public sealed class TimedLyricsService : ITimedLyricsService, IStartsWithTheHost
     private readonly IMessageBroker _broker;
     private readonly IVenuesService? _venues;
     private readonly IDisposable? _optionsSubscription;
-    private readonly Timer _settleTimer;
+    private readonly ITimer _settleTimer;
     private readonly TimeSpan _settle;
     private readonly Lock _gate = new();
 
@@ -36,7 +36,8 @@ public sealed class TimedLyricsService : ITimedLyricsService, IStartsWithTheHost
         IOptionsMonitor<PlaybackService.ServiceOptions> options,
         IMessageBroker broker,
         TimeSpan? settle = null,
-        IVenuesService? venues = null)
+        IVenuesService? venues = null,
+        TimeProvider? time = null)
     {
         _venues = venues;
         _logger = logger;
@@ -45,7 +46,8 @@ public sealed class TimedLyricsService : ITimedLyricsService, IStartsWithTheHost
         _broker = broker;
         _settle = settle ?? DefaultSettle;
         _announced = Adjustments.Of(options.CurrentValue);
-        _settleTimer = new Timer(_ => AnnounceIfMoved(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _settleTimer = (time ?? TimeProvider.System).CreateTimer(
+            _ => AnnounceIfMoved(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _optionsSubscription = options.OnChange((_, _) => _settleTimer.Change(_settle, Timeout.InfiniteTimeSpan));
     }
 

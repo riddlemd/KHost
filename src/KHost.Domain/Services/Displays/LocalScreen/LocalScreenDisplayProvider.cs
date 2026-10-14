@@ -127,7 +127,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         TimeSpan? registrationTimeout = null,
         IServiceProvider? services = null,
         TimeSpan? redrawSettle = null,
-        IOptionsMonitor<PlaybackService.ServiceOptions>? playbackOptions = null)
+        IOptionsMonitor<PlaybackService.ServiceOptions>? playbackOptions = null,
+        TimeProvider? time = null)
     {
         _logger = logger;
         _screenServer = screenServer;
@@ -140,7 +141,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _visualiser = new LocalScreenVisualiser(
             logger, services, SendAsync, song => ReferenceEquals(song, _lyricsFor) ? _lyrics : null, ReadVenueSettingsAsync);
         _redraw = new SettlingRedraw<Overlay>(
-            redrawSettle ?? DefaultRedrawSettle, RedrawAsync, ex => _logger.LogWarning(ex, "Could not redraw the screen"));
+            redrawSettle ?? DefaultRedrawSettle, RedrawAsync, ex => _logger.LogWarning(ex, "Could not redraw the screen"), time);
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;

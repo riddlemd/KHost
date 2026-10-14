@@ -846,7 +846,7 @@ public class SingerQueueServiceTests : IDisposable
         await EnqueueAsync("Bob");
 
         _broker.Announce(new UsersChanged());
-        await Task.Delay(80);
+        await _service.Reconciling;
 
         Assert.Equal(2, _service.Users.Count);
     }
@@ -1051,10 +1051,8 @@ public class SingerQueueServiceTests : IDisposable
         _userDb.Remove(bob.Id);
         _broker.Announce(new UsersChanged());
 
-        await WaitForQueueAsync(() => _service.Users.Count == 0);
-        // Prune runs on its own Task.Run off the broker; its fire-and-forget PublishAsync can
-        // still be in flight when the state above already reads as settled.
-        await Task.Delay(50);
+        await _service.Reconciling;
+        Assert.Empty(_service.Users);
 
         Assert.Equal(1, announceCount);
     }
@@ -1071,7 +1069,7 @@ public class SingerQueueServiceTests : IDisposable
         // anywhere redraws the queue.
         _userDb[alice.Id] = Reread(alice);
         _broker.Announce(new UsersChanged());
-        await Task.Delay(80);
+        await _service.Reconciling;
 
         Assert.Equal(0, announceCount);
     }
@@ -1088,8 +1086,8 @@ public class SingerQueueServiceTests : IDisposable
         _userDb[bob.Id] = Reread(bob, new KHostUserForeignKey { Source = "Example", Key = "guest-7", IsEphemeral = true });
         _broker.Announce(new UsersChanged());
 
-        await WaitForQueueAsync(() => _service.Users.Single().ForeignKeys.Count == 1);
-        await Task.Delay(50);
+        await _service.Reconciling;
+        Assert.Single(_service.Users.Single().ForeignKeys);
 
         Assert.Equal(1, announceCount);
     }
