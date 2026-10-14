@@ -48,7 +48,7 @@ public class AppInfoServiceTests
     [Fact]
     public void ReferencedLicenses_EachHaveNonEmptyText()
     {
-        Assert.Equal(1, _service.ReferencedLicenses.Count);
+        Assert.Single(_service.ReferencedLicenses);
         Assert.All(_service.ReferencedLicenses, license => Assert.False(string.IsNullOrWhiteSpace(license.Text)));
     }
 

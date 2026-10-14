@@ -56,8 +56,8 @@ public interface IPerformanceService : IRepositoryService<Performance>
 
     /// <summary>Puts a song at the end of a singer's list, applying the rules that guard it.</summary>
     /// <returns>The saved performance, or null when any rule refused it. To learn which, call
-    /// <see cref="TryCreateAndEnqueueAsync"/> instead.</returns>
-    /// <remarks>The same call as <see cref="TryCreateAndEnqueueAsync"/>, with the same rules and the
+    /// <see cref="TryCreateAndEnqueueAsync(Performance)"/> instead.</returns>
+    /// <remarks>The same call as <see cref="TryCreateAndEnqueueAsync(Performance)"/>, with the same rules and the
     /// same defaults filled in.</remarks>
     Task<Performance?> CreateAndEnqueueAsync(Performance performance);
 

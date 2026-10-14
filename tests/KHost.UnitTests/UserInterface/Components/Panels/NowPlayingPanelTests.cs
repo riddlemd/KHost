@@ -358,7 +358,7 @@ public class NowPlayingPanelTests : BunitContext
     /// <summary>A slow read for a song that has already been replaced must not paint its lanes over
     /// the song now playing.</summary>
     [Fact]
-    public void Lanes_AReadThatFinishesAfterTheSongChanged_IsDiscarded()
+    public async Task Lanes_AReadThatFinishesAfterTheSongChanged_IsDiscarded()
     {
         var first = Song("duet.mp4");
         var second = Song("plain.mp4");
@@ -373,9 +373,9 @@ public class NowPlayingPanelTests : BunitContext
         _broker.Announce(new PlaybackChanged());
         cut.WaitForAssertion(() => _lyrics.Received(1).GetTimedLyricsAsync(second.FilePath, Arg.Any<CancellationToken>()));
 
-        cut.InvokeAsync(() => slow.SetResult(Duet())).Wait();
+        await cut.InvokeAsync(() => slow.SetResult(Duet()));
         // Lets the resumed read run to its end before looking.
-        cut.InvokeAsync(() => { }).Wait();
+        await cut.InvokeAsync(() => { });
 
         Assert.Empty(cut.FindAll("svg"));
     }

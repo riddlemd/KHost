@@ -159,6 +159,7 @@ public static class MediaFormats
     }
 
     /// <summary>What a file is, from its name and what sits beside it: asked, not assumed.</summary>
+    /// <param name="filePath">The file to classify; it need not exist.</param>
     /// <param name="videoIsKaraoke">What to call a file with a picture track; a karaoke video and an ad clip are the same formats, so the caller has to say which.</param>
     public static MediaType TypeForFile(string filePath, bool videoIsKaraoke = true)
     {
