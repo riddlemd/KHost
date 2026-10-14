@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using KHost.IPC.SignalR.Contracts;
 
-namespace KHost.UnitTests.IPC;
+namespace KHost.UnitTests.IPC.SignalR;
 
 // Guards ScreenIpcSerializer's contract: commands must serialize through their base type or the
 // $type discriminator is dropped and the receiver's base-typed deserialize throws.

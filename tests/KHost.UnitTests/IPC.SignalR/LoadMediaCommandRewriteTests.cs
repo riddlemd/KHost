@@ -3,7 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.IPC.SignalR.Contracts;
 using KHost.IPC.SignalR;
 
-namespace KHost.UnitTests.IPC;
+namespace KHost.UnitTests.IPC.SignalR;
 
 /// <summary>A screen off the loopback address is sent a rewritten load, and everything else about
 /// that load has to survive the rewrite.</summary>

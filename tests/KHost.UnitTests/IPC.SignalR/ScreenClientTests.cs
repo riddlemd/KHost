@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KHost.UnitTests.IPC;
+namespace KHost.UnitTests.IPC.SignalR;
 
 /// <summary>Exercises <see cref="ScreenClient"/> against a real loopback server. It hardcodes its own
 /// <c>HubConnectionBuilder</c> with no seam for <c>TestServer</c>'s in-memory handler, so a live socket
