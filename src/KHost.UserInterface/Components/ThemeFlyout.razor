@@ -1,0 +1,12 @@
+@foreach (var theme in ThemeService.AvailableThemes)
+{
+    var isCurrent = ThemeService.CurrentTheme == theme;
+
+    <button class="kh-dropdown__item @(isCurrent ? "kh-dropdown__item--selected" : "")"
+            type="button" @onclick="() => SelectThemeAsync(theme)">
+        <span class="kh-dropdown__check">
+            @if (isCurrent) { <Icon Name="check2" /> }
+        </span>
+        @NameOf(ThemeService, theme)
+    </button>
+}

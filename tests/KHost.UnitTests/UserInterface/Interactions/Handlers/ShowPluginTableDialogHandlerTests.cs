@@ -33,7 +33,7 @@ public class ShowPluginTableDialogHandlerTests
     [Fact]
     public async Task HandleAsync_NoConsoleOpen_CompletesRatherThanHanging()
     {
-        var dialogService = new DialogService(NullLogger<DialogService>.Instance, []);
+        var dialogService = new DialogService(NullLogger<DialogService>.Instance, Substitute.For<IDisplaySwitcher>());
         var handler = new ShowPluginTableDialogHandler(dialogService);
 
         await handler.HandleAsync(MakeRequest(), CancellationToken.None)
