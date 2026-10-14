@@ -121,6 +121,12 @@ internal static class MonitorSpace
         return ClampInto(bounds, work);
     }
 
+    /// <summary>Whether a launching window goes full screen.</summary>
+    /// <remarks>Only with a second monitor: alone, the screen would cover the console the host drives
+    /// the show from, so it opens as a window whatever it was left as.</remarks>
+    internal static bool LaunchesFullScreen(bool rememberedFullScreen, bool movedToSecondary, int monitorCount)
+        => monitorCount > 1 && (rememberedFullScreen || movedToSecondary);
+
     /// <summary>Where a launching window goes when there is a monitor besides the primary.</summary>
     /// <remarks>The primary carries the console, so a window on it moves to the first other monitor
     /// listed, keeping its size, centred and inside that work area. A window already on another
