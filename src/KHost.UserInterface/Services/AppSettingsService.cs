@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using KHost.Abstractions.Models;
@@ -8,6 +9,7 @@ using KHost.Domain.Services.FFmpeg;
 using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Primitives;
 using KHost.Common.Media;
 
 namespace KHost.UserInterface.Services;
@@ -25,6 +27,82 @@ internal sealed class AppSettingsService : IAppSettingsService
     private readonly IBreakMusicService _breakMusic;
     private readonly string _overlayPath;
 
+    private const string NewVenueBackgroundsSection = "Venues";
+
+    private static readonly AppSettingDescriptor BreakMusicProvider = Text(
+        BreakMusicService.ServiceOptions.SectionName, "Provider", s => s.BreakMusicProvider, Blank);
+
+    private static readonly AppSettingDescriptor NewVenueBackgrounds = Choice(
+        NewVenueBackgroundsSection, "NewVenueBackgrounds", s => s.NewVenueBackgrounds, VenueBackgrounds.Basic);
+
+    private static readonly AppSettingDescriptor NewVenuePlaceholderImageId = new AppSettingDescriptor<Guid?>(
+        NewVenueBackgroundsSection, "NewVenuePlaceholderImageId", s => s.NewVenuePlaceholderImageId,
+        (configuration, path) => Guid.TryParse(configuration[path], out var image) ? image : null,
+        // Written even when null: clearing it must reach the overlay.
+        image => image?.ToString());
+
+    private static readonly AppSettingDescriptor NewVenuePlaceholderImageScaling = new AppSettingDescriptor<ImageScaling?>(
+        NewVenueBackgroundsSection, "NewVenuePlaceholderImageScaling", s => s.NewVenuePlaceholderImageScaling,
+        // Parsed rather than bound: a hand-edited word that names no scaling reads as the image's own.
+        (configuration, path) => Enum.TryParse<ImageScaling>(configuration[path], ignoreCase: true, out var scaling)
+            && Enum.IsDefined(scaling) ? scaling : null,
+        scaling => scaling?.ToString());
+
+    /// <summary>Every setting the page edits, in the order the overlay is written.</summary>
+    /// <remarks>The order is the saved file's shape: sections appear as their first setting does.</remarks>
+    private static readonly IReadOnlyList<AppSettingDescriptor> Settings =
+    [
+        Duration("Playback", "StopFadeDuration", s => s.StopFadeSeconds, TimeSpan.FromSeconds(5), StopFadeChoice),
+        // Clamped on read as well as on save: a hand-edited value outside a fader's range would
+        // otherwise reach ffmpeg as a volume multiplier nobody can undo from the console.
+        Int("Playback", "DefaultBackingVolume", s => s.BackingVocalVolume, AudioMix.DefaultBackingVolume, AudioLevels.ClampVolume),
+        Int("Playback", "LeadInGraceSeconds", s => s.LeadInGraceSeconds, 0, LeadInGraceChoice),
+        Flag("Playback", "DynamicLeadIns", s => s.DynamicLeadIns),
+        Int("Playback", "DynamicLeadInPauseSeconds", s => s.DynamicLeadInPauseSeconds, LeadInGenerator.DefaultLongPauseSeconds, DynamicLeadInPauseChoice),
+        Flag("Playback", "ColorBlindFriendlyLyrics", s => s.ColorBlindFriendlyLyrics),
+        // Clamped on read as well as save: a hand-edited value would otherwise reach the page outside the field's range.
+        Int("Playback", "LyricsOffsetMilliseconds", s => s.LyricsOffsetMilliseconds, 0, LyricsOffset.ClampMilliseconds),
+
+        Int("MediaStream", "SegmentSeconds", s => s.SegmentSeconds, 2, SegmentClamp),
+        Int("MediaStream", "GraphicsScaleHeight", s => s.GraphicsScaleHeight, GraphicsScaling.DefaultHeight, GraphicsScaling.SnapToOffered),
+        // Parsed rather than bound: a hand-edited word that names no choice reads as Auto.
+        Choice("MediaStream", "Encoder", s => s.VideoEncoder, VideoEncoderPreference.Auto),
+
+        Duration("Ads", "DefaultDuration", s => s.AdDefaultDurationSeconds,
+            TimeSpan.FromSeconds(AppSettings.DefaultAdDurationSeconds), AdDurationChoice),
+
+        PageSize("Media", s => s.MediaPageSize),
+        PageSize("Users", s => s.UsersPageSize),
+        PageSize("UserGroups", s => s.UserGroupsPageSize),
+        PageSize("Tips", s => s.TipsPageSize),
+        PageSize("Venues", s => s.VenuesPageSize),
+        PageSize("PerformanceHistory", s => s.PerformanceHistoryPageSize, AppSettings.DefaultPerformanceHistoryPageSize),
+
+        // Unlike the other choices, a number naming no style is kept: SongControlStyle has always read that way.
+        Choice("Console", "SongControlStyle", s => s.SongControlStyle, SongControlStyle.Sliders, definedOnly: false),
+        Flag("Console", "ShowLyricsOffsetControl", s => s.ShowLyricsOffsetControl),
+
+        Text("Search", "DefaultMode", s => s.DefaultSearchMode, SearchModeOrDefault),
+
+        BreakMusicProvider,
+        Duration(BreakMusicService.ServiceOptions.SectionName, "FadeDuration", s => s.BreakMusicFadeSeconds,
+            BreakMusicService.ServiceOptions.DefaultFadeDuration, BreakMusicFadeChoice),
+
+        NewVenueBackgrounds,
+        NewVenuePlaceholderImageId,
+        NewVenuePlaceholderImageScaling,
+
+        Flag("LocalScreen", "LaunchOnStartup", s => s.LaunchScreenOnStartup),
+
+        // Written even when blank: clearing it must reach the overlay.
+        Text(null, FFmpegService.ConfigurationKey, s => s.FFmpegPath, Blank),
+
+        // Left out when blank, so the deployment's own folder (or the default) applies.
+        Text("Plugins", "MediaDirectory", s => s.MediaDirectory, Blank, omitWhenNull: true),
+    ];
+
+    private ConfiguredRead? _read;
+
     public AppSettingsService(
         IConfiguration configuration, IFFmpegService ffmpeg, IBreakMusicService breakMusic, string? overlayDirectory = null)
     {
@@ -39,82 +117,80 @@ internal sealed class AppSettingsService : IAppSettingsService
     public string DefaultMediaDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "karaoke");
 
-    public AppSettings Current => new()
+    public AppSettings Current
     {
-        LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
-        FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
-        MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
-        StopFadeSeconds = StopFadeChoice(
-            (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds),
-        SegmentSeconds = SegmentClamp(_configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2),
-        GraphicsScaleHeight = GraphicsScaling.SnapToOffered(
-            _configuration.GetValue<int?>("MediaStream:GraphicsScaleHeight") ?? GraphicsScaling.DefaultHeight),
-        // Parsed rather than bound: a hand-edited word that names no choice reads as Auto.
-        VideoEncoder = Enum.TryParse<VideoEncoderPreference>(
-            _configuration["MediaStream:Encoder"], ignoreCase: true, out var encoder)
-            && Enum.IsDefined(encoder)
-            ? encoder
-            : VideoEncoderPreference.Auto,
-        AdDefaultDurationSeconds = AdDurationChoice(
-            (_configuration.GetValue<TimeSpan?>("Ads:DefaultDuration")
-                ?? TimeSpan.FromSeconds(AppSettings.DefaultAdDurationSeconds)).TotalSeconds),
-        MediaPageSize = PageSize("Media"),
-        UsersPageSize = PageSize("Users"),
-        UserGroupsPageSize = PageSize("UserGroups"),
-        TipsPageSize = PageSize("Tips"),
-        VenuesPageSize = PageSize("Venues"),
-        PerformanceHistoryPageSize = PageSize("PerformanceHistory", AppSettings.DefaultPerformanceHistoryPageSize),
-        // Clamped on read as well as on save: a hand-edited value outside a fader's range would
-        // otherwise reach ffmpeg as a volume multiplier nobody can undo from the console.
-        BackingVocalVolume = AudioLevels.ClampVolume(
-            _configuration.GetValue<int?>("Playback:DefaultBackingVolume") ?? AudioMix.DefaultBackingVolume),
-        LeadInGraceSeconds = LeadInGraceChoice(_configuration.GetValue<int?>("Playback:LeadInGraceSeconds") ?? 0),
-        DynamicLeadIns = _configuration.GetValue<bool?>("Playback:DynamicLeadIns") ?? false,
-        DynamicLeadInPauseSeconds = DynamicLeadInPauseChoice(
-            _configuration.GetValue<int?>("Playback:DynamicLeadInPauseSeconds") ?? LeadInGenerator.DefaultLongPauseSeconds),
-        ColorBlindFriendlyLyrics = _configuration.GetValue<bool?>("Playback:ColorBlindFriendlyLyrics") ?? false,
-        // Clamped on read as well as save: a hand-edited value would otherwise reach the page outside the field's range.
-        LyricsOffsetMilliseconds = LyricsOffset.ClampMilliseconds(_configuration.GetValue<int?>("Playback:LyricsOffsetMilliseconds") ?? 0),
-        // Parsed rather than cast: a hand-edited word that names no shape falls back to sliders
-        // instead of reaching the console as an enum value with no case to render it.
-        SongControlStyle = Enum.TryParse<SongControlStyle>(
-            _configuration["Console:SongControlStyle"], ignoreCase: true, out var style)
-            ? style
-            : SongControlStyle.Sliders,
-        DefaultSearchMode = SearchModeOrDefault(_configuration["Search:DefaultMode"]),
-        ShowLyricsOffsetControl = _configuration.GetValue<bool?>("Console:ShowLyricsOffsetControl") ?? false,
-        BreakMusicProvider = Blank(_configuration[BreakMusicProviderKey]) ?? _breakMusic.ActiveProvider?.SourceName,
-        BreakMusicFadeSeconds = BreakMusicFadeChoice(
-            (_configuration.GetValue<TimeSpan?>(BreakMusicFadeKey) ?? BreakMusicService.ServiceOptions.DefaultFadeDuration).TotalSeconds),
-        // Parsed rather than bound: a hand-edited word that names no playlist reads as Basic.
-        NewVenueBackgrounds = Enum.TryParse<VenueBackgrounds>(
-            _configuration[NewVenueBackgroundsKey], ignoreCase: true, out var backgrounds)
-            && Enum.IsDefined(backgrounds)
-            ? backgrounds
-            : VenueBackgrounds.Basic,
-        NewVenuePlaceholderImageId = Guid.TryParse(_configuration[NewVenuePlaceholderImageKey], out var image) ? image : null,
-        // Parsed rather than bound: a hand-edited word that names no scaling reads as the image's own.
-        NewVenuePlaceholderImageScaling = Enum.TryParse<ImageScaling>(
-            _configuration[NewVenuePlaceholderImageScalingKey], ignoreCase: true, out var scaling)
-            && Enum.IsDefined(scaling)
-            ? scaling
-            : null,
-    };
-
-    private const string NewVenueBackgroundsSection = "Venues";
-    private const string NewVenueBackgroundsKey = NewVenueBackgroundsSection + ":NewVenueBackgrounds";
-    private const string NewVenuePlaceholderImageKey = NewVenueBackgroundsSection + ":NewVenuePlaceholderImageId";
-    private const string NewVenuePlaceholderImageScalingKey = NewVenueBackgroundsSection + ":NewVenuePlaceholderImageScaling";
-
-    private const string BreakMusicProviderKey = BreakMusicService.ServiceOptions.SectionName + ":Provider";
-    private const string BreakMusicFadeKey = BreakMusicService.ServiceOptions.SectionName + ":FadeDuration";
+        get
+        {
+            // A copy: the page edits what it is handed, and the cached read must not move with it.
+            var current = ReadConfigured() with { };
+            current.BreakMusicProvider ??= _breakMusic.ActiveProvider?.SourceName;
+            return current;
+        }
+    }
 
     /// <summary>Whether the overlay names a break music mode; <see cref="Current"/> cannot say, since it
     /// falls back to whichever provider is active.</summary>
-    internal bool BreakMusicProviderSaved => Blank(_configuration[BreakMusicProviderKey]) is not null;
+    internal bool BreakMusicProviderSaved => ReadConfigured().BreakMusicProvider is not null;
 
-    private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
-        PaginationClamp(_configuration.GetValue<int?>($"Pagination:{key}") ?? fallback);
+    /// <summary>The configured values as last read, re-read only once the configuration reloads.</summary>
+    /// <remarks>Break music's fallback to the active provider is left unapplied: that moves without
+    /// any reload.</remarks>
+    private AppSettings ReadConfigured()
+    {
+        var read = _read;
+        if (read is not null && !read.Token.HasChanged)
+            return read.Settings;
+
+        // Taken before reading, so a reload landing mid-read leaves this snapshot already stale.
+        var token = _configuration.GetReloadToken();
+        var settings = new AppSettings();
+        foreach (var setting in Settings)
+            setting.ReadInto(_configuration, settings);
+
+        _read = new ConfiguredRead(token, settings);
+        return settings;
+    }
+
+    private static AppSettingDescriptor Int(
+        string section, string key, Expression<Func<AppSettings, int>> property, int fallback, Func<int, int> normalise)
+        => new AppSettingDescriptor<int>(section, key, property,
+            (configuration, path) => normalise(configuration.GetValue<int?>(path) ?? fallback),
+            value => normalise(value));
+
+    private static AppSettingDescriptor PageSize(
+        string key, Expression<Func<AppSettings, int>> property, int fallback = AppSettings.DefaultPageSize)
+        => Int("Pagination", key, property, fallback, PaginationClamp);
+
+    private static AppSettingDescriptor Flag(string section, string key, Expression<Func<AppSettings, bool>> property)
+        => new AppSettingDescriptor<bool>(section, key, property,
+            (configuration, path) => configuration.GetValue<bool?>(path) ?? false,
+            value => value);
+
+    /// <summary>Held as seconds, kept in configuration as a TimeSpan.</summary>
+    private static AppSettingDescriptor Duration(
+        string section, string key, Expression<Func<AppSettings, double>> property, TimeSpan fallback,
+        Func<double, double> normalise)
+        => new AppSettingDescriptor<double>(section, key, property,
+            (configuration, path) => normalise((configuration.GetValue<TimeSpan?>(path) ?? fallback).TotalSeconds),
+            seconds => TimeSpan.FromSeconds(normalise(seconds)).ToString());
+
+    private static AppSettingDescriptor Text(
+        string? section, string key, Expression<Func<AppSettings, string?>> property, Func<string?, string?> normalise,
+        bool omitWhenNull = false)
+        => new AppSettingDescriptor<string?>(section, key, property,
+            (configuration, path) => normalise(configuration[path]),
+            value => normalise(value),
+            omitWhenNull);
+
+    private static AppSettingDescriptor Choice<TEnum>(
+        string section, string key, Expression<Func<AppSettings, TEnum>> property, TEnum fallback, bool definedOnly = true)
+        where TEnum : struct, Enum
+        => new AppSettingDescriptor<TEnum>(section, key, property,
+            (configuration, path) => Enum.TryParse<TEnum>(configuration[path], ignoreCase: true, out var value)
+                && (!definedOnly || Enum.IsDefined(value))
+                ? value
+                : fallback,
+            value => value.ToString());
 
     // Read as well as save: a hand-edited value the select does not offer would show as none of them.
     private static double AdDurationChoice(double seconds) =>
@@ -152,82 +228,27 @@ internal sealed class AppSettingsService : IAppSettingsService
     private static string SearchModeOrDefault(string? mode) =>
         string.IsNullOrWhiteSpace(mode) ? AppSettings.LocalSearchMode : mode.Trim();
 
-    private static string? NormalizeMediaDirectory(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
     public async Task<AppSettingsSaveResult> SaveAsync(AppSettings settings)
     {
         var before = Current;
 
-        var overlay = new Dictionary<string, object?>
+        var overlay = new Dictionary<string, object?>();
+        foreach (var setting in Settings)
         {
-            ["Playback"] = new Dictionary<string, object?>
+            var value = setting.Write(settings);
+            if (value is null && setting.OmitWhenNull) continue;
+
+            if (setting.Section is null)
             {
-                ["StopFadeDuration"] = TimeSpan.FromSeconds(StopFadeChoice(settings.StopFadeSeconds)).ToString(),
-                ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
-                ["LeadInGraceSeconds"] = LeadInGraceChoice(settings.LeadInGraceSeconds),
-                ["DynamicLeadIns"] = settings.DynamicLeadIns,
-                ["DynamicLeadInPauseSeconds"] = DynamicLeadInPauseChoice(settings.DynamicLeadInPauseSeconds),
-                ["ColorBlindFriendlyLyrics"] = settings.ColorBlindFriendlyLyrics,
-                ["LyricsOffsetMilliseconds"] = LyricsOffset.ClampMilliseconds(settings.LyricsOffsetMilliseconds),
-            },
-            ["MediaStream"] = new Dictionary<string, object?>
-            {
-                ["SegmentSeconds"] = SegmentClamp(settings.SegmentSeconds),
-                ["GraphicsScaleHeight"] = GraphicsScaling.SnapToOffered(settings.GraphicsScaleHeight),
-                ["Encoder"] = settings.VideoEncoder.ToString(),
-            },
-            ["Ads"] = new Dictionary<string, object?>
-            {
-                ["DefaultDuration"] = TimeSpan.FromSeconds(AdDurationChoice(settings.AdDefaultDurationSeconds)).ToString(),
-            },
-            ["Pagination"] = new Dictionary<string, object?>
-            {
-                ["Media"] = PaginationClamp(settings.MediaPageSize),
-                ["Users"] = PaginationClamp(settings.UsersPageSize),
-                ["UserGroups"] = PaginationClamp(settings.UserGroupsPageSize),
-                ["Tips"] = PaginationClamp(settings.TipsPageSize),
-                ["Venues"] = PaginationClamp(settings.VenuesPageSize),
-                ["PerformanceHistory"] = PaginationClamp(settings.PerformanceHistoryPageSize),
-            },
-        };
+                overlay[setting.Key] = value;
+                continue;
+            }
 
-        overlay["Console"] = new Dictionary<string, object?>
-        {
-            ["SongControlStyle"] = settings.SongControlStyle.ToString(),
-            ["ShowLyricsOffsetControl"] = settings.ShowLyricsOffsetControl,
-        };
+            if (overlay.GetValueOrDefault(setting.Section) is not Dictionary<string, object?> section)
+                overlay[setting.Section] = section = [];
 
-        overlay["Search"] = new Dictionary<string, object?>
-        {
-            ["DefaultMode"] = SearchModeOrDefault(settings.DefaultSearchMode),
-        };
-
-        overlay[BreakMusicService.ServiceOptions.SectionName] = new Dictionary<string, object?>
-        {
-            ["Provider"] = Blank(settings.BreakMusicProvider),
-            ["FadeDuration"] = TimeSpan.FromSeconds(BreakMusicFadeChoice(settings.BreakMusicFadeSeconds)).ToString(),
-        };
-
-        overlay[NewVenueBackgroundsSection] = new Dictionary<string, object?>
-        {
-            ["NewVenueBackgrounds"] = settings.NewVenueBackgrounds.ToString(),
-            // Written even when null: clearing it must reach the overlay.
-            ["NewVenuePlaceholderImageId"] = settings.NewVenuePlaceholderImageId?.ToString(),
-            ["NewVenuePlaceholderImageScaling"] = settings.NewVenuePlaceholderImageScaling?.ToString(),
-        };
-
-        overlay["LocalScreen"] = new Dictionary<string, object?>
-        {
-            ["LaunchOnStartup"] = settings.LaunchScreenOnStartup,
-        };
-
-        // Written even when blank: clearing it must reach the overlay.
-        overlay[FFmpegService.ConfigurationKey] = Blank(settings.FFmpegPath);
-
-        var mediaDirectory = NormalizeMediaDirectory(settings.MediaDirectory);
-        if (mediaDirectory is not null)
-            overlay["Plugins"] = new Dictionary<string, object?> { ["MediaDirectory"] = mediaDirectory };
+            section[setting.Key] = value;
+        }
 
         await WriteOverlayAsync(JsonSerializer.Serialize(overlay, OverlayJson));
 
@@ -255,34 +276,36 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     /// <summary>Saves the break music mode alone, keeping every other key in the overlay as it is.</summary>
     internal Task SaveBreakMusicProviderAsync(string provider)
-        => SaveOneAsync(BreakMusicService.ServiceOptions.SectionName, ("Provider", provider.Trim()));
+        => SaveOneAsync((BreakMusicProvider, provider.Trim()));
 
     public Task SaveNewVenueBackgroundsAsync(VenueBackgrounds backgrounds)
-        => SaveOneAsync(NewVenueBackgroundsSection, ("NewVenueBackgrounds", backgrounds.ToString()));
+        => SaveOneAsync((NewVenueBackgrounds, backgrounds.ToString()));
 
     public Task SaveNewVenuePlaceholderImageAsync(Guid? mediaId, ImageScaling? scaling)
-        => SaveOneAsync(NewVenueBackgroundsSection,
-            ("NewVenuePlaceholderImageId", mediaId?.ToString()),
-            ("NewVenuePlaceholderImageScaling", scaling?.ToString()));
+        => SaveOneAsync(
+            (NewVenuePlaceholderImageId, mediaId?.ToString()),
+            (NewVenuePlaceholderImageScaling, scaling?.ToString()));
 
     /// <summary>Writes the given keys of one section, keeping every other key in the overlay as it is.</summary>
     /// <remarks>Not through <see cref="SaveAsync"/>: that writes every setting, which would pin today's
     /// defaults into the overlay of a host who never opened the page.</remarks>
-    private async Task SaveOneAsync(string sectionName, params (string Key, string? Value)[] keys)
+    private async Task SaveOneAsync(params (AppSettingDescriptor Setting, string? Value)[] values)
     {
         var overlay = File.Exists(_overlayPath)
             ? JsonNode.Parse(await File.ReadAllTextAsync(_overlayPath)) as JsonObject ?? new JsonObject()
             : new JsonObject();
 
-        if (overlay[sectionName] is not JsonObject section)
-            overlay[sectionName] = section = new JsonObject();
+        foreach (var (setting, value) in values)
+        {
+            var sectionName = setting.Section!;
+            if (overlay[sectionName] is not JsonObject section)
+                overlay[sectionName] = section = new JsonObject();
 
-        foreach (var (key, value) in keys)
-            section[key] = value;
+            section[setting.Key] = value;
+        }
 
         await WriteOverlayAsync(overlay.ToJsonString(OverlayJson));
     }
-
 
     private async Task WriteOverlayAsync(string json)
     {
@@ -293,4 +316,6 @@ internal sealed class AppSettingsService : IAppSettingsService
         // network shares), and Current would read the old file until a restart.
         (_configuration as IConfigurationRoot)?.Reload();
     }
+
+    private sealed record ConfiguredRead(IChangeToken Token, AppSettings Settings);
 }

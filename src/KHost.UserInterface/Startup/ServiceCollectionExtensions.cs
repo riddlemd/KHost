@@ -26,6 +26,7 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton<IExternalLinkService, ExternalLinkService>();
         services.AddSingleton<IFileRevealService, FileRevealService>();
         services.AddSingleton<IMediaFolderReader, MediaFolderReader>();
+        services.AddSingleton<IDisplaySwitcher, DisplaySwitcher>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
         services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();

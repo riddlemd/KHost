@@ -23,7 +23,7 @@ public class SelectedSingerInfoPanelRemovePendingTests : BunitContext
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     // The real service and host, so the confirm is the one a host actually sees.
-    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, []);
+    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, Substitute.For<IDisplaySwitcher>());
     private readonly KHostUser _singer = new() { Id = Guid.NewGuid(), Name = "Ann <b>" };
     private readonly Performance _first;
     private readonly Performance _second;

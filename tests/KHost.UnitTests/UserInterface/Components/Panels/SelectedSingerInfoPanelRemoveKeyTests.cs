@@ -24,7 +24,7 @@ public class SelectedSingerInfoPanelRemoveKeyTests : BunitContext
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     // The real service: a substitute never runs ConfirmIfAsync's ask-or-act branch.
-    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, []);
+    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, Substitute.For<IDisplaySwitcher>());
     private readonly KHostUser _singer = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly Performance _first;
     private readonly Performance _second;

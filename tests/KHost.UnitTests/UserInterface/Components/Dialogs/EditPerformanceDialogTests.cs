@@ -23,7 +23,7 @@ public class EditPerformanceDialogTests : BunitContext
     private const string Save = ".kh-edit-performance-dialog__save-btn";
     private const string Cancel = ".kh-edit-performance-dialog__cancel-btn";
 
-    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, []);
+    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, Substitute.For<IDisplaySwitcher>());
     private readonly IAudioTrackService _audioTracks = Substitute.For<IAudioTrackService>();
     private readonly IAppSettingsService _appSettings = Substitute.For<IAppSettingsService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
