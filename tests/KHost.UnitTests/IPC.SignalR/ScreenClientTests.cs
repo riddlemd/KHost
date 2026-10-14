@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace KHost.UnitTests.IPC.SignalR;
 
@@ -21,6 +22,10 @@ public sealed class ScreenClientTests : IAsyncLifetime
 {
     private readonly FakeKeyStore _keys = new();
     private readonly ConnectionContexts _contexts = new();
+
+    // Steps the reconnect loop past its first backoff without waiting it out.
+    private static readonly TimeSpan Backoff = TimeSpan.FromSeconds(1);
+    private readonly FakeTimeProvider _time = new();
     private RecordingHubCallback? _callback;
     private WebApplication? _app;
     private string _url = "";
@@ -90,7 +95,7 @@ public sealed class ScreenClientTests : IAsyncLifetime
         var key = RandomNumberGenerator.GetBytes(32);
         _keys.Set("Screen 1", key);
 
-        await using var client = new ScreenClient(NullLoggerFactory.Instance);
+        await using var client = new ScreenClient(NullLoggerFactory.Instance, _time);
         await client.ConnectAsync(_url, "Screen 1", authKey: key);
 
         var server = _app!.Services.GetRequiredService<ScreenServerService>();
@@ -101,7 +106,7 @@ public sealed class ScreenClientTests : IAsyncLifetime
         var method = typeof(ScreenClient).GetMethod("ReregisterAfterReconnectAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
         await (Task)method.Invoke(client, null)!;
 
-        await backUp.WaitAsync(TimeSpan.FromSeconds(20));
+        Assert.True(await _time.AdvanceUntilAsync(Backoff, () => backUp.IsCompleted, TimeSpan.FromSeconds(20)));
 
         var registered = await server.GetConnectedScreensAsync().SingleAsync();
         Assert.NotEqual(firstConnectionId, registered.ConnectionId);
@@ -154,7 +159,9 @@ public sealed class ScreenClientTests : IAsyncLifetime
 
         await backUp.Task.WaitAsync(TimeSpan.FromSeconds(20));
         var acceptedAtReconnect = _callback.StateSeqs().Accepted.Count;
-        await Task.Delay(200);
+
+        // A run of sends past the reconnect, counted rather than timed, so a refused one has room to show.
+        await WaitUntilAsync(() => _callback.StateSeqs().Accepted.Count >= acceptedAtReconnect + 20);
         stop.Cancel();
         await pump;
 
@@ -165,6 +172,13 @@ public sealed class ScreenClientTests : IAsyncLifetime
         var reconnectedId = Assert.Single(registeredWhenConnected);
         Assert.NotNull(reconnectedId);
         Assert.NotEqual(firstConnectionId, reconnectedId);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition() && DateTime.UtcNow < deadline)
+            await Task.Delay(5);
     }
 
     private static Task WhenBackUp(ScreenClient client)
@@ -233,7 +247,7 @@ public sealed class ScreenClientTests : IAsyncLifetime
         var key = RandomNumberGenerator.GetBytes(32);
         _keys.Set("Screen 1", key);
 
-        await using var client = new ScreenClient(NullLoggerFactory.Instance);
+        await using var client = new ScreenClient(NullLoggerFactory.Instance, _time);
         await client.ConnectAsync(_url, "Screen 1", authKey: key);
 
         var server = _app!.Services.GetRequiredService<ScreenServerService>();
@@ -252,7 +266,7 @@ public sealed class ScreenClientTests : IAsyncLifetime
             .GetField("_connection", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(client)!;
         await connection.SendAsync(nameof(ScreenHub.ReceiveStateAsync), "not an envelope");
 
-        await backUp.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        Assert.True(await _time.AdvanceUntilAsync(Backoff, () => backUp.Task.IsCompleted, TimeSpan.FromSeconds(20)));
 
         var registered = await server.GetConnectedScreensAsync().SingleAsync();
         Assert.Equal("Screen 1", registered.ScreenId);

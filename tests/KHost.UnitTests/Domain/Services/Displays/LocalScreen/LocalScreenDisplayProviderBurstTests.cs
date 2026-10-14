@@ -10,6 +10,7 @@ using KHost.Domain.Services.QrCodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 
@@ -18,12 +19,14 @@ namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 /// substituted server, which is what counts what the screen was sent.</remarks>
 public class LocalScreenDisplayProviderBurstTests : IDisposable
 {
-    // Wide, so a loaded machine still lands every step of a stop inside one window; the fade
-    // outlasts it, so the Stopping redraw is its own burst.
     private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(300);
-    private static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(700);
+
+    // Real time: playback runs on the system clock, while the settle windows close only when a test steps them.
+    private static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(50);
 
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly FakeTimeProvider _time = new();
+    private readonly TaskCompletionSource _rotated = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IUpNextService _named = Substitute.For<IUpNextService>();
     private readonly IQrCodeOfferService _qrCodes = Substitute.For<IQrCodeOfferService>();
@@ -87,13 +90,15 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         await playback.PlayAsync();
 
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => Named(marquee) == "Bo, Cy"));
-        await Task.Delay(Settle * 2);
+        _time.Advance(Settle, steps: 2);
         _screenServer.ClearReceivedCalls();
 
         await playback.StopAsync();
 
+        // Every step of the stop is in before the clock moves, so they share one window by construction.
+        await _rotated.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => Named(marquee) == "Bo, Cy, Ada"));
-        await Task.Delay(Settle * 2);
+        _time.Advance(Settle, steps: 2);
 
         Assert.Equal("Bo, Cy, Ada", Named(Assert.Single(Sent<SetMarqueeCommand>())));
     }
@@ -116,7 +121,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
 
         // Startup's order: break music comes up before any screen can register.
         await breakMusic.InitializeAsync();
-        await Task.Delay(Settle * 2);
+        _time.Advance(Settle, steps: 2);
         _screenServer.ClearReceivedCalls();
 
         Connect("conn-a");
@@ -128,7 +133,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         _broker.Announce(new BreakMusicTrackChanged("Spotify"));
 
         Assert.True(await WaitUntilAsync(() => Volatile.Read(ref relayed) > 0));
-        await Task.Delay(Settle * 2);
+        _time.Advance(Settle, steps: 2);
 
         Assert.False(Assert.Single(Sent<SetBreakMusicCardCommand>()).Enabled);
     }
@@ -142,7 +147,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         var first = Connect("conn-a");
 
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
-        await Task.Delay(Settle * 2);
+        _time.Advance(Settle, steps: 2);
 
         Disconnect(first);
         _screenServer.ClearReceivedCalls();
@@ -161,9 +166,10 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
     private async Task RotateAsync()
     {
         // The real rotation reads the venue and writes the queue before it says so.
-        await Task.Delay(100);
+        await Task.Yield();
         _upNext = "Bo, Cy, Ada";
         _broker.Announce(new SingerQueueChanged());
+        _rotated.TrySetResult();
     }
 
     private PlaybackService PlaybackOverTheScreen(IBreakMusicService breakMusic)
@@ -180,12 +186,12 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         // Real, since it is what turns the stop's several announcements into the marquee's one.
         var upNext = new UpNextService(
             NullLogger<UpNextService>.Instance, _broker, _venues, _queue, _performances,
-            Substitute.For<IMediaService>(), services, Settle);
+            Substitute.For<IMediaService>(), services, _time, Settle);
         _built.Add(upNext);
 
         var screen = new LocalScreenDisplayProvider(
             NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _broker, _venues,
-            services: services, redrawSettle: Settle);
+            services: services, redrawSettle: Settle, time: _time);
         _built.Add(screen);
 
         var options = Substitute.For<IOptionsMonitor<PlaybackService.ServiceOptions>>();
@@ -259,7 +265,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
 
     private Task<bool> WaitForSentAsync<TCommand>(Func<TCommand, bool>? matches = null)
         where TCommand : IScreenCommand
-        => WaitUntilAsync(() => Sent<TCommand>().Any(command => matches?.Invoke(command) ?? true));
+        => _time.AdvanceUntilAsync(Settle, () => Sent<TCommand>().Any(command => matches?.Invoke(command) ?? true));
 
     private static async Task<bool> WaitUntilAsync(Func<bool> condition)
     {

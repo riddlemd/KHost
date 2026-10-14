@@ -98,11 +98,8 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
         var cut = Render<SingerQueuePanel>();
 
         cut.Find(InputSelector).Input("Zoe");
-        cut.Find(FormSelector).Submit();
-
-        // PublishChanged is fire-and-forget by design (never blocks a handler that calls back in),
-        // so the broker's own callback can still be in flight right after Submit returns.
-        await Task.Delay(50);
+        // Awaited to the handler's end: every announce it fired has reached this synchronous subscriber by then.
+        await cut.Find(FormSelector).SubmitAsync();
 
         Assert.Single(_userDb.Values, u => u.Name == "Zoe");
         Assert.Equal(1, announceCount);
