@@ -441,6 +441,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 ## Tests
 
 - xUnit + NSubstitute; bunit for components.
+- The screen page's scripts: `npm test` in `src/KHost.LocalScreen/screen-ui-tests` (`node --test`, no packages), loading `screen-ui/*.js` in `index.html`'s tag order into one `vm` context; test the factories that take injected clocks, canvases and senders.
 - Anything outside the process (an external binary like ffmpeg, a live network device) → `KHost.IntegrationTests`. `KHost.UnitTests` stays skip-free. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
 - Substitutes in field initializers.
 - **Naming: the name states the behaviour and reads as a sentence, underscores for spaces.** Two shapes: `Member_Scenario_Outcome` when one member is under test (`HasPreviousPage_IsFalse_OnFirstPage`), `Scenario_Outcome` when the subject is the class or a flow (`ABlankName_CannotBeSaved`). Name the observable result, never the implementation (`_CallsRepository`).
