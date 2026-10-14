@@ -43,6 +43,9 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         SelectedUserId is { } id ? _cachedUsers.FirstOrDefault(u => u.Id == id) : null;
     public bool IsTopSlotLocked { get; private set; }
 
+    /// <summary>The reconcile the last <see cref="UsersChanged"/> started; it runs detached from the announcement.</summary>
+    internal Task Reconciling { get; private set; } = Task.CompletedTask;
+
     public SingerQueueService(
         ILogger<SingerQueueService> logger,
         ICacheService cacheService,
@@ -66,7 +69,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
 
         // The queue holds ids only and caches what they resolve to, so deletes and edits (a foreign
         // key included) reach it off this announcement rather than via whoever changed the user.
-        _subscriptions.Add(broker.Subscribe<UsersChanged>(message => { _ = Task.Run(ReconcileSingersAsync); }));
+        _subscriptions.Add(broker.Subscribe<UsersChanged>(message => { Reconciling = Task.Run(ReconcileSingersAsync); }));
     }
 
     /// <summary>Drops singers who no longer exist, and the songs they had waiting, and re-reads the

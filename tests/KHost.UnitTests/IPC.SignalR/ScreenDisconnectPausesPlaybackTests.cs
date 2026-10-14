@@ -146,9 +146,9 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
         Assert.Equal(PlaybackState.Playing, _playbackService.State);
     }
 
-    private async Task<bool> WaitForStateAsync(PlaybackState expected)
+    private async Task<bool> WaitForStateAsync(PlaybackState expected, int attempts = 100)
     {
-        for (var i = 0; i < 100; i++)
+        for (var i = 0; i < attempts; i++)
         {
             if (_playbackService.State == expected) return true;
             await Task.Delay(10);
@@ -195,7 +195,8 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
         _receiver.ConnectedDeviceId.Returns("Living Room TV");
         Callback.OnScreenDisconnected("conn-1");
 
-        Assert.False(await WaitForStateAsync(PlaybackState.Paused));
+        // Real time, kept short: playback hears the disconnect off this thread and offers no hook to await.
+        Assert.False(await WaitForStateAsync(PlaybackState.Paused, attempts: 20));
         Assert.Equal(PlaybackState.Playing, _playbackService.State);
     }
 

@@ -38,17 +38,16 @@ public class SettlingRedrawTests
     }
 
     [Fact]
-    public async Task Request_IsNotDrawn_BeforeTheSettleElapses()
+    public void Request_IsNotDrawn_BeforeTheSettleElapses()
     {
         var redraw = Build(Record);
 
         redraw.Request(Part.A);
 
-        // Real time on purpose: nothing but the fake clock may release the draw.
-        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        _time.Advance(Settle - TimeSpan.FromTicks(1));
         Assert.Empty(_drawn);
 
-        await AdvanceUntilAsync(() => _drawn.Count >= 1);
+        _time.Advance(TimeSpan.FromTicks(1));
         Assert.Equal([Part.A], _drawn);
     }
 

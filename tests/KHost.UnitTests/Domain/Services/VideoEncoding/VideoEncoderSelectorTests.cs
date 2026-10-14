@@ -247,8 +247,8 @@ public class VideoEncoderSelectorTests
         var selector = Selector([VideoEncoderProfile.VideoToolbox]);
         await selector.SelectAsync(VideoEncoderPreference.Auto);
 
+        // The fake runner answers at once, so a probe started by the publish has finished inside it.
         await _broker.PublishAsync(new FFmpegChanged());
-        await Task.Delay(50);
 
         Assert.Equal(2, _runner.Runs);
     }
@@ -261,8 +261,8 @@ public class VideoEncoderSelectorTests
         var selector = Selector([VideoEncoderProfile.VideoToolbox]);
         await selector.WarmAsync(VideoEncoderPreference.Software);
 
+        // The fake runner answers at once, so a probe started by the publish has finished inside it.
         await _broker.PublishAsync(new FFmpegChanged());
-        await Task.Delay(50);
 
         Assert.Equal(0, _runner.Runs);
     }

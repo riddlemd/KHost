@@ -1,12 +1,16 @@
 using System.Text.Json;
 using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace KHost.UnitTests.LocalScreen;
 
 /// <summary>The host kills the process to close a screen, so writes schedule as the window moves.</summary>
 public class WindowPlacementStoreTests : IDisposable
 {
+    // The store's own wait, so a step one tick short of it must write nothing.
+    private static readonly TimeSpan WriteDelay = TimeSpan.FromMilliseconds(400);
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"khost-placement-{Guid.NewGuid():N}");
 
     public void Dispose()
@@ -192,20 +196,20 @@ public class WindowPlacementStoreTests : IDisposable
     /// <summary>A drag reports every frame; the write waits for the window to settle, then lands
     /// without the store being disposed, since the host closes screens by killing them.</summary>
     [Fact]
-    public async Task Schedule_WritesOnlyOnceTheWindowSettles()
+    public void Schedule_WritesOnlyOnceTheWindowSettles()
     {
         var path = Path.Combine(_root, "cache", "screens", "Screen 1.window.json");
-        using var store = Store("Screen 1");
+        var time = new FakeTimeProvider();
+        using var store = new WindowPlacementStore("Screen 1", _root, NullLogger.Instance, time);
 
         store.Schedule(new WindowPlacement(120, 80, 1600, 900, false));
         Assert.False(File.Exists(path));
 
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!File.Exists(path) && DateTime.UtcNow < deadline)
-            await Task.Delay(50);
+        time.Advance(WriteDelay - TimeSpan.FromTicks(1));
+        Assert.False(File.Exists(path));
 
-        // The file can be seen before the write into it has finished.
-        await Task.Delay(200);
+        // The write runs inside the step, so it has finished when the step returns.
+        time.Advance(TimeSpan.FromTicks(1));
 
         Assert.Equal(new WindowPlacement(120, 80, 1600, 900, false), Store("Screen 1").Read());
     }
