@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
-internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
+internal class UsersRepository : BaseSearchableRepository<KHostUser, UserSearchOptions>, IUsersRepository
 {
     // Lowercased because SQLite orders with binary collation: without it every lowercase name
     // sorts below every uppercase one, and a singer called "mike" lands under the Vs.
@@ -181,8 +181,7 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     protected override IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<KHostUser, object>> DefaultSortExpression => u => u.Name.ToLower();
 
-    protected override IQueryable<KHostUser> ApplySearchFilters<TOptions>(IQueryable<KHostUser> queryable, string query, TOptions? options = null)
-        where TOptions : class
+    protected override IQueryable<KHostUser> ApplySearchFilters(IQueryable<KHostUser> queryable, string query, UserSearchOptions? options)
     {
         // Both collections, because an entity that comes back short of one is then saved back
         // short of it: UpdateAsync reconciles against what it is handed.
@@ -191,7 +190,7 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
             .Include(u => u.ForeignKeys)
             .AsSplitQuery();
 
-        if (options is UserSearchOptions { SingersOnly: true })
+        if (options is { SingersOnly: true })
             queryable = queryable.Where(u => !u.Groups.Any(g => g.ExcludeFromSingerQueue));
 
         if (string.IsNullOrWhiteSpace(query))

@@ -8,7 +8,7 @@ namespace KHost.Abstractions.Services;
 /// deleted: <see cref="IRepositoryService{T}.DeleteAsync"/> answers false for them. A host singleton,
 /// callable from any thread. Group create, update and delete announce
 /// <see cref="KHost.Abstractions.Messaging.Messages.UserGroupsChanged"/>; membership changes announce
-/// nothing.</remarks>
+/// nothing. Search matches the group name; the sort key is <c>name</c>.</remarks>
 public interface IUserGroupsService : IRepositoryService<KHostUserGroup>
 {
     /// <summary>Puts a user in a group.</summary>

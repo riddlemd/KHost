@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
-internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
+internal class VenuesRepository : BaseSearchableRepository<Venue>, IVenuesRepository
 {
     private static readonly IReadOnlyDictionary<string, Expression<Func<Venue, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<Venue, object>>>
@@ -23,8 +23,7 @@ internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
     protected override IReadOnlyDictionary<string, Expression<Func<Venue, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Venue, object>> DefaultSortExpression => v => v.Name.ToLower();
 
-    protected override IQueryable<Venue> ApplySearchFilters<TOptions>(IQueryable<Venue> queryable, string query, TOptions? options = null)
-        where TOptions : class
+    protected override IQueryable<Venue> ApplySearchFilters(IQueryable<Venue> queryable, string query)
     {
         if (string.IsNullOrWhiteSpace(query))
             return queryable;

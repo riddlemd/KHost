@@ -124,7 +124,7 @@ public class MediaRepositoryFtsTests : IDisposable
         await SeedAsync(MakeMedia("Killer Queen", "Queen", MediaStatus.Broken));
 
         var readyOnly = new MediaSearchOptions { Statuses = [MediaStatus.Ready] };
-        var result = await _repository.SearchAsync("queen", pageNumber: 1, pageSize: 50, options: readyOnly);
+        var result = await _repository.SearchAsync("queen", pageNumber: 1, pageSize: 50, sort: null, options: readyOnly);
 
         Assert.Single(result.Items);
         Assert.Equal("Bohemian Rhapsody", result.Items[0].Title);
@@ -220,7 +220,7 @@ public class MediaRepositoryFtsTests : IDisposable
             MakeMedia("Chorus Two", "The Band", MediaStatus.Broken));
 
         var readyOnly = new MediaSearchOptions { Statuses = [MediaStatus.Ready] };
-        var result = await _repository.SearchAsync("chorus", pageNumber: 1, pageSize: 50, options: readyOnly);
+        var result = await _repository.SearchAsync("chorus", pageNumber: 1, pageSize: 50, sort: null, options: readyOnly);
 
         Assert.Equal(1, result.TotalCount);
         Assert.Equal("Chorus One", Assert.Single(result.Items).Title);

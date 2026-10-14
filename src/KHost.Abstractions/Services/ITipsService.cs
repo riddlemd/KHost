@@ -8,7 +8,9 @@ using KHost.Abstractions.Models;
 /// tip must name a singer: creating or updating one without throws
 /// <see cref="ArgumentException"/>. A new tip with no venue is stamped with the selected one. A host
 /// singleton, callable from any thread. Every create, update and delete announces
-/// <see cref="KHost.Abstractions.Messaging.Messages.TipsChanged"/>.</remarks>
+/// <see cref="KHost.Abstractions.Messaging.Messages.TipsChanged"/>. Search matches a tip's notes;
+/// sort keys are <c>createdDate</c> (default, newest first), <c>amount</c> and
+/// <c>paymentMethod</c>.</remarks>
 public interface ITipsService : IRepositoryService<Tip>
 {
     /// <summary>Every tip from one singer, newest first.</summary>

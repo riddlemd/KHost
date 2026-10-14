@@ -12,7 +12,7 @@ namespace KHost.DataAccess.Repositories;
 /// <see cref="KHost.Abstractions.Services.IPerformanceService.CreateAndEnqueueAsync"/> is where the enqueue rules run
 /// (the duplicate-song warning, the provider's playback gate) and where the queue position, venue,
 /// sung-as name and creation time are stamped. Creating a row here skips every one of them.</para>
-/// <para>A performance holds only ids and dates, so text search always returns an empty page. Sort
+/// <para>A performance holds only ids and dates, so this repository offers no text search. Sort
 /// keys: <c>createdDate</c> (default, newest first), <c>queuePosition</c>. Times are UTC.</para>
 /// </remarks>
 public interface IPerformancesRepository : IRepository<Performance>

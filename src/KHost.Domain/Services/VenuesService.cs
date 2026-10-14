@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services;
 
-public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IVenuesService
+public class VenuesService : BaseSearchableRepositoryService<Venue, IVenuesRepository>, IVenuesService
 {
     private const string _cacheKey = "selected-venue";
 

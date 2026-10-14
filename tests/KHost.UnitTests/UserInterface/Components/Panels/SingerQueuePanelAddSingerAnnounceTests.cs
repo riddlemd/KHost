@@ -55,7 +55,7 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
         });
         // The panel's own add flow: no match by exact name, so it creates a new singer.
         users.SearchAsync(Arg.Any<string>()).Returns(new PaginatedResult<KHostUser>());
-        users.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<UserSearchOptions?>())
+        users.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<SortDescriptor?>(), Arg.Any<UserSearchOptions?>())
             .Returns(new PaginatedResult<KHostUser>());
         users.CreateAsync(Arg.Any<KHostUser>()).Returns(callInfo =>
         {

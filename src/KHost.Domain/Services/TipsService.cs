@@ -7,7 +7,7 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.DataAccess.Repositories;
 using Microsoft.Extensions.Logging;
 
-public class TipsService : BaseRepositoryService<Tip, ITipsRepository>, ITipsService
+public class TipsService : BaseSearchableRepositoryService<Tip, ITipsRepository>, ITipsService
 {
     private readonly IVenuesService _venuesService;
 

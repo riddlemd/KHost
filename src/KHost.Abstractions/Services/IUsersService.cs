@@ -45,4 +45,17 @@ public interface IUsersService : IRepositoryService<KHostUser>
     /// <summary>Drops the ephemeral keys a source issued, e.g. on reconnect; durable keys stay.</summary>
     /// <returns>How many were dropped; announces only when that is more than zero.</returns>
     Task<int> DeleteEphemeralForeignKeysAsync(string source);
+
+    /// <summary>Users whose name matches <paramref name="query"/>, filtered by
+    /// <paramref name="options"/>, with their groups and provider ids loaded.</summary>
+    /// <remarks>The plain <c>SearchAsync</c> overloads search the same way with null options.</remarks>
+    /// <param name="query">Text to match against the name; null, empty or whitespace matches everyone.</param>
+    /// <param name="pageNumber">1-based page to read; below 1 reads page 1.</param>
+    /// <param name="pageSize">Rows per page; below 1 uses the default page size.</param>
+    /// <param name="sort">One of <c>name</c> (default) or <c>createdDate</c>; null or unknown uses the
+    /// default order.</param>
+    /// <param name="options">Null applies no extra filter;
+    /// <see cref="UserSearchOptions.SingersOnly"/> leaves out anyone in a group excluded from the
+    /// singer queue.</param>
+    Task<PaginatedResult<KHostUser>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, UserSearchOptions? options);
 }

@@ -6,7 +6,7 @@ using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
+internal class TipsRepository : BaseSearchableRepository<Tip>, ITipsRepository
 {
     private static readonly IReadOnlyDictionary<string, Expression<Func<Tip, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<Tip, object>>>
@@ -43,9 +43,7 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
     protected override Expression<Func<Tip, object>> DefaultSortExpression => t => t.CreatedDate;
     protected override bool DefaultSortDescending => true;
 
-    protected override IQueryable<Tip> ApplySearchFilters<TOptions>(
-        IQueryable<Tip> queryable, string query, TOptions? options = null)
-        where TOptions : class
+    protected override IQueryable<Tip> ApplySearchFilters(IQueryable<Tip> queryable, string query)
     {
         if (string.IsNullOrWhiteSpace(query))
             return queryable;

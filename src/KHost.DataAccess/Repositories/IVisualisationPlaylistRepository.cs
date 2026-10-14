@@ -11,7 +11,7 @@ namespace KHost.DataAccess.Repositories;
 /// <para>Search matches the playlist name, case- and accent-insensitive. Sort keys: <c>name</c>
 /// (default).</para>
 /// </remarks>
-public interface IVisualisationPlaylistRepository : IRepository<VisualisationPlaylist>
+public interface IVisualisationPlaylistRepository : IRepository<VisualisationPlaylist>, ISearchable<VisualisationPlaylist>
 {
     /// <summary>The playlist with its entries loaded, in play order; null when there is none.</summary>
     Task<VisualisationPlaylist?> ReadWithEntriesAsync(Guid id);

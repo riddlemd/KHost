@@ -6,7 +6,8 @@ namespace KHost.Abstractions.Services;
 /// <remarks>The selected venue's settings steer most of the show: its volume, break music, ads,
 /// marquee, QR source and rotation rules. A plugin may take it to read them. The selection survives
 /// a restart. The selected venue cannot be deleted: <see cref="IRepositoryService{T}.DeleteAsync"/>
-/// answers false for it.
+/// answers false for it. Search matches the venue name; sort keys are <c>name</c> (default) and
+/// <c>enabled</c>.
 ///
 /// <para>A host singleton, callable from any thread. Every create, update and delete announces
 /// <see cref="KHost.Abstractions.Messaging.Messages.VenuesChanged"/>. Selecting a venue, restoring
