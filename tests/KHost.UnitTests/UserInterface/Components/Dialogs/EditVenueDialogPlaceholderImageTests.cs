@@ -3,12 +3,10 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.QrCodes;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
@@ -22,7 +20,8 @@ public class EditVenueDialogPlaceholderImageTests : BunitContext
 
     public EditVenueDialogPlaceholderImageTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(media: _media);
+
         Services.AddAppSettings();
 
         var mediaPools = Substitute.For<IMediaPoolService>();
@@ -44,12 +43,9 @@ public class EditVenueDialogPlaceholderImageTests : BunitContext
         Services.AddSingleton(breakMusic);
         Services.AddSingleton(mediaPools);
         Services.AddSingleton(visualisations);
-        Services.AddSingleton(_media);
         Services.AddSingleton(_uploader);
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(plugins);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]
@@ -62,27 +58,27 @@ public class EditVenueDialogPlaceholderImageTests : BunitContext
     }
 
     [Fact]
-    public void PickingAStill_ReachesTheVenueThatIsSaved()
+    public async Task PickingAStill_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(venue => saved = venue);
 
         Picker(cut).Focus();
         cut.FindAll(".kh-combobox__option").Single(o => o.TextContent.Trim() == "Card").Click();
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal(_card.Id, saved!.Settings.BrandingImageMediaId);
     }
 
     [Fact]
-    public void BrowsingForAStill_ReachesTheVenueThatIsSaved()
+    public async Task BrowsingForAStill_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(venue => saved = venue);
 
         cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary([1, 2, 3], "logo.png"));
         cut.WaitForAssertion(() => Assert.Equal("logo", Picker(cut).GetAttribute("value")));
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal(_logo.Id, saved!.Settings.BrandingImageMediaId);
     }
@@ -132,7 +128,7 @@ public class EditVenueDialogPlaceholderImageTests : BunitContext
     }
 
     [Fact]
-    public void PickingAScaling_ReachesTheVenueThatIsSaved()
+    public async Task PickingAScaling_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(venue => saved = venue);
@@ -140,7 +136,7 @@ public class EditVenueDialogPlaceholderImageTests : BunitContext
         Picker(cut).Focus();
         cut.FindAll(".kh-combobox__option").Single(o => o.TextContent.Trim() == "Card").Click();
         cut.Find("#venue-branding-scaling").Change("Stretch");
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal((_card.Id, ImageScaling.Stretch), (saved!.Settings.BrandingImageMediaId, saved.Settings.BrandingImageScaling));
     }

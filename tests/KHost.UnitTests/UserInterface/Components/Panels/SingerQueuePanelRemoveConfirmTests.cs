@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
-using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -25,23 +24,19 @@ public class SingerQueuePanelRemoveConfirmTests : BunitContext
 
     public SingerQueuePanelRemoveConfirmTests()
     {
+        this.AddKHostTestDefaults();
+
         _queue.Users.Returns(_ => [_singer]);
         _venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
-
-        JSInterop.Mode = JSRuntimeMode.Loose;
 
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(_venues);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton<IDialogService>(_dialogs);
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]

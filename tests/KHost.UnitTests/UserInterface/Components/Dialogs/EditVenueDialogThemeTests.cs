@@ -2,10 +2,8 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 
@@ -18,7 +16,8 @@ public class EditVenueDialogThemeTests : BunitContext
 
     public EditVenueDialogThemeTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddAppSettings();
 
         var mediaPools = Substitute.For<IMediaPoolService>();
@@ -33,11 +32,8 @@ public class EditVenueDialogThemeTests : BunitContext
         Services.AddSingleton(breakMusic);
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(mediaPools);
         Services.AddSingleton(visualisations);
-        Services.AddSingleton(Substitute.For<IMediaService>());
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(plugins);
     }
 
@@ -58,7 +54,7 @@ public class EditVenueDialogThemeTests : BunitContext
 
     /// <summary>Picking a preset fills the four theme colours, and every row that follows them moves too.</summary>
     [Fact]
-    public void PickingAPreset_FillsTheThemeAndSavesIt()
+    public async Task PickingAPreset_FillsTheThemeAndSavesIt()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
@@ -69,7 +65,7 @@ public class EditVenueDialogThemeTests : BunitContext
             (cut.Find("#venue-theme-primary").GetAttribute("value"), cut.Find("#venue-theme-highlight").GetAttribute("value"),
              cut.Find("#venue-theme-text").GetAttribute("value"), cut.Find("#venue-theme-shadow").GetAttribute("value")));
         Assert.Equal("#f2c14e", cut.Find(SungWords).GetAttribute("value"));
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
         Assert.Equal(("#1f8a4c", "#f2c14e", "#fff6e5", "#0d1a12"),
             (saved!.Settings.ThemePrimaryColor, saved.Settings.ThemeHighlightColor, saved.Settings.ThemeTextColor, saved.Settings.ThemeShadowColor));
     }
@@ -125,13 +121,13 @@ public class EditVenueDialogThemeTests : BunitContext
     }
 
     [Fact]
-    public void PickingNone_ClearsTheTheme()
+    public async Task PickingNone_ClearsTheTheme()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { ThemePrimaryColor = "#111111", ThemeShadowColor = "#222222" }, venue => saved = venue);
 
         cut.Find(Preset).Change("none");
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal(((string?)null, (string?)null, (string?)null, (string?)null),
             (saved!.Settings.ThemePrimaryColor, saved.Settings.ThemeHighlightColor, saved.Settings.ThemeTextColor, saved.Settings.ThemeShadowColor));
@@ -174,21 +170,21 @@ public class EditVenueDialogThemeTests : BunitContext
     }
 
     [Fact]
-    public void ThemeAndOwnColours_ReachTheSavedVenue()
+    public async Task ThemeAndOwnColours_ReachTheSavedVenue()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
         cut.Find("#venue-theme-primary").Change("#123456");
         cut.Find("#venue-colour-qr-frame").Change("#fefefe");
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal(("#123456", "#fefefe"), (saved!.Settings.ThemePrimaryColor, saved.Settings.QrCodeFrameColor));
     }
 
     /// <summary>Clearing a colour hands it back to the theme: nothing is stored for it.</summary>
     [Fact]
-    public void ClearingAnOwnColour_SavesNothingForIt()
+    public async Task ClearingAnOwnColour_SavesNothingForIt()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { LyricsSungColor = "#abcdef" }, venue => saved = venue);
@@ -197,19 +193,19 @@ public class EditVenueDialogThemeTests : BunitContext
         cut.Find(SungWords + "-clear").Click();
 
         Assert.Equal(("#8558fa", 0), (cut.Find(SungWords).GetAttribute("value"), cut.FindAll(SungWords + "-clear").Count));
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Null(saved!.Settings.LyricsSungColor);
     }
 
     /// <summary>A colour left to the theme stays left to it through a save, so a later theme still reaches it.</summary>
     [Fact]
-    public void SavingWithoutTouchingAColour_KeepsItFollowingTheTheme()
+    public async Task SavingWithoutTouchingAColour_KeepsItFollowingTheTheme()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { ThemeTextColor = "#eeeeee" }, venue => saved = venue);
 
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal(("#eeeeee", (string?)null), (saved!.Settings.ThemeTextColor, saved.Settings.LyricsUnsungColor));
     }
@@ -253,7 +249,7 @@ public class EditVenueDialogThemeTests : BunitContext
     [Theory]
     [InlineData("#000000", "#f2f2f5")]
     [InlineData("#000000", "#F2F2F5")]
-    public void AnOldDefaultMarqueeColour_ReadsAsUnset(string background, string text)
+    public async Task AnOldDefaultMarqueeColour_ReadsAsUnset(string background, string text)
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings
@@ -265,7 +261,7 @@ public class EditVenueDialogThemeTests : BunitContext
         }, venue => saved = venue);
 
         Assert.Empty(cut.FindAll("#marquee-background-clear"));
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal(((string?)null, (string?)null, (string?)null),
             (saved!.Settings.MarqueeBackgroundColor, saved.Settings.MarqueeTextColor, saved.Settings.MarqueeSingerColor));

@@ -39,7 +39,7 @@ public class EditPlaylistDialogTests : BunitContext
 
     public EditPlaylistDialogTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(media: _media);
 
         // NSubstitute hands back a completed task wrapping null otherwise, and the dialog counts it.
         _media.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(),
@@ -59,7 +59,6 @@ public class EditPlaylistDialogTests : BunitContext
             .Returns(Task.FromResult<IReadOnlyList<MediaPool>>([]));
 
         Services.AddSingleton(_pools);
-        Services.AddSingleton(_media);
 
         // The ad rows show the configured default as their placeholder, so the dialog reads it
         // even for a break music playlist that never renders the column.
@@ -512,5 +511,4 @@ public class EditPlaylistDialogTests : BunitContext
 
         _media.DidNotReceive().ReadAllByTypesAsync(Arg.Any<MediaType[]>());
     }
-
 }

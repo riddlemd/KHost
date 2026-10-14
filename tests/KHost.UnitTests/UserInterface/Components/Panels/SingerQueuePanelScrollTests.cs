@@ -21,26 +21,21 @@ public class SingerQueuePanelScrollTests : BunitContext
 
     public SingerQueuePanelScrollTests()
     {
+        this.AddKHostTestDefaults(broker: _broker);
+
         _queue.Users.Returns(_ => [_first]);
         _queue.SelectedUserId.Returns(_ => _first.Id);
-
-        JSInterop.Mode = JSRuntimeMode.Loose;
 
         var venues = Substitute.For<IVenuesService>();
         venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
 
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(venues);
 
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]

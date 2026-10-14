@@ -68,9 +68,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private readonly IMessageBroker _broker;
 
-    // Serializes every path that hands the display a different stream mid-song or parks it: session
+    // Serializes every path that builds a stream for the display or parks it: load, ad, session
     // sync, display loss and stream reopen. Connect and disconnect both arrive as fire-and-forget
     // continuations, so without it a reconnect's resume races the disconnect's pause.
+    // Not re-entrant: nothing that holds it may reach LoadFromStartAsync or PlayAsync.
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
 
     private readonly PlaybackClock _clock;
@@ -91,8 +92,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     // What the displays are playing for the current song, if anything. It carries the host-side
     // encode when the renderer started one, and nothing when the displays play the parts direct.
-    // Written under _reloadLock only on the reopen path; load, replay and close write it unguarded.
+    // Built under _reloadLock; closed outside it. Swapped with Interlocked.Exchange only, so each
+    // session is closed by whichever path took it out.
     private MediaRendition? _rendition;
+
+    // Interlocked only. Moves on every reset, so a rebuild queued for the song before it can tell.
+    private long _songGeneration;
 
     // Interlocked only. Which stop's fade is the live one; see StopAsync.
     private int _stopGeneration;
@@ -297,7 +302,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         try
         {
             // A display that draws the words loads them itself, inside this call.
-            await LoadOntoDisplayAsync(await BuildLoadAsync(media, TimeSpan.Zero));
+            await LoadFromStartAsync(media);
         }
         catch
         {
@@ -400,7 +405,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         try
         {
             if (playsOnMainChannel)
-                await LoadOntoDisplayAsync(await BuildLoadAsync(ad.Visual!, TimeSpan.Zero));
+                await LoadFromStartAsync(ad.Visual!);
 
             if (ad.Audio is { } audio)
                 await _ads.PlayAudioAsync(audio, ad.AudioStart);
@@ -472,7 +477,16 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             Logger.LogInformation("Play superseded a stop; reloading the screens at {Position}", Position);
 
-            await ReplayOntoDisplayAsync(resumed, seekPast: TimeSpan.Zero);
+            // A replay behind the stream rebuilds it, as a reopen still in flight may be doing.
+            await _reloadLock.WaitAsync();
+            try
+            {
+                await ReplayOntoDisplayAsync(resumed, seekPast: TimeSpan.Zero);
+            }
+            finally
+            {
+                _reloadLock.Release();
+            }
         }
         else
         {
@@ -571,6 +585,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         State = PlaybackState.Paused;
         _clock.Stop();
+
+        // A report already past the Playing check would otherwise land after this and move the
+        // paused playhead, or undo a display loss's park at the start.
+        _clock.MarkTransportMoved();
 
         _analytics.RecordPlaybackStateTransition(PlaybackState.Paused);
 
@@ -755,6 +773,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private void ResetState()
     {
+        Interlocked.Increment(ref _songGeneration);
+
         _clock.Stop();
         _clock.Reset();
 
@@ -777,14 +797,14 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         // Held, not closed: tearing down first would leave the room on buffered frames while the new one
         // spins up (or on nothing, if it fails). A failed rebuild costs the change, not the song.
-        var superseded = _rendition;
+        MediaRendition? built;
 
         // Not swallowed: without a rendition there is nothing to send, and pretending otherwise
         // leaves the room staring at a screen that never starts.
         try
         {
             // The ad path reaches here and reads zero: PlayAdAsync resets the state first.
-            _rendition = await _renderers.RenderAsync(new MediaRenderRequest
+            built = await _renderers.RenderAsync(new MediaRenderRequest
             {
                 FilePath = media.FilePath,
                 StartOffset = startOffset,
@@ -802,23 +822,44 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 "KH-STREAM-OPEN",
                 ex);
         }
-        finally
-        {
-            // Retired rather than closed, and only if the replacement actually took: on failure
-            // _rendition still points at the old one, and closing it would take the song too.
-            if (!ReferenceEquals(superseded, _rendition))
-                RetireSession(superseded?.Session);
-        }
+
+        // Retires what is there now, not what was there before the build: a stop closing the song
+        // mid-build has already taken that one, and whoever swaps a session out closes it, once.
+        var superseded = Interlocked.Exchange(ref _rendition, built);
+        if (!ReferenceEquals(superseded, built))
+            RetireSession(superseded?.Session);
 
         return DescribeStream(media);
+    }
+
+    /// <summary>Opens <paramref name="media"/> at its start and hands it to the display.</summary>
+    private async Task LoadFromStartAsync(Media media)
+    {
+        // A rebuild past its settle may be mid-build: each retires what it replaces, and the one
+        // finishing last would otherwise leave the room on the other's song.
+        await _reloadLock.WaitAsync();
+        try
+        {
+            await LoadOntoDisplayAsync(await BuildLoadAsync(media, TimeSpan.Zero));
+        }
+        finally
+        {
+            _reloadLock.Release();
+        }
     }
 
     /// <summary>Rebuilds since ffmpeg fixes its filter graph at start, which costs a short silence.</summary>
     private async Task ReopenStreamAsync(TimeSpan? at = null)
     {
+        var song = Interlocked.Read(ref _songGeneration);
+
         await _reloadLock.WaitAsync();
         try
         {
+            // Queued behind a load: the change was for the song before, and the new one opens as it should.
+            if (Interlocked.Read(ref _songGeneration) != song)
+                return;
+
             // A still holds no stream to rebuild, and an ad is nobody's song to transpose.
             if (CurrentMedia is not { } media || IsPlayingAd || _rendition is null)
                 return;
@@ -839,7 +880,17 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Opened at the playhead, not opened at zero and seeked: the stream's own zero moves
             // with it, which is what StreamStartOffset carries to the screens.
-            await LoadOntoDisplayAsync(await BuildLoadAsync(media, position));
+            var load = await BuildLoadAsync(media, position);
+
+            // Stopped or replaced while building: the encode is for a song that is gone, and handing
+            // it over would put that song back on the display.
+            if (Interlocked.Read(ref _songGeneration) != song)
+            {
+                await CloseStreamAsync();
+                return;
+            }
+
+            await LoadOntoDisplayAsync(load);
 
             // A rendition of the whole song (stems) opens at the song's zero, not the playhead.
             if (_rendition is { } opened && position > opened.StartOffset)
@@ -919,13 +970,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         Stems = _rendition?.Stems ?? [],
     };
 
-    private async Task CloseStreamAsync()
-    {
-        var rendition = _rendition;
-        _rendition = null;
-
-        await CloseSessionAsync(rendition?.Session);
-    }
+    /// <remarks>Not under _reloadLock: a stop or a song's end would then wait out a rebuild's encode
+    /// start or a slow receiver's load. The swap alone decides who closes the session.</remarks>
+    private Task CloseStreamAsync() => CloseSessionAsync(Interlocked.Exchange(ref _rendition, null)?.Session);
 
     /// <summary>Lets a replaced session stand until whatever is still reading it has moved on.</summary>
     private void RetireSession(MediaStreamSession? stream)

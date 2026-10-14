@@ -29,6 +29,7 @@ public sealed class UpNextService : BaseService, IUpNextService, IStartsWithTheH
     private readonly IServiceProvider _services;
 
     private readonly TimeSpan _settle;
+    private readonly ITimer _settled;
     private readonly Lock _gate = new();
     private bool _owed;
     private bool _draining;
@@ -47,6 +48,7 @@ public sealed class UpNextService : BaseService, IUpNextService, IStartsWithTheH
         IPerformanceService performances,
         IMediaService media,
         IServiceProvider services,
+        TimeProvider time,
         TimeSpan? settle = null)
         : base(logger)
     {
@@ -57,6 +59,7 @@ public sealed class UpNextService : BaseService, IUpNextService, IStartsWithTheH
         _media = media;
         _services = services;
         _settle = settle ?? DefaultSettle;
+        _settled = time.CreateTimer(_ => OnSettled(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
         _subscriptions.Add(broker.Subscribe<SingerQueueChanged>(_ => Owe()));
         _subscriptions.Add(broker.Subscribe<PerformancesChanged>(_ => Owe()));
@@ -105,7 +108,11 @@ public sealed class UpNextService : BaseService, IUpNextService, IStartsWithTheH
         return entries;
     }
 
-    public void Dispose() => _subscriptions.Dispose();
+    public void Dispose()
+    {
+        _subscriptions.Dispose();
+        _settled.Dispose();
+    }
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -158,32 +165,29 @@ public sealed class UpNextService : BaseService, IUpNextService, IStartsWithTheH
             _draining = true;
         }
 
-        _ = Task.Run(DrainAsync);
+        // Armed on the caller's thread: the window opens at the burst's first step, not when a pool thread gets to it.
+        _settled.Change(_settle, Timeout.InfiniteTimeSpan);
     }
 
-    private async Task DrainAsync()
+    private void OnSettled()
     {
-        while (true)
+        lock (_gate)
         {
-            // Waited out before every announcement, including one owed while the last went out: the
-            // window has to start at a burst's first step or it splits the burst.
-            await Task.Delay(_settle);
+            _owed = false;
+        }
 
-            lock (_gate)
+        _broker.Announce(new UpNextChanged());
+
+        lock (_gate)
+        {
+            if (!_owed)
             {
-                _owed = false;
-            }
-
-            _broker.Announce(new UpNextChanged());
-
-            lock (_gate)
-            {
-                if (!_owed)
-                {
-                    _draining = false;
-                    return;
-                }
+                _draining = false;
+                return;
             }
         }
+
+        // Owed while the last went out: it waits a whole window of its own, or it splits the next burst.
+        _settled.Change(_settle, Timeout.InfiniteTimeSpan);
     }
 }

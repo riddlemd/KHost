@@ -64,23 +64,20 @@ public sealed class ScreenClientReconnectTests : IAsyncDisposable
         var thirdWait = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var slotFree = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var client = new ScreenClient(_log)
-        {
-            Delay = async (_, cancellationToken) =>
+        await using var client = new ScreenClient(_log, new ScriptedWaits(async _ =>
             {
                 switch (Interlocked.Increment(ref waits))
                 {
                     case 1:
                         firstWait.TrySetResult();
-                        await otherIn.Task.WaitAsync(cancellationToken);
+                        await otherIn.Task;
                         break;
                     case 3:
                         thirdWait.TrySetResult();
-                        await slotFree.Task.WaitAsync(cancellationToken);
+                        await slotFree.Task;
                         break;
                 }
-            },
-        };
+            }));
         await client.ConnectAsync(_host.Url, "Screen 1", authKey: key);
         var backUp = WhenBackUp(client);
 
@@ -116,15 +113,14 @@ public sealed class ScreenClientReconnectTests : IAsyncDisposable
 
         var waits = 0;
         var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var client = new ScreenClient(_log)
-        {
-            AutomaticReconnectDelays = QuickAutomaticReconnect,
-            Delay = async (_, cancellationToken) =>
+        await using var client = new ScreenClient(_log, new ScriptedWaits(_ =>
             {
                 Interlocked.Increment(ref waits);
                 waiting.TrySetResult();
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            },
+                return new TaskCompletionSource().Task;
+            }))
+        {
+            AutomaticReconnectDelays = QuickAutomaticReconnect,
         };
         await client.ConnectAsync(_host.Url, "Screen 1", authKey: key);
 
@@ -150,10 +146,7 @@ public sealed class ScreenClientReconnectTests : IAsyncDisposable
         var lastStepReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var hostBack = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var client = new ScreenClient(_log)
-        {
-            AutomaticReconnectDelays = QuickAutomaticReconnect,
-            Delay = async (wait, cancellationToken) =>
+        var client = new ScreenClient(_log, new ScriptedWaits(async wait =>
             {
                 int count;
                 lock (waits)
@@ -165,8 +158,10 @@ public sealed class ScreenClientReconnectTests : IAsyncDisposable
                 if (count < 6) return;
 
                 lastStepReached.TrySetResult();
-                await hostBack.Task.WaitAsync(cancellationToken);
-            },
+                await hostBack.Task;
+            }))
+        {
+            AutomaticReconnectDelays = QuickAutomaticReconnect,
         };
         await client.ConnectAsync(_host.Url, "Screen 1", authKey: key);
         var backUp = WhenBackUp(client);

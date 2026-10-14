@@ -1,11 +1,9 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 
@@ -20,12 +18,11 @@ public class EditVenueDialogBreakMusicTests : BunitContext
 
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
-    private readonly IMediaService _media = Substitute.For<IMediaService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public EditVenueDialogBreakMusicTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -41,15 +38,12 @@ public class EditVenueDialogBreakMusicTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
 
         // The dialog reads the visualisation playlists as it opens; none is all these need.
         var visualisations = Substitute.For<IVisualisationPlaylistService>();
         visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
         Services.AddSingleton(visualisations);
-        Services.AddSingleton(_media);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         // The dialog reads the venue's background folder on open; an empty pack is the
         // shape a venue that has never chosen one has.

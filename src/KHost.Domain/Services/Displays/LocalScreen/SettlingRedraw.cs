@@ -9,7 +9,7 @@ internal sealed class SettlingRedraw<TFlags> where TFlags : struct, Enum
     private readonly TimeSpan _settle;
     private readonly Func<TFlags, Task> _draw;
     private readonly Action<Exception> _failed;
-    private readonly TimeProvider _time;
+    private readonly ITimer _settled;
 
     private readonly Lock _gate = new();
     private long _owed;
@@ -22,7 +22,8 @@ internal sealed class SettlingRedraw<TFlags> where TFlags : struct, Enum
         _settle = settle;
         _draw = draw;
         _failed = failed;
-        _time = time ?? TimeProvider.System;
+        _settled = (time ?? TimeProvider.System).CreateTimer(
+            _ => _ = DrawOwedAsync(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
     /// <summary>Owes <paramref name="flags"/> and returns at once; the draw is detached.</summary>
@@ -36,36 +37,33 @@ internal sealed class SettlingRedraw<TFlags> where TFlags : struct, Enum
             _running = true;
         }
 
-        _ = Task.Run(DrainAsync);
+        // Armed on the caller's thread: the window opens at the burst's first request, not when a pool thread gets to it.
+        _settled.Change(_settle, Timeout.InfiniteTimeSpan);
     }
 
-    private async Task DrainAsync()
+    private async Task DrawOwedAsync()
     {
-        while (true)
+        long owed;
+
+        lock (_gate)
         {
-            // Waited out before every draw, including one owed while the last was drawing: the
-            // window has to start at a burst's first announcement or it splits the burst.
-            await Task.Delay(_settle, _time);
+            owed = _owed;
+            _owed = 0;
+        }
 
-            long owed;
+        try { await _draw((TFlags)Enum.ToObject(typeof(TFlags), owed)); }
+        catch (Exception ex) { _failed(ex); }
 
-            lock (_gate)
+        lock (_gate)
+        {
+            if (_owed == 0)
             {
-                owed = _owed;
-                _owed = 0;
-            }
-
-            try { await _draw((TFlags)Enum.ToObject(typeof(TFlags), owed)); }
-            catch (Exception ex) { _failed(ex); }
-
-            lock (_gate)
-            {
-                if (_owed == 0)
-                {
-                    _running = false;
-                    return;
-                }
+                _running = false;
+                return;
             }
         }
+
+        // Owed while drawing: it waits a whole window of its own, or it splits the next burst.
+        _settled.Change(_settle, Timeout.InfiniteTimeSpan);
     }
 }

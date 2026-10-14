@@ -40,11 +40,45 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Running EF Core migrations");
         await context.Database.MigrateAsync();
 
+        await FoldUnfoldedMediaTitlesAsync();
         await SweepStalledDownloadsAsync();
         await ReconcileFileLifetimeAsync();
         await EnsureShippedVisualisationPlaylistsAsync();
 
         _logger.LogInformation("Database initialization complete");
+    }
+
+    /// <summary>Fills the title and artist sort columns on rows written before they existed.</summary>
+    /// <remarks>The fold is Unidecode, which SQL cannot run, so the migration leaves them empty.</remarks>
+    internal async Task FoldUnfoldedMediaTitlesAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var candidates = await context.Media
+            .Where(m => (EF.Property<string>(m, EntityFolding.TitleFolded) == "" && m.Title != "")
+                     || (EF.Property<string>(m, EntityFolding.ArtistFolded) == "" && m.Artist != ""))
+            .Select(m => new
+            {
+                Media = m,
+                Title = EF.Property<string>(m, EntityFolding.TitleFolded),
+                Artist = EF.Property<string>(m, EntityFolding.ArtistFolded),
+            })
+            .ToListAsync();
+
+        // A title that legitimately folds to nothing would otherwise be rewritten on every start.
+        var stale = candidates
+            .Where(c => c.Title != EntityFolding.FoldMedia(c.Media.Title) || c.Artist != EntityFolding.FoldMedia(c.Media.Artist))
+            .Select(c => c.Media)
+            .ToList();
+
+        if (stale.Count == 0) return;
+
+        // Attaching is enough: the context folds every changed entity as it saves.
+        foreach (var media in stale)
+            context.Update(media);
+
+        await context.SaveChangesAsync();
+        _logger.LogInformation("Folded the sort title and artist of {Count} media row(s)", stale.Count);
     }
 
     internal async Task SweepStalledDownloadsAsync()

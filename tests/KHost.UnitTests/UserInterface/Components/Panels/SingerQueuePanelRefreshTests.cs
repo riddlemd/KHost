@@ -28,23 +28,18 @@ public class SingerQueuePanelRefreshTests : BunitContext
 
     public SingerQueuePanelRefreshTests()
     {
+        this.AddKHostTestDefaults(broker: _broker, dialogs: _dialogs);
+
         _queue.Users.Returns(_ => [_ann]);
         _performances.ReadQueuedAsync().Returns(_ => [Turn()]);
         _venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
         _venue.Settings.PromptBeforeRemovingSinger = false;
         _venues.ReadSelectedVenueAsync().Returns(_ => _venue);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_venues);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
-        Services.AddSingleton(_dialogs);
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]

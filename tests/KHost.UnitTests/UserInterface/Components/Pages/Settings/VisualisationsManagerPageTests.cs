@@ -37,7 +37,7 @@ public class VisualisationsManagerPageTests : BunitContext
 
     public VisualisationsManagerPageTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker, flash: _flash, dialogs: _dialogs, media: _media);
 
         _playlists = new VisualisationPlaylistService(NullLogger<VisualisationPlaylistService>.Instance,
             new VisualisationPlaylistRepository(_database, NullLogger<BaseRepository<VisualisationPlaylist>>.Instance), _broker);
@@ -60,15 +60,11 @@ public class VisualisationsManagerPageTests : BunitContext
         Services.AddSingleton<IVisualisationPlaylistService>(_playlists);
         Services.AddSingleton(_presets);
         Services.AddSingleton(_venues);
-        Services.AddSingleton(_dialogs);
-        Services.AddSingleton(_flash);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         _media.ReadAllByTypesAsync(Arg.Any<MediaType[]>()).Returns(new List<Media> { _waves });
         _media.ReadAsync(_waves.Id).Returns(_waves);
         _uploader.ExtensionsFor(Arg.Any<IReadOnlyList<MediaType>>()).Returns([]);
         _backdrops.DirectUrlForAsync(_waves, Arg.Any<CancellationToken>()).Returns("http://host:5251/media/backdrops/abc");
-        Services.AddSingleton(_media);
         Services.AddSingleton(_uploader);
         Services.AddSingleton(_backdrops);
     }

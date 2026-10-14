@@ -2,10 +2,8 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
@@ -22,8 +20,6 @@ public class EditVenueDialogQrCodeTests : BunitContext
 
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
-    private readonly IMediaService _media = Substitute.For<IMediaService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPluginRegistry _plugins = Substitute.For<IPluginRegistry>();
     private readonly IQrCodePngExporter _exporter = Substitute.For<IQrCodePngExporter>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
@@ -46,7 +42,8 @@ public class EditVenueDialogQrCodeTests : BunitContext
 
     public EditVenueDialogQrCodeTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(flash: _flash);
+
         Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -56,15 +53,12 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_exporter);
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(_flash);
         Services.AddSingleton(_mediaPools);
 
         // The dialog reads the visualisation playlists as it opens; none is all these need.
         var visualisations = Substitute.For<IVisualisationPlaylistService>();
         visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
         Services.AddSingleton(visualisations);
-        Services.AddSingleton(_media);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         // The dialog reads the venue's background folder on open; an empty pack is the
         // shape a venue that has never chosen one has.
@@ -167,7 +161,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
     }
 
     [Fact]
-    public void ChoosingASource_ReachesTheSavedVenue()
+    public async Task ChoosingASource_ReachesTheSavedVenue()
     {
         var id = Guid.NewGuid();
         _plugins.Plugins.Returns([Source(id, "Example", "Guest sign-up")]);
@@ -175,7 +169,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
         cut.Find(SourceSelector).Change(id.ToString());
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.Equal(id.ToString(), saved!.Settings.QrCodeSource);
@@ -183,7 +177,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
 
     /// <summary>Choosing None is how a venue turns the feature off, and it has to persist.</summary>
     [Fact]
-    public void ChoosingNone_ReachesTheSavedVenue()
+    public async Task ChoosingNone_ReachesTheSavedVenue()
     {
         var id = Guid.NewGuid();
         _plugins.Plugins.Returns([Source(id, "Example", "Guest sign-up")]);
@@ -191,7 +185,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
         var cut = Render(new Venue.VenueSettings { QrCodeSource = id.ToString() }, venue => saved = venue);
 
         cut.Find(SourceSelector).Change(string.Empty);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.True(string.IsNullOrEmpty(saved!.Settings.QrCodeSource));
@@ -213,7 +207,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
     /// <summary>Switching the source away and back used to lose the missing plugin's own option,
     /// so picking it back up saved an empty source rather than the venue's stored one.</summary>
     [Fact]
-    public void AnUninstalledSource_SwitchedAwayAndBack_StillSavesTheStoredName()
+    public async Task AnUninstalledSource_SwitchedAwayAndBack_StillSavesTheStoredName()
     {
         var id = Guid.NewGuid();
         const string missing = "6f1d1f6e-0000-0000-0000-000000000000";
@@ -228,7 +222,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
             option => option.GetAttribute("value") == missing);
 
         cut.Find(SourceSelector).Change(missing);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.Equal(missing, saved!.Settings.QrCodeSource);
@@ -262,7 +256,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
     }
 
     [Fact]
-    public void WhatTheHostPicks_ReachesTheSavedVenue()
+    public async Task WhatTheHostPicks_ReachesTheSavedVenue()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { QrCodeSource = "any" }, venue => saved = venue);
@@ -270,7 +264,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
         cut.Find(CornerSelector).Change(nameof(OverlayCorner.TopRight));
         cut.Find(SizeSelector).Change(nameof(QrCodeSize.Small));
         cut.Find(HideSelector).Change(true);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.Equal(OverlayCorner.TopRight, saved!.Settings.QrCodeCorner);
@@ -280,7 +274,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
 
     /// <summary>The step appended after Large has to be offered, and chosen, like any other.</summary>
     [Fact]
-    public void ExtraLargeIsOfferedAndSaved()
+    public async Task ExtraLargeIsOfferedAndSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { QrCodeSource = "any" }, venue => saved = venue);
@@ -289,7 +283,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Assert.Contains(nameof(QrCodeSize.ExtraLarge), options);
 
         cut.Find(SizeSelector).Change(nameof(QrCodeSize.ExtraLarge));
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.Equal(QrCodeSize.ExtraLarge, saved!.Settings.QrCodeSize);
@@ -297,12 +291,12 @@ public class EditVenueDialogQrCodeTests : BunitContext
 
     /// <summary>Saving without a choice must write the values shown, not a placement it ignores.</summary>
     [Fact]
-    public void SavingWithoutTouchingThem_WritesWhatWasOffered()
+    public async Task SavingWithoutTouchingThem_WritesWhatWasOffered()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.Equal(OverlayCorner.BottomRight, saved!.Settings.QrCodeCorner);

@@ -42,15 +42,15 @@ internal sealed class WindowPlacementStore : IDisposable
     private readonly string _path;
     private readonly ILogger _logger;
     private readonly Lock _gate = new();
-    private readonly Timer _timer;
+    private readonly ITimer _timer;
 
     private WindowPlacement? _pending;
 
-    public WindowPlacementStore(string screenId, string baseDirectory, ILogger logger)
+    public WindowPlacementStore(string screenId, string baseDirectory, ILogger logger, TimeProvider? time = null)
     {
         _logger = logger;
         _path = Path.Combine(baseDirectory, "cache", "screens", $"{SafeFileName(screenId)}.window.json");
-        _timer = new Timer(_ => Flush(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _timer = (time ?? TimeProvider.System).CreateTimer(_ => Flush(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
     /// <summary>Null when nothing has been stored, or when what was stored cannot be read.</summary>

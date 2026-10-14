@@ -30,6 +30,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
     private CancellationTokenSource _lifetime = new();
     private readonly ILogger<ScreenClient> _logger;
+    private readonly TimeProvider _time;
 
     private byte[]? _key;
     private ScreenCapabilities _capabilities = ScreenCapabilities.None;
@@ -61,14 +62,12 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
     /// on a later, genuine network failure.</summary>
     public string? LastRefusalReason { get; private set; }
 
-    /// <summary>How the reconnect loop waits out each backoff step.</summary>
-    internal Func<TimeSpan, CancellationToken, Task> Delay { get; init; } = Task.Delay;
-
     /// <summary>SignalR's own reconnect schedule; null keeps its default of 0, 2, 10 and 30 seconds.</summary>
     internal TimeSpan[]? AutomaticReconnectDelays { get; init; }
 
-    public ScreenClient(ILoggerFactory? loggerFactory)
+    public ScreenClient(ILoggerFactory? loggerFactory, TimeProvider? time = null)
     {
+        _time = time ?? TimeProvider.System;
         _logger = (loggerFactory ?? new Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory())
             .CreateLogger<ScreenClient>();
     }
@@ -321,7 +320,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         {
             try
             {
-                await Delay(ReconnectBackoff[Math.Min(attempt, ReconnectBackoff.Length - 1)], cancellationToken);
+                await Task.Delay(ReconnectBackoff[Math.Min(attempt, ReconnectBackoff.Length - 1)], _time, cancellationToken);
 
                 await _stateLock.WaitAsync(cancellationToken);
                 try
