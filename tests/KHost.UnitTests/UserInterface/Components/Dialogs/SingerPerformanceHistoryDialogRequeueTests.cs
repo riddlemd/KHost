@@ -1,13 +1,11 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
@@ -22,17 +20,14 @@ public class SingerPerformanceHistoryDialogRequeueTests : BunitContext
 
     public SingerPerformanceHistoryDialogRequeueTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(media: _mediaService);
 
         var appSettings = Substitute.For<IAppSettingsService>();
         appSettings.Current.Returns(new AppSettings());
 
         Services.AddSingleton(_performances);
-        Services.AddSingleton(_mediaService);
         Services.AddSingleton(appSettings);
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IVenuesService>());
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     private IRenderedComponent<SingerPerformanceHistoryDialog> RenderWithSongIn(MediaStatus status)

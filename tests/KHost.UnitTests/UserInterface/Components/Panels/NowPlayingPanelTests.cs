@@ -23,8 +23,7 @@ public class NowPlayingPanelTests : BunitContext
 
     public NowPlayingPanelTests()
     {
-        // The panel calls into JS to build a seek bar on first render; none of it matters here.
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker);
 
         _playback.State.Returns(PlaybackState.Playing);
         _playback.Position.Returns(TimeSpan.Zero);
@@ -46,20 +45,15 @@ public class NowPlayingPanelTests : BunitContext
 
         Services.AddSingleton(Substitute.For<INextSingerCardService>());
 
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(appSettings);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(Substitute.For<ISingerQueueService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IPerformanceService>());
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(_lyrics);
 
         // The break music controls ride this panel's header, so their services have to resolve
         // even in tests that only care about the song; naming no provider keeps the bar out of scope.
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IAdService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     // An ad is nobody's turn, so it has no performance; the panel read "No song loaded" over it.

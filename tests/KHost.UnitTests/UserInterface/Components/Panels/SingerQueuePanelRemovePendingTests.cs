@@ -2,7 +2,6 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
@@ -27,6 +26,8 @@ public class SingerQueuePanelRemovePendingTests : BunitContext
 
     public SingerQueuePanelRemovePendingTests()
     {
+        this.AddKHostTestDefaults();
+
         List<KHostUser> users = [_first, _second];
         _queue.Users.Returns(_ => users);
         _queue.SelectedUserId.Returns(_ => _second.Id);
@@ -39,17 +40,11 @@ public class SingerQueuePanelRemovePendingTests : BunitContext
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton<IDialogService>(_dialogs);
-        Services.AddSingleton(Substitute.For<IFlashService>());
 
         _dialogs.ShowRequested += (_, _) => _confirmsShown++;
     }

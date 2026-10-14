@@ -2,10 +2,8 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 using KHost.DataAccess.Services;
@@ -20,15 +18,14 @@ public class EditVenueDialogBackgroundTests : BunitContext
 {
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
-    private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly IVisualisationPlaylistService _visualisations = Substitute.For<IVisualisationPlaylistService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly VisualisationPlaylist _night = new() { Name = "Night" };
     private readonly VisualisationPlaylist _party = new() { Name = "Party" };
 
     public EditVenueDialogBackgroundTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -38,10 +35,7 @@ public class EditVenueDialogBackgroundTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
-        Services.AddSingleton(_media);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         _visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist> { _night, _party });
         Services.AddSingleton(_visualisations);
@@ -72,26 +66,27 @@ public class EditVenueDialogBackgroundTests : BunitContext
         => Assert.Equal("Party", VisualisationPicker(Render(new Venue.VenueSettings { VisualisationPlaylistId = _party.Id })).GetAttribute("value"));
 
     [Fact]
-    public void PickingAPlaylist_ReachesTheVenueThatIsSaved()
+    public async Task PickingAPlaylist_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
         VisualisationPicker(cut).Focus();
         cut.FindAll(".kh-combobox__option").Single(option => option.TextContent == "Night").Click();
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.Equal(_night.Id, saved!.Settings.VisualisationPlaylistId);
     }
 
     [Fact]
-    public void ClearingThePlaylist_ReachesTheVenueThatIsSaved()
+    public async Task ClearingThePlaylist_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { VisualisationPlaylistId = _night.Id }, venue => saved = venue);
 
         VisualisationPicker(cut).Input("");
-        cut.Find("form").Submit();
+        // Submit() does not wait: under load it queues behind the picker's debounced search and returns unsaved.
+        await cut.Find("form").SubmitAsync();
 
         Assert.Null(saved!.Settings.VisualisationPlaylistId);
     }

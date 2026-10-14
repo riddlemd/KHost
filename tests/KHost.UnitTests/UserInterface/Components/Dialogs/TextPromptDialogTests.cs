@@ -61,40 +61,40 @@ public class TextPromptDialogTests : BunitContext
     }
 
     [Fact]
-    public void Submit_PassesEachFieldsValueByKey()
+    public async Task Submit_PassesEachFieldsValueByKey()
     {
         IReadOnlyDictionary<string, string>? submitted = null;
         var cut = Render(LoginFields, onSubmit: values => { submitted = values; return Task.CompletedTask; });
 
         cut.Find("#kh-text-prompt-dialog-login").Input("host@example.com");
         cut.Find("#kh-text-prompt-dialog-password").Input("hunter2");
-        cut.Find(".kh-text-prompt-dialog__submit-btn").Click();
+        await cut.Find(".kh-text-prompt-dialog__submit-btn").ClickAsync();
 
         Assert.Equal("host@example.com", submitted?["login"]);
         Assert.Equal("hunter2", submitted?["password"]);
     }
 
     [Fact]
-    public void Submit_ClosesTheDialog()
+    public async Task Submit_ClosesTheDialog()
     {
         var closed = false;
         var cut = Render(LoginFields, onClose: () => closed = true);
 
         cut.Find("#kh-text-prompt-dialog-login").Input("host@example.com");
         cut.Find("#kh-text-prompt-dialog-password").Input("hunter2");
-        cut.Find(".kh-text-prompt-dialog__submit-btn").Click();
+        await cut.Find(".kh-text-prompt-dialog__submit-btn").ClickAsync();
 
         Assert.True(closed);
     }
 
     /// <summary>The hidden Enter-submit button isn't disabled, so the guard must live in code.</summary>
     [Fact]
-    public void SubmitViaForm_FieldsBlank_DoesNotSubmit()
+    public async Task SubmitViaForm_FieldsBlank_DoesNotSubmit()
     {
         var submitted = false;
         var cut = Render(LoginFields, onSubmit: _ => { submitted = true; return Task.CompletedTask; });
 
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.False(submitted);
     }

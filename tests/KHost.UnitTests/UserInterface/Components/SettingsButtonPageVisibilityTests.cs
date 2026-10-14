@@ -2,14 +2,12 @@ using AngleSharp.Dom;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
@@ -18,11 +16,10 @@ public class SettingsButtonPageVisibilityTests : BunitContext
 {
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public SettingsButtonPageVisibilityTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         _venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
 
@@ -32,12 +29,9 @@ public class SettingsButtonPageVisibilityTests : BunitContext
         Services.AddSingleton(_venues);
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(appSettings);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IThemeService>());
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         Services.AddSingleton(Substitute.For<IHostApplicationLifetime>());
-        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     [Fact]

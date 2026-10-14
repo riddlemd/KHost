@@ -17,8 +17,7 @@ public class DialogHostSaveTests : BunitContext
 
     public DialogHostSaveTests()
     {
-        // Dialog focuses its first input on open; none of that matters to whether save closes clean.
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         var themeService = Substitute.For<IThemeService>();
         // Every catalog field fails validation without a usable value; only the real defaults pass.
@@ -34,9 +33,7 @@ public class DialogHostSaveTests : BunitContext
         userGroupsService.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>())
             .Returns(new PaginatedResult<KHostUserGroup>());
         Services.AddSingleton(userGroupsService);
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IPerformanceService>());
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IVenuesService>());
         Services.AddSingleton(Substitute.For<ITipsService>());
 

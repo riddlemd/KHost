@@ -2,10 +2,8 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 
@@ -20,12 +18,11 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
 
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
-    private readonly IMediaService _media = Substitute.For<IMediaService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public EditVenueDialogGuestRemoteTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -35,15 +32,12 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
 
         // The dialog reads the visualisation playlists as it opens; none is all these need.
         var visualisations = Substitute.For<IVisualisationPlaylistService>();
         visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
         Services.AddSingleton(visualisations);
-        Services.AddSingleton(_media);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         // The dialog reads the venue's background folder on open; an empty pack is the
         // shape a venue that has never chosen one has.
@@ -82,13 +76,13 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
     }
 
     [Fact]
-    public void WithSignupsClosed_HidingTheQueue_ReachesTheVenueThatIsSaved()
+    public async Task WithSignupsClosed_HidingTheQueue_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { AllowGuestRemote = false }, venue => saved = venue);
 
         cut.Find(QueueSelector).Change(false);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.False(saved!.Settings.ShowQueueToGuests);
@@ -96,13 +90,13 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
     }
 
     [Fact]
-    public void ClosingTheRoom_ReachesTheVenueThatIsSaved()
+    public async Task ClosingTheRoom_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
         cut.Find(RemoteSelector).Change(false);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.False(saved!.Settings.AllowGuestRemote);
@@ -110,13 +104,13 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
 
     /// <summary>Read into the model but never saved back, this would look right and never take.</summary>
     [Fact]
-    public void HidingTheQueue_ReachesTheVenueThatIsSaved()
+    public async Task HidingTheQueue_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
         cut.Find(QueueSelector).Change(false);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.False(saved!.Settings.ShowQueueToGuests);
@@ -125,7 +119,7 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
 
     /// <summary>Turning the room back on must not silently carry a hidden queue with it.</summary>
     [Fact]
-    public void ReopeningTheRoom_LeavesTheQueueAnswerAsItWas()
+    public async Task ReopeningTheRoom_LeavesTheQueueAnswerAsItWas()
     {
         Venue? saved = null;
         var cut = Render(
@@ -133,7 +127,7 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
             venue => saved = venue);
 
         cut.Find(RemoteSelector).Change(true);
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.True(saved!.Settings.AllowGuestRemote);

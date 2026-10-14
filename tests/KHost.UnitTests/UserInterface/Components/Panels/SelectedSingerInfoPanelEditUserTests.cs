@@ -2,11 +2,9 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -24,6 +22,8 @@ public class SelectedSingerInfoPanelEditUserTests : BunitContext
 
     public SelectedSingerInfoPanelEditUserTests()
     {
+        this.AddKHostTestDefaults(dialogs: _dialogs, users: _users);
+
         _stored = new KHostUser { Id = _cached.Id, Name = "Ann", Groups = [new KHostUserGroup { Name = "Staff" }] };
 
         _queue.SelectedUser.Returns(_cached);
@@ -33,19 +33,13 @@ public class SelectedSingerInfoPanelEditUserTests : BunitContext
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         Services.AddSingleton(_queue);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IVenuesService>());
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(_users);
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
-        Services.AddSingleton(_dialogs);
         Services.AddSingleton(Substitute.For<ITipsService>());
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

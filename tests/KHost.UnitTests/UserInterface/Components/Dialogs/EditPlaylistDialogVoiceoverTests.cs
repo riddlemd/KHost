@@ -36,7 +36,7 @@ public class EditPlaylistDialogVoiceoverTests : BunitContext
 
     public EditPlaylistDialogVoiceoverTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(media: _media);
 
         Media[] library = [_voice, _still, _video];
 
@@ -60,7 +60,6 @@ public class EditPlaylistDialogVoiceoverTests : BunitContext
         appSettings.Current.Returns(new AppSettings { AdDefaultDurationSeconds = 10 });
 
         Services.AddSingleton(_pools);
-        Services.AddSingleton(_media);
         Services.AddSingleton(appSettings);
     }
 

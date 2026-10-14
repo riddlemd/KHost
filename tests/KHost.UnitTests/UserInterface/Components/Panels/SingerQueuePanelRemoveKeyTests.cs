@@ -2,7 +2,6 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components.Web;
@@ -28,26 +27,22 @@ public class SingerQueuePanelRemoveKeyTests : BunitContext
 
     public SingerQueuePanelRemoveKeyTests()
     {
+        this.AddKHostTestDefaults();
+
         _users = [_first, _second];
         _queue.Users.Returns(_ => _users);
         _queue.SelectedUserId.Returns(_ => _first.Id);
         _venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
         PromptBeforeRemoving(false);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(_venues);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(_playback);
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton<IDialogService>(_dialogs);
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     private void PromptBeforeRemoving(bool prompt)

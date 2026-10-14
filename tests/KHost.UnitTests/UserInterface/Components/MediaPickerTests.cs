@@ -3,12 +3,10 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
@@ -25,7 +23,7 @@ public class MediaPickerTests : BunitContext
 
     public MediaPickerTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(flash: _flash, media: _media);
 
         _media.ReadAllByTypesAsync(Arg.Any<MediaType[]>()).Returns(new List<Media> { _old });
         _uploader.ExtensionsFor(Arg.Any<IEnumerable<MediaType>>()).Returns([".png", ".jpg"]);
@@ -35,10 +33,7 @@ public class MediaPickerTests : BunitContext
         _uploader.AddAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<MediaType>(), Arg.Any<CancellationToken>())
             .Returns(_added);
 
-        Services.AddSingleton(_media);
         Services.AddSingleton(_uploader);
-        Services.AddSingleton(_flash);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

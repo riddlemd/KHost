@@ -3,14 +3,12 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace KHost.UnitTests.UserInterface.Components;
@@ -18,7 +16,6 @@ namespace KHost.UnitTests.UserInterface.Components;
 /// <summary>A headless host has no window to close, so the menu is its only way out.</summary>
 public class SettingsButtonExitTests : BunitContext
 {
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
     private readonly IHostApplicationLifetime _lifetime = Substitute.For<IHostApplicationLifetime>();
     private readonly BunitJSModuleInterop _exitModule;
@@ -26,7 +23,8 @@ public class SettingsButtonExitTests : BunitContext
 
     public SettingsButtonExitTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(dialogs: _dialogs);
+
         _exitModule = JSInterop.SetupModule("/js/host-exit.js");
         _exitModule.SetupVoid("showStopped").SetVoidResult();
 
@@ -40,10 +38,7 @@ public class SettingsButtonExitTests : BunitContext
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action?>(), Arg.Any<Action?>())
             .Returns(true);
 
-        Services.AddSingleton(_dialogs);
         Services.AddSingleton(_lifetime);
-        Services.AddSingleton(Substitute.For<IFlashService>());
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(venues);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IThemeService>());

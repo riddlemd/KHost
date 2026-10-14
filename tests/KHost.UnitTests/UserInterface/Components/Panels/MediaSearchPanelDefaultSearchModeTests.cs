@@ -3,11 +3,9 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.MediaProviders;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -26,12 +24,11 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
     private readonly IAppSettingsService _appSettings = Substitute.For<IAppSettingsService>();
     private readonly ICacheService _cache = Substitute.For<ICacheService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly ControlState _controlState = new();
 
     public MediaSearchPanelDefaultSearchModeTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         var local = Substitute.For<IMediaProvider>();
         local.SourceName.Returns(LocalSource);
@@ -52,11 +49,8 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_search);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(queue);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IControlState>(_controlState);
         Services.AddSingleton(_appSettings);
         Services.AddSingleton(_cache);
