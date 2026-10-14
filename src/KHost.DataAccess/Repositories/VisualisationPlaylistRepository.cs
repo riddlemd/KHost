@@ -11,7 +11,7 @@ internal class VisualisationPlaylistRepository : BaseSearchableRepository<Visual
     private static readonly IReadOnlyDictionary<string, Expression<Func<VisualisationPlaylist, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<VisualisationPlaylist, object>>>
         {
-            ["name"] = p => p.Name.ToLower(),
+            ["name"] = p => p.NameFolded,
         };
 
     public VisualisationPlaylistRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<VisualisationPlaylist>> logger)
@@ -76,7 +76,7 @@ internal class VisualisationPlaylistRepository : BaseSearchableRepository<Visual
     }
 
     protected override IReadOnlyDictionary<string, Expression<Func<VisualisationPlaylist, object>>> SortColumns => _sortColumns;
-    protected override Expression<Func<VisualisationPlaylist, object>> DefaultSortExpression => p => p.Name.ToLower();
+    protected override Expression<Func<VisualisationPlaylist, object>> DefaultSortExpression => p => p.NameFolded;
 
     protected override IQueryable<VisualisationPlaylist> ApplySearchFilters(IQueryable<VisualisationPlaylist> queryable, string query)
     {

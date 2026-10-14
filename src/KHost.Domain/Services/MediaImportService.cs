@@ -26,7 +26,6 @@ public class MediaImportService : BaseService, IMediaImportService
     private readonly IMediaFileParsingService _parser;
     private readonly IMessageBroker _broker;
     private readonly IMediaRepository _repository;
-    private readonly IMediaService _mediaService;
     private readonly IMediaFingerprintService _fingerprints;
     private readonly IAnalyticsService _analytics;
     private readonly IFFmpegService _ffmpeg;
@@ -35,6 +34,7 @@ public class MediaImportService : BaseService, IMediaImportService
     private CancellationTokenSource? _cts;
     private readonly Lock _startLock = new();
     private long _lastNotifyMs;
+    private bool _libraryChangedUnannounced;
 
     public ImportState State { get; private set; } = ImportState.Idle;
     public int TotalCount { get; private set; }
@@ -57,7 +57,6 @@ public class MediaImportService : BaseService, IMediaImportService
         ILogger<MediaImportService> logger,
         IMediaFileParsingService parser,
         IMediaRepository repository,
-        IMediaService mediaService,
         IMediaFingerprintService fingerprints,
         IAnalyticsService analytics,
         IPluginRegistry plugins,
@@ -71,7 +70,6 @@ public class MediaImportService : BaseService, IMediaImportService
         _broker = broker;
         _parser = parser;
         _repository = repository;
-        _mediaService = mediaService;
         _fingerprints = fingerprints;
         _analytics = analytics;
 
@@ -173,6 +171,16 @@ public class MediaImportService : BaseService, IMediaImportService
 
         _lastNotifyMs = now;
         _broker.Announce(new MediaImportChanged());
+        AnnounceLibraryChangedIfPending();
+    }
+
+    private void AnnounceLibraryChangedIfPending()
+    {
+        if (!_libraryChangedUnannounced)
+            return;
+
+        _libraryChangedUnannounced = false;
+        _broker.Announce(new MediaLibraryChanged());
     }
 
     private async Task ImportOneFileAsync(ImportCandidate candidate, CancellationToken ct)
@@ -216,7 +224,10 @@ public class MediaImportService : BaseService, IMediaImportService
                 ?? await _fingerprints.ComputeSampledHashAsync(candidate.Path, ct);
             media.ContentHash = candidate.ContentHash;
 
-            await _mediaService.CreateAsync(media);
+            // The repository, not IMediaService: its create announces MediaLibraryChanged per row, and
+            // every library panel re-reads on each, so a bulk import announces on the throttle instead.
+            await _repository.CreateAsync(media);
+            _libraryChangedUnannounced = true;
             ImportedCount++;
             _analytics.RecordImportFilesProcessed(1, "imported");
         }
@@ -252,6 +263,7 @@ public class MediaImportService : BaseService, IMediaImportService
         {
             _analytics.RecordImportDuration(sw.Elapsed.TotalMilliseconds);
             CurrentFilePath = null;
+            AnnounceLibraryChangedIfPending();
 
             // Disposing the field (rather than this captured instance) risks tearing down a fresh
             // CTS a concurrent StartAsync already installed; nulling it unconditionally would then

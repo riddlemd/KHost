@@ -112,6 +112,27 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         return counts.ToDictionary(c => c.SingerId, c => c.Count);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, DateTime>> ReadLastSungBySingersAsync(IEnumerable<Guid> singerIds)
+    {
+        var ids = singerIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return new Dictionary<Guid, DateTime>();
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        var query = context.Set<Performance>()
+            .Where(p => ids.Contains(p.SingerId));
+
+        query = ApplyFilter(query, PerformanceFilter.UnQueued);
+
+        var last = await query
+            .GroupBy(p => p.SingerId)
+            .Select(g => new { SingerId = g.Key, LastSungOn = g.Max(p => p.CreatedDate) })
+            .ToListAsync();
+
+        return last.ToDictionary(l => l.SingerId, l => l.LastSungOn);
+    }
+
     public async Task<IReadOnlyList<RecentVenueVisit>> ReadRecentVenueVisitsBySingerAsync(Guid singerId, int count)
     {
         if (count <= 0)

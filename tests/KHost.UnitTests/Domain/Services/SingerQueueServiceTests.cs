@@ -19,8 +19,8 @@ public class SingerQueueServiceTests : IDisposable
     private readonly string _cacheDir = Path.Combine(Path.GetTempPath(), $"khost-queue-cache-{Guid.NewGuid():N}");
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
-    private readonly IUsersService _usersService;
     private readonly IUsersRepository _usersRepository = Substitute.For<IUsersRepository>();
+    private readonly IPerformancesRepository _performancesRepository = Substitute.For<IPerformancesRepository>();
     private readonly IVenuesService _venuesService;
     private readonly IQueueRotationStrategyFactory _rotationFactory;
     private readonly Dictionary<Guid, KHostUser> _userDb = [];
@@ -32,17 +32,15 @@ public class SingerQueueServiceTests : IDisposable
         var analyticsCache = Substitute.For<IAnalyticsService>();
         _cacheService = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analyticsCache, _cacheDir);
         _performanceService = Substitute.For<IPerformanceService>();
-        _usersService = Substitute.For<IUsersService>();
         _venuesService = Substitute.For<IVenuesService>();
 
         _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
             .Returns(args => Task.FromResult<Performance?>((Performance)args[0]));
 
-        _usersService.ReadAsync(Arg.Any<Guid>())
-            .Returns(args => { _userDb.TryGetValue((Guid)args[0], out var u); return Task.FromResult(u); });
-
-        _usersService.UpdateAsync(Arg.Any<KHostUser>())
-            .Returns(args => { var u = (KHostUser)args[0]; _userDb[u.Id] = u; return Task.CompletedTask; });
+        _usersRepository.ReadManyAsync(Arg.Any<IEnumerable<Guid>>())
+            .Returns(args => Task.FromResult(ReadFromUserDb((IEnumerable<Guid>)args[0])));
+        _performancesRepository.ReadLastSungBySingersAsync(Arg.Any<IEnumerable<Guid>>())
+            .Returns(new Dictionary<Guid, DateTime>());
 
         _rotationFactory = Substitute.For<IQueueRotationStrategyFactory>();
 
@@ -55,8 +53,11 @@ public class SingerQueueServiceTests : IDisposable
         StubStrategy(ctx => ctx.Queue.Select(u => u.Id).ToList());
 
         var analyticsQueue = Substitute.For<IAnalyticsService>();
-        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _usersRepository, _venuesService, analyticsQueue, _rotationFactory, _broker);
+        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersRepository, _performancesRepository, _venuesService, analyticsQueue, _rotationFactory, _broker);
     }
+
+    private List<KHostUser> ReadFromUserDb(IEnumerable<Guid> ids)
+        => [.. ids.Where(_userDb.ContainsKey).Select(id => _userDb[id])];
 
     private void StubStrategy(Func<QueueRotationContext, IReadOnlyList<Guid>> strategy)
     {
@@ -478,7 +479,7 @@ public class SingerQueueServiceTests : IDisposable
     public async Task ClearAsync_NoVenueSelected_SaysTheQueueWasKept()
     {
         var log = new RecordingLogger();
-        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersService, _usersRepository,
+        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersRepository, _performancesRepository,
             _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
         _venuesService.ReadSelectedVenueAsync().Returns((Venue?)null);
 
@@ -492,7 +493,7 @@ public class SingerQueueServiceTests : IDisposable
     public async Task ClearAsync_VenueKeepsItsQueue_SaysSo()
     {
         var log = new RecordingLogger();
-        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersService, _usersRepository,
+        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersRepository, _performancesRepository,
             _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
         _venuesService.ReadSelectedVenueAsync()
             .Returns(new Venue { Name = "Test", Settings = new Venue.VenueSettings { ClearQueueOnClose = false } });
@@ -543,8 +544,8 @@ public class SingerQueueServiceTests : IDisposable
         NullLogger<SingerQueueService>.Instance,
         _cacheService,
         _performanceService,
-        _usersService,
         _usersRepository,
+        _performancesRepository,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
         _rotationFactory,
@@ -682,8 +683,8 @@ public class SingerQueueServiceTests : IDisposable
         NullLogger<SingerQueueService>.Instance,
         _cacheService,
         _performanceService,
-        _usersService,
         _usersRepository,
+        _performancesRepository,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
         new QueueRotationStrategyFactory([new FifoStrategy()]),
@@ -710,7 +711,7 @@ public class SingerQueueServiceTests : IDisposable
     public async Task Dispose_WhileAPruneIsStillSaving_WaitsForTheSave()
     {
         var cache = new GatedCache();
-        var service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, _performanceService, _usersService, _usersRepository,
+        var service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, _performanceService, _usersRepository, _performancesRepository,
             _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
         var bob = new KHostUser { Id = Guid.NewGuid(), Name = "Bob" };
         _userDb[bob.Id] = bob;
@@ -807,9 +808,9 @@ public class SingerQueueServiceTests : IDisposable
         var pauseGate = new TaskCompletionSource();
         var resumeGate = new TaskCompletionSource();
 
-        // Only the very first ReadAsync call (Carol's, from the foreground foreach below) pauses;
-        // prune's own gathering loop must not stall on the same gate or neither side ever proceeds.
-        _usersService.ReadAsync(Arg.Any<Guid>()).Returns(async callInfo =>
+        // Only the very first read (the foreground's, below) pauses; prune's own read must not
+        // stall on the same gate or neither side ever proceeds.
+        _usersRepository.ReadManyAsync(Arg.Any<IEnumerable<Guid>>()).Returns(async callInfo =>
         {
             if (Interlocked.Exchange(ref pausedOnce, 1) == 0)
             {
@@ -817,12 +818,10 @@ public class SingerQueueServiceTests : IDisposable
                 await resumeGate.Task;
             }
 
-            _userDb.TryGetValue((Guid)callInfo[0], out var user);
-            return user;
+            return ReadFromUserDb((IEnumerable<Guid>)callInfo[0]);
         });
 
-        // ResolveAsync's foreach over [carol, zoe] opens an enumerator and pauses on the first
-        // (Carol) lookup, still holding it open.
+        // ResolveAsync's read of [carol, zoe] pauses mid-resolve, still holding the lock.
         var refreshTask = _service.RefreshAsync();
 
         await pauseGate.Task;

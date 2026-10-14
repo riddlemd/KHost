@@ -17,8 +17,8 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     private readonly ILogger<SingerQueueService> _logger;
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
-    private readonly IUsersService _usersService;
     private readonly IUsersRepository _usersRepository;
+    private readonly IPerformancesRepository _performancesRepository;
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
@@ -47,8 +47,8 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         ILogger<SingerQueueService> logger,
         ICacheService cacheService,
         IPerformanceService performanceService,
-        IUsersService usersService,
         IUsersRepository usersRepository,
+        IPerformancesRepository performancesRepository,
         IVenuesService venuesService,
         IAnalyticsService analytics,
         IQueueRotationStrategyFactory rotationStrategyFactory,
@@ -57,8 +57,8 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         _logger = logger;
         _cacheService = cacheService;
         _performanceService = performanceService;
-        _usersService = usersService;
         _usersRepository = usersRepository;
+        _performancesRepository = performancesRepository;
         _venuesService = venuesService;
         _analytics = analytics;
         _rotationStrategyFactory = rotationStrategyFactory;
@@ -82,16 +82,9 @@ public class SingerQueueService : ISingerQueueService, IDisposable
             {
                 if (_disposed) return;
 
-                List<Guid> missing = [];
-                var resolved = new List<KHostUser>(_userIds.Count);
-
-                foreach (var id in _userIds.ToList())
-                {
-                    if (await _usersService.ReadAsync(id) is { } user)
-                        resolved.Add(user);
-                    else
-                        missing.Add(id);
-                }
+                var resolved = await _usersRepository.ReadManyAsync(_userIds.ToList());
+                var found = resolved.Select(u => u.Id).ToHashSet();
+                var missing = _userIds.Where(id => !found.Contains(id)).ToList();
 
                 if (missing.Count == 0)
                 {
@@ -534,26 +527,21 @@ public class SingerQueueService : ISingerQueueService, IDisposable
 
     private async Task<List<RotationSinger>> BuildRotationSnapshotsAsync(QueueRotationConfig config)
     {
-        var snapshots = new List<RotationSinger>(_userIds.Count);
+        // Batched: rotation runs on every add and every song end, and a read per singer made each a
+        // round trip per person in the room.
+        var ids = _userIds.ToList();
+        var lastSung = await _performancesRepository.ReadLastSungBySingersAsync(ids);
 
-        foreach (var id in _userIds)
+        var groupsBySinger = config.VipGroupId.HasValue
+            ? (await _usersRepository.ReadManyAsync(ids)).ToDictionary(u => u.Id, u => (IReadOnlyList<Guid>)[.. u.Groups.Select(g => g.Id)])
+            : [];
+
+        return [.. ids.Select(id => new RotationSinger
         {
-            var lastPerformance = await _performanceService.ReadBySingerIdAsync(
-                id, pageNumber: 1, pageSize: 1, filter: PerformanceFilter.UnQueued);
-
-            IReadOnlyList<Guid> groupIds = [];
-            if (config.VipGroupId.HasValue)
-                groupIds = (await _usersService.ReadAsync(id))?.Groups.Select(g => g.Id).ToList() ?? [];
-
-            snapshots.Add(new RotationSinger
-            {
-                Id = id,
-                LastSangOn = lastPerformance.Items.FirstOrDefault()?.CreatedDate,
-                GroupIds = groupIds,
-            });
-        }
-
-        return snapshots;
+            Id = id,
+            LastSangOn = lastSung.TryGetValue(id, out var sungOn) ? sungOn : null,
+            GroupIds = groupsBySinger.GetValueOrDefault(id, []),
+        })];
     }
 
     // A strategy may drop only the finished singer (their turn ends); anyone else missing is a
@@ -590,16 +578,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
 
     private async Task ResolveAsync()
     {
-        var resolved = new List<KHostUser>(_userIds.Count);
-
-        foreach (var id in _userIds)
-        {
-            var user = await _usersService.ReadAsync(id);
-            if (user is not null)
-                resolved.Add(user);
-        }
-
-        _cachedUsers = resolved;
+        _cachedUsers = await _usersRepository.ReadManyAsync(_userIds.ToList());
     }
 
     // Assumes _lock is held: resolves and saves, but never publishes, so a caller can release

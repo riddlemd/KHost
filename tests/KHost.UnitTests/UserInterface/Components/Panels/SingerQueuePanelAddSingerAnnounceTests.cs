@@ -72,7 +72,7 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
         rotationFactory.Resolve(Arg.Any<QueueRotationConfig>()).Returns(strategy);
 
         var queue = new SingerQueueService(
-            NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.DataAccess.Repositories.IUsersRepository>(), venues, analytics, rotationFactory, _broker);
+            NullLogger<SingerQueueService>.Instance, cache, performances, UsersReadFrom(_userDb), LastSungNever(), venues, analytics, rotationFactory, _broker);
 
         Services.AddSingleton<ISingerQueueService>(queue);
         Services.AddSingleton<IMessageBroker>(_broker);
@@ -112,5 +112,20 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
         Assert.Equal(1, announceCount);
         Assert.Equal(_userDb.Values.Single(u => u.Name == "Zoe").Id,
             Services.GetRequiredService<ISingerQueueService>().SelectedUserId);
+    }
+
+    private static IUsersRepository UsersReadFrom(Dictionary<Guid, KHostUser> userDb)
+    {
+        var repository = Substitute.For<IUsersRepository>();
+        repository.ReadManyAsync(Arg.Any<IEnumerable<Guid>>())
+            .Returns(args => Task.FromResult<List<KHostUser>>([.. ((IEnumerable<Guid>)args[0]).Where(userDb.ContainsKey).Select(id => userDb[id])]));
+        return repository;
+    }
+
+    private static IPerformancesRepository LastSungNever()
+    {
+        var repository = Substitute.For<IPerformancesRepository>();
+        repository.ReadLastSungBySingersAsync(Arg.Any<IEnumerable<Guid>>()).Returns(new Dictionary<Guid, DateTime>());
+        return repository;
     }
 }
