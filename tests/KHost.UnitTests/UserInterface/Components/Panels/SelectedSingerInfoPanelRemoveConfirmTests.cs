@@ -21,7 +21,7 @@ public class SelectedSingerInfoPanelRemoveConfirmTests : BunitContext
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     // A substitute IDialogService never runs ConfirmIfAsync's own ask/else branch — only the real
     // implementation does — so this needs the genuine service, same as DialogHostSaveTests.
-    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, []);
+    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, Substitute.For<IDisplaySwitcher>());
     private readonly KHostUser _singer = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly Performance _performance;
     private readonly Media _media;

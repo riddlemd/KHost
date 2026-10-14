@@ -63,6 +63,7 @@ public class SettingsButtonDisplayTests : BunitContext
         Services.AddSingleton(Substitute.For<IHostApplicationLifetime>());
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton<IEnumerable<IDisplayProvider>>(_ => _providers);
+        Services.AddSingleton<IDisplaySwitcher, DisplaySwitcher>();
     }
 
     private static DisplayDevice Device(
@@ -384,11 +385,11 @@ public class SettingsButtonDisplayTests : BunitContext
     public void Describe_NamesTheTransportAndAddress()
         => Assert.Equal(
             "Chromecast · 192.168.1.14",
-            SettingsButton.DescribeDisplay(_cast, Device("tv-1", "Living Room TV", address: "192.168.1.14")));
+            DisplayFlyout.DescribeDisplay(_cast, Device("tv-1", "Living Room TV", address: "192.168.1.14")));
 
     [Fact]
     public void Describe_PrefersTheDeviceModelOverTheTransportName()
         => Assert.Equal(
             "This computer",
-            SettingsButton.DescribeDisplay(_screens, Device("Screen 1", "Local Display", model: "This computer")));
+            DisplayFlyout.DescribeDisplay(_screens, Device("Screen 1", "Local Display", model: "This computer")));
 }

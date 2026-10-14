@@ -29,7 +29,7 @@ public class TextPromptDialogHandlerTests
     [Fact]
     public async Task HandleAsync_NoConsoleOpen_CompletesRatherThanHanging()
     {
-        var dialogService = new DialogService(NullLogger<DialogService>.Instance, []);
+        var dialogService = new DialogService(NullLogger<DialogService>.Instance, Substitute.For<IDisplaySwitcher>());
         var handler = new TextPromptDialogHandler(dialogService);
 
         var result = await handler.HandleAsync(MakeRequest(), CancellationToken.None)

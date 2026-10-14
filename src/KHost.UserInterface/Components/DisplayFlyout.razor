@@ -1,0 +1,37 @@
+@foreach (var (provider, device) in AvailableDisplays())
+{
+    var live = IsLive(provider, device);
+
+    <button class="kh-dropdown__item @(live ? "kh-dropdown__item--selected" : "")"
+            type="button" @onclick="() => SelectAsync(provider, device)">
+        <span class="kh-dropdown__check">
+            @if (live) { <Icon Name="check2" /> }
+        </span>
+        <span class="kh-settings-menu__stacked">
+            <span class="kh-settings-menu__stacked-name">
+                @device.Name
+            </span>
+            <span class="kh-settings-menu__stacked-meta">@DescribeDisplay(provider, device)</span>
+        </span>
+    </button>
+}
+
+@if (LiveDisplay is not null)
+{
+    <button class="kh-dropdown__item" type="button" @onclick="TurnOffAsync">
+        <span class="kh-dropdown__check"><Icon Name="x-lg" /></span>
+        Turn off
+    </button>
+}
+
+@if (CanSearch)
+{
+    <div class="kh-dropdown__divider"></div>
+
+    <button class="kh-dropdown__item" type="button" @onclick="ToggleSearchAsync">
+        <span class="kh-dropdown__check">
+            <Icon Name="@(IsSearching ? "broadcast" : "search")" />
+        </span>
+        @(IsSearching ? "Stop searching" : "Search for devices")
+    </button>
+}
