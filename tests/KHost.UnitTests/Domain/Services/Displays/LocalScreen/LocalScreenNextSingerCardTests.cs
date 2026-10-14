@@ -72,6 +72,54 @@ public class LocalScreenNextSingerCardTests
             .Select(call => call.GetArguments()[0])
             .OfType<ShowNextSingerCommand>()];
 
+    private List<IScreenCommand> Commands()
+        => [.. _screenServer.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
+            .Select(call => call.GetArguments()[0])
+            .OfType<IScreenCommand>()];
+
+    /// <summary>The picture command is what takes the card, and any visualisation behind it, down
+    /// on the screen; with no venue picture that is a clear screen.</summary>
+    [Fact]
+    public async Task NextSingerWithdrawn_WhileIdle_RedrawsTheIdlePicture()
+    {
+        using var provider = Provider();
+        await AnnounceAsync();
+        _screenServer.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new NextSingerWithdrawn());
+
+        Assert.Single(Commands().OfType<HideImageCommand>());
+        Assert.Contains(Commands().OfType<SetVisualiserCommand>(), visualiser => !visualiser.Enabled);
+    }
+
+    [Fact]
+    public async Task NextSingerWithdrawn_OverAnAdStill_RedrawsTheStill()
+    {
+        var still = new PlaybackProgram.AdStill("http://host/media/image/ad", ImageScaling.Fill);
+        _playback.CurrentProgram.Returns(still);
+        using var provider = Provider();
+        await AnnounceAsync();
+        _screenServer.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new NextSingerWithdrawn());
+
+        Assert.Equal(still.ImageUrl, Assert.Single(Commands().OfType<ShowImageCommand>()).Url);
+    }
+
+    /// <summary>A song's picture is its stream: a picture command would put the placeholder over it.</summary>
+    [Fact]
+    public async Task NextSingerWithdrawn_OverASong_SendsNothing()
+    {
+        _playback.CurrentProgram.Returns(new PlaybackProgram.Playing(new Media { Title = "Africa", FilePath = "/a.mp4" }, new Performance()));
+        using var provider = Provider();
+        _screenServer.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new NextSingerWithdrawn());
+
+        Assert.Empty(Commands());
+    }
+
     [Fact]
     public async Task NextSingerAnnounced_VenueNeverChose_DrawsOverTheVenuesPicture()
     {

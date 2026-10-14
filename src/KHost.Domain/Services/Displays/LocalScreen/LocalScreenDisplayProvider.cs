@@ -175,6 +175,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // How the words are adjusted moved, so the song on screen gets them again, mid-song.
         _subscriptions.Add(broker.Subscribe<TimedLyricsSettingsChanged>((_, _) => ReplaceTimedLyricsAsync()));
         _subscriptions.Add(broker.Subscribe<NextSingerAnnounced>((announced, _) => ShowNextSingerAsync(announced.Card)));
+        // Awaited, so the host's button settles once the card is down.
+        _subscriptions.Add(broker.Subscribe<NextSingerWithdrawn>((_, _) => DrawPictureAsync(PictureCause.CardWithdrawn, new VenueRead(ReadSelectedVenueAsync))));
     }
 
     /// <summary>What it is, not where it is. "This computer" read as a location a host might be
@@ -704,6 +706,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             {
                 case PictureCause.ProgramMoved when Equals(program, _pictured):
                 case PictureCause.VenueChanged when program is not PlaybackProgram.Idle:
+                // A song's or a video ad's picture is its stream; redrawing would put the placeholder over it.
+                case PictureCause.CardWithdrawn when program is PlaybackProgram.Playing:
                     return;
             }
 
@@ -902,5 +906,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         ProgramMoved,
         VenueChanged,
         Connected,
+
+        /// <summary>The next-singer card came down: whatever is pictured is drawn again over it.</summary>
+        CardWithdrawn,
     }
 }
