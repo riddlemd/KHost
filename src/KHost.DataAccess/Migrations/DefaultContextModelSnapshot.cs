@@ -391,6 +391,9 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("MediaId");
 
+                    b.HasIndex("QueuePosition")
+                        .HasFilter("\"QueuePosition\" IS NOT NULL");
+
                     b.HasIndex("SingerId");
 
                     b.HasIndex("VenueId");
@@ -639,6 +642,8 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<bool>("ClearQueueOnClose");
 
+                            b1.Property<bool?>("ClearQueuedSongsOnClose");
+
                             b1.Property<int>("DuplicateSongWindowHours");
 
                             b1.Property<string>("IntroOutlineColor");
@@ -714,6 +719,8 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<bool>("RefuseSongQueuedForAnotherSinger");
 
                             b1.Property<int>("RemoteSongLimit");
+
+                            b1.Property<bool>("RemoveUnsungSingersOnClose");
 
                             b1.Property<string>("ScreenBackgroundColor");
 
