@@ -7,7 +7,7 @@ Projects (`src/`):
 - `Common` — helpers over those contracts. MIT.
 - `Domain` (services) / `DataAccess` (EF Core 10 + SQLite).
 - `UserInterface` (Blazor Server) and `LocalScreen` (Photino video output).
-- `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager — keep it textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire).
+- `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager — keep it textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults` (HTTP client defaults: decompression + standard resilience; OpenTelemetry that exports only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set).
 - `tools/`: `KHost.CatalogSync`, the CLI that writes entries into the plugin catalog (`plugins.json` in `riddlemd/KHost.Releases`).
 - `build/`: `KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time.
 - `tests/`: `KHost.UnitTests` — hermetic, no skips. `KHost.IntegrationTests` — needs ffmpeg/ffprobe; the OS secret-store tests skip on any other platform, and each hardware video encoder's tests skip on a machine that cannot run that encoder.

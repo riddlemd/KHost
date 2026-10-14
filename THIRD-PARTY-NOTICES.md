@@ -27,7 +27,7 @@ These ship inside a KHost build (host and/or screen app, or the browser assets).
 | SkiaSharp / HarfBuzzSharp (with their Win32, macOS and Linux native assets) | SkiaSharp 3.119.3-preview.1.1; HarfBuzzSharp 8.3.1.3 | host (burned-in words) | MIT (Skia: BSD-3-Clause; HarfBuzz: Old MIT) | Microsoft / Google / HarfBuzz contributors |
 | Konscious.Security.Cryptography.Argon2 | 1.3.1 | host | MIT | Keef Aragon |
 | Entity Framework Core + Microsoft.Data.Sqlite | 10.0.7 | host | MIT | Microsoft / .NET Foundation |
-| Microsoft.Extensions.* (DI, Logging, Http, Options, ServiceDiscovery, Resilience) | 10.0.7 / 10.5.0 | host, screen | MIT | Microsoft / .NET Foundation |
+| Microsoft.Extensions.* (DI, Logging, Http, Options, Resilience) | 10.0.7 / 10.5.0 | host, screen | MIT | Microsoft / .NET Foundation |
 | Microsoft.AspNetCore.SignalR.Client | 8.0.0 | screen | MIT | Microsoft / .NET Foundation |
 | Polly (via Microsoft.Extensions.Http.Resilience) | 8.4.2 | host | BSD-3-Clause | App vNext |
 | SQLitePCLRaw (native SQLite provider) | 2.1.12 | host | Apache-2.0 | Eric Sink / SourceGear |

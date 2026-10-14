@@ -57,7 +57,6 @@ Only the window itself needs the windowed run: native chrome, `SetSize`, and the
 ```bash
 dotnet run --project src/KHost.UserInterface                # windowed (the real app)
 dotnet run --project src/KHost.UserInterface -- --headless  # no window; console at localhost:5251
-dotnet run --project src/KHost.AppHost                      # with the Aspire dashboard
 ```
 
 Launch it as a background job of whatever harness you are in, with output going to a file — the
