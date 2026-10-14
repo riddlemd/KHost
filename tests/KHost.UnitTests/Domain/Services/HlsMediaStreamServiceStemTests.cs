@@ -1,8 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Abstractions.Services;
 using KHost.Domain.Services.BurnIn;
 using Microsoft.Extensions.Logging.Abstractions;
-using StemInput = KHost.Domain.Services.HlsMediaStreamService.StemInput;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -31,12 +31,14 @@ public class HlsMediaStreamServiceStemTests : IDisposable
                 WorkingDirectory = _workingDirectory,
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
-            TimeProvider.System);
+            TimeProvider.System,
+            Substitute.For<IFFmpegService>(),
+            new SoftwareEncoderSelector());
 
     [Fact]
     public void BuildStemArguments_MixesEveryStemAtItsOwnLevel_AsAudioAlone()
     {
-        var arguments = HlsMediaStreamService.BuildStemArguments(Stems, TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildStemArguments(Stems, TimeSpan.Zero, 0, 0, 2);
 
         Assert.StartsWith(
             "-hide_banner -loglevel error -i \"/s/music.ogg\" -i \"/s/lead.ogg\" -i \"/s/backing.ogg\" ", arguments);
@@ -51,7 +53,7 @@ public class HlsMediaStreamServiceStemTests : IDisposable
     [Fact]
     public void BuildStemArguments_SeeksEveryStemToThePlayhead()
     {
-        var arguments = HlsMediaStreamService.BuildStemArguments(Stems, TimeSpan.FromSeconds(42.5), 0, 0, 2);
+        var arguments = HlsArguments.BuildStemArguments(Stems, TimeSpan.FromSeconds(42.5), 0, 0, 2);
 
         Assert.Contains(
             " -ss 42.500 -i \"/s/music.ogg\" -ss 42.500 -i \"/s/lead.ogg\" -ss 42.500 -i \"/s/backing.ogg\"", arguments);
@@ -60,7 +62,7 @@ public class HlsMediaStreamServiceStemTests : IDisposable
     [Fact]
     public void BuildStemArguments_KeysAndRetimesTheMixedResult()
     {
-        var arguments = HlsMediaStreamService.BuildStemArguments(Stems, TimeSpan.Zero, 1, 10, 2);
+        var arguments = HlsArguments.BuildStemArguments(Stems, TimeSpan.Zero, 1, 10, 2);
 
         Assert.Contains(
             "amix=inputs=3:normalize=0[x];[x]aresample=44100,asetrate=44100*1.059463,aresample=44100,atempo=1.038262[a]\"",
@@ -72,7 +74,7 @@ public class HlsMediaStreamServiceStemTests : IDisposable
     {
         var overlay = new BurnInOverlay(1280, 720, 30, BurnInBase.Fill);
 
-        var arguments = HlsMediaStreamService.BuildStemArguments(Stems, TimeSpan.Zero, 0, 0, 2, overlay);
+        var arguments = HlsArguments.BuildStemArguments(Stems, TimeSpan.Zero, 0, 0, 2, overlay);
 
         Assert.Contains(
             "-i \"/s/backing.ogg\" -f rawvideo -pix_fmt rgba -s 1280x720 -r 30 -thread_queue_size 64 -i pipe:0"

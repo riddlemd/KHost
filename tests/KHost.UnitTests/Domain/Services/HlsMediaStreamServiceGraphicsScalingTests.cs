@@ -15,8 +15,8 @@ public class HlsMediaStreamServiceGraphicsScalingTests
     [InlineData(720, "scale=iw*3:ih*3:flags=neighbor,scale=1000:720:flags=bicubic,")]
     public void BuildArguments_ScalesGraphicsToTheChosenHeightWithNoBands(int height, string scale)
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", graphicsHeight: height);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", GraphicsHeight = height });
 
         Assert.Contains(
             "-filter_complex \"color=c=black:s=300x216:r=30[canvas];"
@@ -31,8 +31,8 @@ public class HlsMediaStreamServiceGraphicsScalingTests
     [Fact]
     public void BuildArguments_RetimesGraphicsBeforeBringingThemToTheFrameRate()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 20, 2, "/songs/a.mp3", graphicsHeight: 720);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 20, 2) { CompanionAudioPath = "/songs/a.mp3", GraphicsHeight = 720 });
 
         Assert.Contains(
             "[0:v:0]tpad=stop=-1:stop_mode=clone,setpts=PTS/1.200000,fps=30[graphics];"
@@ -44,8 +44,8 @@ public class HlsMediaStreamServiceGraphicsScalingTests
     [Fact]
     public void BuildArguments_Off_KeepsTheNativePicture()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", graphicsHeight: GraphicsScaling.Off);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", GraphicsHeight = GraphicsScaling.Off });
 
         Assert.Contains("[canvas][graphics]overlay=format=rgb,setsar=1[v]", arguments);
         Assert.DoesNotContain("scale=", arguments);
@@ -55,8 +55,8 @@ public class HlsMediaStreamServiceGraphicsScalingTests
     [Fact]
     public void BuildArguments_NeverScalesAnOrdinaryVideo()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, graphicsHeight: 1080);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { GraphicsHeight = 1080 });
 
         Assert.DoesNotContain("scale=", arguments);
         Assert.DoesNotContain("color=", arguments);
@@ -66,8 +66,8 @@ public class HlsMediaStreamServiceGraphicsScalingTests
     [Fact]
     public void BuildArguments_ScalesGraphicsWithNoAudioWithoutHoldingThem()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, graphicsHeight: 720);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { GraphicsHeight = 720 });
 
         Assert.Contains("-vf \"fps=30,scale=iw*3:ih*3:flags=neighbor,scale=1000:720:flags=bicubic,setsar=1\"", arguments);
         Assert.DoesNotContain("tpad", arguments);
@@ -80,8 +80,8 @@ public class HlsMediaStreamServiceGraphicsScalingTests
     [InlineData(2160, "-level 5.1 ")]
     public void BuildArguments_RaisesTheLevel_OnlyAbove1080Lines(int height, string level)
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", graphicsHeight: height);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", GraphicsHeight = height });
 
         Assert.Contains(level, arguments);
     }
@@ -92,8 +92,8 @@ public class HlsMediaStreamServiceGraphicsScalingTests
     {
         var overlay = new BurnInOverlay(1920, 1080, 30, BurnInBase.SourceVideo);
 
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", burnIn: overlay, graphicsHeight: 720);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", BurnIn = overlay, GraphicsHeight = 720 });
 
         Assert.Contains(" -s 1920x1080 ", arguments);
         Assert.Contains(
@@ -108,8 +108,8 @@ public class HlsMediaStreamServiceGraphicsScalingTests
     {
         var overlay = new BurnInOverlay(1280, 720, 30, BurnInBase.SourceVideo);
 
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, burnIn: overlay);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { BurnIn = overlay });
 
         Assert.Contains("[0:v:0]fps=30,scale=iw*3:ih*3:flags=neighbor,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1[base]", arguments);
     }

@@ -32,7 +32,8 @@ public abstract class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
             TimeProvider.System,
-            encoders: _selector);
+            new PathFFmpeg(),
+            _selector);
     }
 
     protected VideoEncoderProfile Encoder { get; }

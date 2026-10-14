@@ -26,12 +26,14 @@ public class HlsMediaStreamServiceTests : IDisposable
             // The real router with nothing registered: every path resolves to itself, which is
             // what the host does for all but a provider's own container.
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
-            TimeProvider.System);
+            TimeProvider.System,
+            Substitute.For<IFFmpegService>(),
+            new SoftwareEncoderSelector());
 
     [Fact]
     public void BuildArguments_TargetsCodecsEveryConsumerDecodes()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
 
         // The intersection of Chromecast, WKWebView and browser support. Widening any of these
         // silently drops one class of consumer.
@@ -45,7 +47,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_SegmentsAsMpegTs_NotFragmentedMp4()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
 
         // CMAF/fMP4 needs a newer player device than TS does.
         Assert.Contains("-f hls", arguments);
@@ -55,7 +57,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_PutsSeekBeforeTheInput()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.FromSeconds(42), 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.FromSeconds(42), 0, 0, 2));
 
         // Input-side -ss is the fast one; after -i ffmpeg decodes everything it skips.
         Assert.True(arguments.IndexOf("-ss 42.000", StringComparison.Ordinal)
@@ -65,7 +67,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_OmitsTheSeek_WhenStartingAtZero()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
 
         Assert.DoesNotContain("-ss ", arguments);
     }
@@ -73,8 +75,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_PairsGraphicsWithTheirCompanionAudio()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3");
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3" });
 
         Assert.Contains("-i \"/songs/a.cdg\"", arguments);
         Assert.Contains("-i \"/songs/a.mp3\"", arguments);
@@ -91,8 +93,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_GivesGraphicsAConstantFrameRate()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3");
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3" });
 
         Assert.Contains("-r 30", arguments, StringComparison.Ordinal);
     }
@@ -102,8 +104,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_HoldsTheGraphicsUntilTheAudioEnds_ForAPairedSource()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3");
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3" });
 
         Assert.Contains("[0:v:0]tpad=stop=-1:stop_mode=clone,fps=30[graphics]", arguments);
         Assert.Contains(" -shortest ", arguments);
@@ -112,8 +114,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_HoldsTheGraphicsAndRetimesThem_AtAChangedTempo()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 20, 2, "/songs/a.mp3");
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 20, 2) { CompanionAudioPath = "/songs/a.mp3" });
 
         Assert.Contains("[0:v:0]tpad=stop=-1:stop_mode=clone,setpts=PTS/1.200000,fps=30[graphics]", arguments);
         Assert.Contains(" -shortest ", arguments);
@@ -124,8 +126,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_NeverHoldsGraphics_WithNoAudioToEndThem()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2));
 
         Assert.DoesNotContain("tpad", arguments);
         Assert.DoesNotContain("-shortest", arguments);
@@ -135,7 +137,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_LeavesAnOrdinaryVideosEndAlone()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
 
         Assert.DoesNotContain("tpad", arguments);
         Assert.DoesNotContain("-shortest", arguments);
@@ -145,7 +147,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_LeavesAnOrdinaryVideosFrameRateAlone()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
 
         Assert.DoesNotContain("-r 30", arguments, StringComparison.Ordinal);
     }
@@ -153,8 +155,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_SeeksOnTheOutput_ForAPairedSource()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 0, 2, "/songs/a.mp3");
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3" });
 
         // An input seek lands mid-packet and CDG decodes to garbage from there.
         var seek = arguments.IndexOf("-ss 42.000", StringComparison.Ordinal);
@@ -168,8 +170,8 @@ public class HlsMediaStreamServiceTests : IDisposable
         // The stateful decode is what forces the slow seek, not the pairing. CompactDiscPlusGraphicsRenderer
         // refuses this pairing before the encoder ever sees it, so this is defence in depth — but
         // the predicate has to be about the decode, or it is right only by coincidence.
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 0, 2));
 
         var seek = arguments.IndexOf("-ss 42.000", StringComparison.Ordinal);
         var lastInput = arguments.LastIndexOf("-i \"", StringComparison.Ordinal);
@@ -179,7 +181,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_KeepsTheFastInputSeek_ForAnOrdinaryFile()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.FromSeconds(42), 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.FromSeconds(42), 0, 0, 2));
 
         Assert.True(
             arguments.IndexOf("-ss 42.000", StringComparison.Ordinal)
@@ -190,14 +192,14 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_AddsAPitchFilter_OnlyWhenShifted()
     {
-        Assert.DoesNotContain("asetrate", HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
-        Assert.Contains("asetrate", HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 2, 0, 2));
+        Assert.DoesNotContain("asetrate", HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2)));
+        Assert.Contains("asetrate", HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 2, 0, 2)));
     }
 
     [Fact]
     public void BuildArguments_ForcesKeyframesOnTime_NotOnAFrameCount()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
 
         // -g is frames, so it equals the segment length at one source frame rate only, and the
         // muxer cuts only where a keyframe already is.
@@ -209,7 +211,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_TiesForcedKeyframesToTheSegmentLength()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 4);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 4));
 
         // A keyframe interval disagreeing with hls_time gives ragged segments.
         Assert.Contains("-force_key_frames \"expr:gte(t,n_forced*4)\"", arguments);
@@ -219,7 +221,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_ResamplesBeforeReinterpretingTheSampleRate()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 2, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 2, 0, 2));
 
         // asetrate reinterprets whatever rate reaches it, and the atempo below compensates only
         // for the intended ratio, so a 48kHz source drifts off the video without this.
@@ -237,7 +239,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [InlineData(6)]
     public void BuildArguments_KeepsTheCompensatingTempoWithinWhatAtempoAccepts(int semitones)
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, semitones, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, semitones, 0, 2));
 
         var start = arguments.IndexOf("atempo=", StringComparison.Ordinal) + "atempo=".Length;
         var end = arguments.IndexOf('"', start);
@@ -251,7 +253,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_RetimesThePicture_WhenTempoChanges()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 25, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 25, 2));
 
         // -af only touches audio, so without this the picture runs at its own speed.
         Assert.Contains("-vf \"setpts=PTS/1.250000\"", arguments);
@@ -260,7 +262,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_LeavesThePictureAlone_AtTheRecordedTempo()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 6, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 6, 0, 2));
 
         // A pitch shift is audio only; retiming the video for it would desync the lyrics.
         Assert.DoesNotContain("-vf", arguments);
@@ -272,7 +274,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     {
         // Pitch up against tempo down is the corner: 0.5 / 2^(6/12) is 0.354, which ffmpeg
         // rejects outright rather than clamping.
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 6, -50, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 6, -50, 2));
 
         Assert.Equal(2, CountOccurrences(arguments, "atempo="));
         Assert.All(AtempoFactors(arguments), f => Assert.InRange(f, 0.5, 100.0));
@@ -281,7 +283,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_UsesASingleAtempoStage_WhereItFits()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, -50, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, -50, 2));
 
         Assert.Equal(1, CountOccurrences(arguments, "atempo="));
     }
@@ -297,7 +299,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [InlineData(-2, 15)]
     public void BuildArguments_ComposesPitchAndTempoIntoTheRequestedRate(int pitch, int tempo)
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, pitch, tempo, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, pitch, tempo, 2));
 
         // asetrate speeds audio up by the pitch ratio as a side effect, so the atempo stages carry
         // both the undo and the wanted tempo. Get their product wrong and it drifts, not fails.
@@ -312,7 +314,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [InlineData(4, 25)]
     public void BuildArguments_ShiftsPitchByTheSemitoneRatio_WhateverTheTempo(int pitch, int tempo)
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, pitch, tempo, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, pitch, tempo, 2));
 
         // The perceived key is asetrate's alone: atempo restores length without touching it.
         Assert.Equal(Math.Pow(2.0, pitch / 12.0), AsetrateRatio(arguments), 4);
@@ -321,8 +323,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_BalancesTheVoicesOverTheMusic()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(lead: 40, backing: 80));
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = ThreeTrackMix(lead: 40, backing: 80) });
 
         // The music is the reference the voices are set against, so it is never anything but full.
         Assert.Contains("[0:a:0]volume=1.000[m0]", arguments);
@@ -333,8 +335,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_KeepsAmixFromNormalising()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(100, 100));
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = ThreeTrackMix(100, 100) });
 
         // Left to normalise, amix divides by the input count and drops the whole mix several dB.
         Assert.Contains("amix=inputs=3:normalize=0", arguments);
@@ -343,8 +345,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_MapsTheMixedResult_NotARawTrack()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(0, 100));
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = ThreeTrackMix(0, 100) });
 
         // Without saying which streams to take, ffmpeg carries a raw track through beside the mix.
         Assert.Contains("-map 0:v:0? -map \"[a]\"", arguments);
@@ -354,8 +356,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_MapsThePictureOptionally_SoAnAudioOnlyMixStillOpens()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.stems", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(50, 50));
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.stems", TimeSpan.Zero, 0, 0, 2) { Mix = ThreeTrackMix(50, 50) });
 
         // A stems-only container has no video stream, and a required mapping onto one is fatal:
         // ffmpeg exits before a segment is written, which reads as the song simply never starting.
@@ -366,8 +368,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_RidesPitchAndTempoOnTheMix_NotOnOneTrack()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 2, -10, 2, null, ThreeTrackMix(50, 50));
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 2, -10, 2) { Mix = ThreeTrackMix(50, 50) });
 
         // The transposition belongs to the song, so it has to come after the voices are combined.
         var mix = arguments.IndexOf("amix=", StringComparison.Ordinal);
@@ -380,9 +382,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_LeavesASingleTrackFileOnTheSimplePath()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 2, 0, 2, null,
-            new AudioMix([new AudioTrack(0, AudioTrackRole.Music, "Instrumental")], 0, 100));
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 2, 0, 2) { Mix = new AudioMix([new AudioTrack(0, AudioTrackRole.Music, "Instrumental")], 0, 100) });
 
         // One track is nothing to balance; building a graph for it would only add ways to fail.
         Assert.DoesNotContain("filter_complex", arguments);
@@ -392,13 +393,12 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_MixesWhatTheFileHas_WhenThereIsNoBackingTrack()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null,
-            new AudioMix(
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = new AudioMix(
             [
                 new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
                 new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal"),
-            ], LeadVolume: 30, BackingVolume: 100));
+            ], LeadVolume: 30, BackingVolume: 100) });
 
         Assert.Contains("amix=inputs=2:normalize=0", arguments);
         Assert.Contains("[0:a:1]volume=0.300[l1]", arguments);
@@ -409,8 +409,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [InlineData(180, "1.000")]
     public void BuildArguments_ClampsAVolumeToWhatAFaderCanAsk(int lead, string expected)
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(lead, 100));
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = ThreeTrackMix(lead, 100) });
 
         Assert.Contains($"volume={expected}[l2]", arguments);
     }
@@ -418,9 +418,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_GivesEachSingersLeadItsOwnLevel()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null,
-            new AudioMix(
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = new AudioMix(
             [
                 new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
                 new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
@@ -429,7 +428,7 @@ public class HlsMediaStreamServiceTests : IDisposable
             ], LeadVolume: 10, BackingVolume: 100)
             {
                 VoiceVolumes = new Dictionary<string, int> { ["♂"] = 60, ["♀"] = 20 },
-            });
+            } });
 
         Assert.Contains("[0:a:2]volume=0.600[l2]", arguments);
         Assert.Contains("[0:a:3]volume=0.200[l3]", arguments);
@@ -440,9 +439,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_ALeadWhoseVoiceHasNoLevel_RidesAtTheLeadLevel()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null,
-            new AudioMix(
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = new AudioMix(
             [
                 new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
                 new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
@@ -450,7 +448,7 @@ public class HlsMediaStreamServiceTests : IDisposable
             ], LeadVolume: 30, BackingVolume: 100)
             {
                 VoiceVolumes = new Dictionary<string, int> { ["♀"] = 90 },
-            });
+            } });
 
         Assert.Contains("[0:a:1]volume=0.300[l1]", arguments);
         Assert.Contains("[0:a:2]volume=0.300[l2]", arguments);
@@ -573,7 +571,9 @@ public class HlsMediaStreamServiceTests : IDisposable
                 WorkingDirectory = _workingDirectory,
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
-            TimeProvider.System);
+            TimeProvider.System,
+            Substitute.For<IFFmpegService>(),
+            new SoftwareEncoderSelector());
 
         Assert.Equal("http://host:5251/media/abc/stream.m3u8", service.BuildArtifactUrl("abc", "stream.m3u8"));
     }

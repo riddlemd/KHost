@@ -1,4 +1,5 @@
 using KHost.Domain.Services;
+using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
@@ -157,7 +158,9 @@ public sealed class HlsSessionSweeperTests : IDisposable
             WorkingDirectory = _root,
         }),
         new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
-        TimeProvider.System);
+        TimeProvider.System,
+        Substitute.For<IFFmpegService>(),
+        new SoftwareEncoderSelector());
 
     private IReadOnlyList<string> Sweep() => HlsSessionSweeper.Sweep(_root, Now, pid => pid == LiveOwner);
 
