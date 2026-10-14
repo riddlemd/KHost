@@ -100,7 +100,6 @@ public class PluginLoadLoggingTests
             Name = name,
             Version = "1.0.0",
             EntryAssembly = $"{name}.dll",
-            ApiVersion = PluginApi.CurrentVersion,
         },
         Status = status,
         Error = error,

@@ -88,14 +88,17 @@ internal static class Program
 
         // No expected id: the payload decides, so a catalog can never claim an id the plugin does
         // not have. That mismatch is otherwise only caught at install time.
-        // The catalog serves every host, so a build for a plugin API this one does not run is listed too.
-        var manifest = new PluginPayloadReader().UnpackForCatalog(zipPath, Path.Combine(work, "payload")).Manifest;
-        var range = PluginApiRange.ThisHost;
+        // The catalog serves every host, so a build needing contracts this one does not have is listed too.
+        var payload = new PluginPayloadReader().UnpackForCatalog(zipPath, Path.Combine(work, "payload"));
+        var manifest = payload.Manifest;
+        var required = PluginRequirements.ReadFromFolder(payload.Root, manifest)
+            ?? throw new InvalidOperationException("The payload reader accepted a plugin whose contracts could not be read.");
+        var host = ContractsVersion.ThisHost;
 
-        Console.WriteLine($"  manifest: {manifest.Name} {manifest.Version}, id {manifest.Id}, plugin API {manifest.ApiVersion}");
-        Console.WriteLine(range.Covers(manifest.ApiVersion)
-            ? $"  this KHost (plugin API {range.Minimum}-{range.Current}) runs it"
-            : $"  this KHost (plugin API {range.Minimum}-{range.Current}) does not run it: {range.DescribeRefusal(manifest.ApiVersion)}");
+        Console.WriteLine($"  manifest: {manifest.Name} {manifest.Version}, id {manifest.Id}, needs contracts {required}");
+        Console.WriteLine(host.Covers(required)
+            ? $"  this KHost (contracts {host}) runs it"
+            : $"  this KHost (contracts {host}) does not run it: {host.DescribeRefusal(required)}");
 
         if (PluginVersion.Parse(manifest.Version) != PluginVersion.Parse(release.TagName))
             Console.WriteLine($"  warning: tag {release.TagName} and manifest version {manifest.Version} disagree");
@@ -107,6 +110,13 @@ internal static class Program
         var catalog = Read(catalogPath);
         var before = Serialize(catalog);
 
+        var row = CatalogMerge.ReleaseFor(manifest.Version, required);
+
+        row.Url = asset.BrowserDownloadUrl;
+        row.Sha256 = sha256;
+        row.SizeBytes = asset.Size;
+        row.Rid = options.Rid;
+
         CatalogMerge.Apply(catalog, new SyncFacts
         {
             Id = manifest.Id,
@@ -115,15 +125,7 @@ internal static class Program
             Description = manifest.Description,
             Repository = $"https://github.com/{options.Repository}",
             Capabilities = options.Capabilities,
-            Release = new PluginCatalogRelease
-            {
-                Version = manifest.Version,
-                ApiVersion = manifest.ApiVersion,
-                Url = asset.BrowserDownloadUrl,
-                Sha256 = sha256,
-                SizeBytes = asset.Size,
-                Rid = options.Rid,
-            },
+            Release = row,
         });
 
         var after = Serialize(catalog);

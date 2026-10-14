@@ -1,3 +1,4 @@
+using KHost.Common.Plugins;
 using KHost.Abstractions.Models.Plugins;
 using KHost.CatalogSync;
 
@@ -212,6 +213,22 @@ public class CatalogMergeTests
 
     private static PluginCatalog Catalog() => new() { SchemaVersion = PluginCatalog.SupportedSchemaVersion };
 
+    [Theory]
+    [InlineData("0.61.0", 8)]
+    [InlineData("0.61.4", 8)]
+    [InlineData("0.60.0", 9)]
+    [InlineData("0.62.0", 9)]
+    [InlineData("1.0.0", 9)]
+    [InlineData("1.61.0", 9)]
+    public void ReleaseFor_WritesTheContractsVersionAndTheLegacyApiVersionOldHostsRead(string required, int apiVersion)
+    {
+        var row = CatalogMerge.ReleaseFor("2.3.0", ContractsVersion.Parse(required));
+
+        Assert.Equal("2.3.0", row.Version);
+        Assert.Equal(required, row.ContractsVersion);
+        Assert.Equal(apiVersion, row.ApiVersion);
+    }
+
     private static string Snapshot(PluginCatalog catalog)
         => System.Text.Json.JsonSerializer.Serialize(catalog, System.Text.Json.JsonSerializerOptions.Web);
 
@@ -225,7 +242,8 @@ public class CatalogMergeTests
         Release = new PluginCatalogRelease
         {
             Version = version,
-            ApiVersion = 1,
+            ContractsVersion = "1.0.0",
+            ApiVersion = 9,
             Url = $"https://example.test/p-{version}.zip",
             Sha256 = sha256,
             SizeBytes = 26934,

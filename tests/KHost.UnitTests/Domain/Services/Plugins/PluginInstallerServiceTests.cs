@@ -1,3 +1,4 @@
+using KHost.Common.Plugins;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Plugins;
@@ -121,14 +122,19 @@ public class PluginInstallerServiceTests : IDisposable
         Assert.Empty(service.Staged().Installs);
     }
 
-    [Theory]
-    [InlineData(PluginApi.CurrentVersion + 1, "Needs a newer KHost")]
-    // The stale direction is the one a check written as "newer than the host" waves through, and a
-    // payload is the last place to catch it: past here the plugin is on disk and loads in-process.
-    [InlineData(PluginApi.MinimumVersion - 1, "it needs an update")]
-    public async Task InstallAsync_ManifestBuiltAgainstAnApiOutOfRange_Fails(int apiVersion, string reason)
+    public static TheoryData<string, string> ContractsThisHostDoesNotHave() => new()
     {
-        var zip = BuildZip(apiVersion: apiVersion);
+        { $"{ContractsVersion.ThisHost.Major + 1}.0.0", "Needs a newer KHost" },
+        // The stale direction is the one a check written as "newer than the host" waves through, and a
+        // payload is the last place to catch it: past here the plugin is on disk and loads in-process.
+        { "0.60.0", "it needs an update" },
+    };
+
+    [Theory]
+    [MemberData(nameof(ContractsThisHostDoesNotHave))]
+    public async Task InstallAsync_PayloadNeedsContractsThisHostDoesNotHave_Fails(string contracts, string reason)
+    {
+        var zip = BuildZip(contracts: contracts);
         var service = BuildService(zip);
 
         var result = await service.InstallAsync(Entry(), Release(Sha256(zip)));
@@ -409,7 +415,6 @@ public class PluginInstallerServiceTests : IDisposable
             Name = "Test Plugin",
             Version = "1.0.0",
             EntryAssembly = "Test.dll",
-            ApiVersion = PluginApi.CurrentVersion,
         };
 
         File.WriteAllText(
@@ -441,7 +446,8 @@ public class PluginInstallerServiceTests : IDisposable
     private static PluginCatalogRelease Release(string sha256) => new()
     {
         Version = "1.0.0",
-        ApiVersion = PluginApi.CurrentVersion,
+        ContractsVersion = ContractsVersion.ThisHost.ToString(),
+        ApiVersion = 9,
         Url = "https://example.test/plugin.zip",
         Sha256 = sha256,
     };
@@ -450,7 +456,7 @@ public class PluginInstallerServiceTests : IDisposable
 
     private static byte[] BuildZip(
         Guid? id = null,
-        int? apiVersion = null,
+        string? contracts = null,
         string entryAssembly = "Test.dll",
         bool includeManifest = true,
         bool includeEntryAssembly = true,
@@ -471,11 +477,13 @@ public class PluginInstallerServiceTests : IDisposable
                     Name = "Test Plugin",
                     Version = "1.0.0",
                     EntryAssembly = entryAssembly,
-                    ApiVersion = apiVersion ?? PluginApi.CurrentVersion,
                 };
 
                 Write(archive, prefix + PluginLoader.ManifestFileName, JsonSerializer.Serialize(manifest, JsonSerializerOptions.Web));
             }
+
+            Write(archive, prefix + Path.ChangeExtension(Path.GetFileName(entryAssembly), ".deps.json"),
+                PluginDepsJson.For(contracts ?? ContractsVersion.ThisHost.ToString()));
 
             if (includeEntryAssembly)
                 Write(archive, prefix + "Test.dll", "not really an assembly");

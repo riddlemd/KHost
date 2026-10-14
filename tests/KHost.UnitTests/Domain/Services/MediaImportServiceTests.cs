@@ -535,7 +535,6 @@ public class MediaImportServiceTests
             Name = "X",
             Version = "1.0.0",
             EntryAssembly = "X.dll",
-            ApiVersion = PluginApi.CurrentVersion,
             ImportFormats = [.. importFormats],
         },
     };

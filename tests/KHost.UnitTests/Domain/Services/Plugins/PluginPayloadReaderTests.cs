@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models.Plugins;
+using KHost.Common.Plugins;
 using KHost.Domain.Services.Plugins;
 using System.IO.Compression;
 using System.Text;
@@ -18,59 +19,77 @@ public class PluginPayloadReaderTests : IDisposable
         catch (UnauthorizedAccessException) { }
     }
 
-    // Both ends of this host's range, once each: today they are the same version.
-    public static TheoryData<int> EndsOfThisHostsRange()
+    /// <summary>Requirements this host runs: its own version, its own major's first release, and the
+    /// legacy 0.61 surface every released plugin was built against.</summary>
+    public static TheoryData<string> ContractsThisHostRuns()
     {
-        var data = new TheoryData<int>();
+        var host = ContractsVersion.ThisHost;
 
-        foreach (var end in new[] { PluginApi.MinimumVersion, PluginApi.CurrentVersion }.Distinct())
-            data.Add(end);
-
-        return data;
+        return new TheoryData<string>(new[] { host.ToString(), $"{host.Major}.0.0", "0.61.0", "0.61.3" }.Distinct());
     }
 
     [Theory]
-    [MemberData(nameof(EndsOfThisHostsRange))]
-    public void Unpack_BuiltAgainstAnApiThisHostRuns_ReturnsTheManifest(int apiVersion)
-        => Assert.Equal(apiVersion, _reader.Unpack(BuildZip(apiVersion), Destination()).Manifest.ApiVersion);
+    [MemberData(nameof(ContractsThisHostRuns))]
+    public void Unpack_NeedsContractsThisHostHas_ReturnsTheManifest(string contracts)
+        => Assert.Equal("Test Plugin", _reader.Unpack(BuildZip(contracts), Destination()).Manifest.Name);
 
     [Fact]
-    public void Unpack_BuiltAgainstANewerApi_RefusesSayingKHostNeedsTheUpdate()
+    public void Unpack_NeedsANewerMinor_RefusesSayingKHostNeedsTheUpdate()
     {
-        var error = Assert.Throws<InvalidOperationException>(() => _reader.Unpack(BuildZip(PluginApi.CurrentVersion + 1), Destination()));
+        var host = ContractsVersion.ThisHost;
+
+        var error = Assert.Throws<InvalidOperationException>(() => _reader.Unpack(BuildZip($"{host.Major}.{host.Minor + 1}.0"), Destination()));
 
         Assert.Contains("Needs a newer KHost", error.Message);
     }
 
     [Fact]
-    public void Unpack_BuiltAgainstAnOlderApi_RefusesSayingThePluginNeedsTheUpdate()
+    public void Unpack_NeedsAnOlderMajor_RefusesSayingThePluginNeedsTheUpdate()
     {
-        var error = Assert.Throws<InvalidOperationException>(() => _reader.Unpack(BuildZip(PluginApi.MinimumVersion - 1), Destination()));
+        var error = Assert.Throws<InvalidOperationException>(() => _reader.Unpack(BuildZip("0.60.0"), Destination()));
 
         Assert.Contains("it needs an update", error.Message);
     }
 
     [Fact]
-    public void UnpackForCatalog_BuiltAgainstANewerApi_ReturnsTheManifest()
-        => Assert.Equal(PluginApi.CurrentVersion + 5, _reader.UnpackForCatalog(BuildZip(PluginApi.CurrentVersion + 5), Destination()).Manifest.ApiVersion);
+    public void Unpack_NoDepsJsonButLegacyApiVersion8_ReturnsTheManifest()
+        => Assert.Equal(8, _reader.Unpack(BuildZip(contracts: null, apiVersion: 8), Destination()).Manifest.ApiVersion);
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void UnpackForCatalog_ApiBelowOne_Refuses(int apiVersion)
+    [Fact]
+    public void Unpack_NoDepsJsonAndAnOlderLegacyApiVersion_RefusesSayingThePluginNeedsTheUpdate()
     {
-        var error = Assert.Throws<InvalidOperationException>(() => _reader.UnpackForCatalog(BuildZip(apiVersion), Destination()));
+        var error = Assert.Throws<InvalidOperationException>(() => _reader.Unpack(BuildZip(contracts: null, apiVersion: 7), Destination()));
 
-        Assert.Contains("start at 1", error.Message);
+        Assert.Contains("it needs an update", error.Message);
+    }
+
+    [Fact]
+    public void Unpack_DepsJsonNamesNewerContracts_RefusesEvenWithLegacyApiVersion8()
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => _reader.Unpack(BuildZip($"{ContractsVersion.ThisHost.Major + 1}.0.0", apiVersion: 8), Destination()));
+
+        Assert.Contains("Needs a newer KHost", error.Message);
+    }
+
+    [Fact]
+    public void UnpackForCatalog_NeedsANewerMajor_ReturnsTheManifest()
+        => Assert.Equal("Test Plugin", _reader.UnpackForCatalog(BuildZip($"{ContractsVersion.ThisHost.Major + 1}.0.0"), Destination()).Manifest.Name);
+
+    [Fact]
+    public void UnpackForCatalog_NamesNoContractsAtAll_Refuses()
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => _reader.UnpackForCatalog(BuildZip(contracts: null), Destination()));
+
+        Assert.Contains("Names no contracts version", error.Message);
     }
 
     [Fact]
     public void UnpackForCatalog_EntryAssemblyMissing_StillRefuses()
-        => Assert.Throws<InvalidOperationException>(() => _reader.UnpackForCatalog(BuildZip(PluginApi.CurrentVersion + 1, includeEntryAssembly: false), Destination()));
+        => Assert.Throws<InvalidOperationException>(() => _reader.UnpackForCatalog(BuildZip($"{ContractsVersion.ThisHost.Major + 1}.0.0", includeEntryAssembly: false), Destination()));
 
     private string Destination() => Path.Combine(_root.FullName, Guid.NewGuid().ToString("N"));
 
-    private string BuildZip(int apiVersion, bool includeEntryAssembly = true)
+    private string BuildZip(string? contracts, int? apiVersion = null, bool includeEntryAssembly = true)
     {
         var path = Path.Combine(_root.FullName, $"{Guid.NewGuid():N}.zip");
 
@@ -86,6 +105,9 @@ public class PluginPayloadReaderTests : IDisposable
             };
 
             Write(archive, PluginLoader.ManifestFileName, JsonSerializer.Serialize(manifest, JsonSerializerOptions.Web));
+
+            if (contracts is not null)
+                Write(archive, "Test.deps.json", PluginDepsJson.For(contracts));
 
             if (includeEntryAssembly)
                 Write(archive, "Test.dll", "not really an assembly");

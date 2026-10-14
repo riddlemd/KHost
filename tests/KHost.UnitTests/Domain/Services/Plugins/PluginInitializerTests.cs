@@ -65,7 +65,6 @@ public class PluginInitializerTests
             Name = "Test",
             Version = "1.0.0",
             EntryAssembly = "Test.dll",
-            ApiVersion = PluginApi.CurrentVersion,
         };
 
         var discovered = new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };

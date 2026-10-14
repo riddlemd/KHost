@@ -15,19 +15,19 @@ public class PluginPayloadReader : IPluginPayloadReader
     public const long MaxExpandedBytes = 256L * 1024 * 1024;
 
     public PluginPayloadContents Unpack(string zipPath, string destination, Guid? expectedId = null)
-        => Read(zipPath, destination, expectedId, requireThisHostsApi: true);
+        => Read(zipPath, destination, expectedId, requireThisHostsContracts: true);
 
     public PluginPayloadContents UnpackForCatalog(string zipPath, string destination)
-        => Read(zipPath, destination, expectedId: null, requireThisHostsApi: false);
+        => Read(zipPath, destination, expectedId: null, requireThisHostsContracts: false);
 
-    private static PluginPayloadContents Read(string zipPath, string destination, Guid? expectedId, bool requireThisHostsApi)
+    private static PluginPayloadContents Read(string zipPath, string destination, Guid? expectedId, bool requireThisHostsContracts)
     {
         Extract(zipPath, destination);
 
         var root = FindManifestRoot(destination)
             ?? throw new InvalidOperationException($"The download contains no {PluginLoader.ManifestFileName}.");
 
-        return new PluginPayloadContents { Root = root, Manifest = Validate(root, expectedId, requireThisHostsApi) };
+        return new PluginPayloadContents { Root = root, Manifest = Validate(root, expectedId, requireThisHostsContracts) };
     }
 
     private static void Extract(string zipPath, string destination)
@@ -56,7 +56,7 @@ public class PluginPayloadReader : IPluginPayloadReader
             : null;
     }
 
-    private static PluginManifest Validate(string root, Guid? expectedId, bool requireThisHostsApi)
+    private static PluginManifest Validate(string root, Guid? expectedId, bool requireThisHostsContracts)
     {
         var manifestPath = Path.Combine(root, PluginLoader.ManifestFileName);
 
@@ -65,12 +65,6 @@ public class PluginPayloadReader : IPluginPayloadReader
 
         if (expectedId is { } expected && manifest.Id != expected)
             throw new InvalidOperationException($"The download declares plugin id {manifest.Id}, but the catalog lists {expected}.");
-
-        if (requireThisHostsApi && PluginApiRange.ThisHost.DescribeRefusal(manifest.ApiVersion) is { } refusal)
-            throw new InvalidOperationException(refusal);
-
-        if (manifest.ApiVersion < 1)
-            throw new InvalidOperationException($"Declares plugin API {manifest.ApiVersion}; plugin API versions start at 1.");
 
         // The manifest came off the network and the loader hands EntryAssembly straight to
         // LoadFromAssemblyPath, so a traversing name would load an assembly from outside the folder.
@@ -81,6 +75,15 @@ public class PluginPayloadReader : IPluginPayloadReader
 
         if (!File.Exists(entryPath))
             throw new InvalidOperationException($"Entry assembly '{manifest.EntryAssembly}' is missing from the download.");
+
+        // Read only once the entry is known to sit inside the folder, since its .deps.json sits beside it.
+        var required = PluginRequirements.ReadFromFolder(root, manifest);
+
+        if (requireThisHostsContracts && ContractsVersion.ThisHost.DescribeRefusal(required, manifest.ApiVersion) is { } refusal)
+            throw new InvalidOperationException(refusal);
+
+        if (required is null)
+            throw new InvalidOperationException(ContractsVersion.ThisHost.DescribeRefusal(null, manifest.ApiVersion));
 
         return manifest;
     }

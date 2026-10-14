@@ -118,7 +118,9 @@ public static class PluginLoader
         if (!seenIds.Add(manifest.Id))
             return Errored(directory, manifest, $"Duplicate plugin id '{manifest.Id}'.");
 
-        if (PluginApiRange.ThisHost.DescribeRefusal(manifest.ApiVersion) is { } refusal)
+        var required = PluginRequirements.ReadFromFolder(directory, manifest);
+
+        if (ContractsVersion.ThisHost.DescribeRefusal(required, manifest.ApiVersion) is { } refusal)
             return Incompatible(directory, manifest, refusal);
 
         if (!File.Exists(Path.Combine(directory, manifest.EntryAssembly)))

@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models.Plugins;
+using KHost.Common.Plugins;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Domain.Services.Plugins;
 using KHost.Domain.Services.Plugins.Secrets;
@@ -79,9 +80,11 @@ public class PluginLoaderTests : IDisposable
     }
 
     [Fact]
-    public void Discover_BuiltAgainstANewerApi_ReportsIncompatibleSayingKHostNeedsTheUpdate()
+    public void Discover_NeedsANewerMinor_ReportsIncompatibleSayingKHostNeedsTheUpdate()
     {
-        WritePlugin("future", "0f000000-0000-4000-8000-000000f07072", apiVersion: PluginApi.CurrentVersion + 1);
+        var host = ContractsVersion.ThisHost;
+
+        WritePlugin("future", "0f000000-0000-4000-8000-000000f07072", contracts: $"{host.Major}.{host.Minor + 1}.0");
 
         var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
 
@@ -90,10 +93,10 @@ public class PluginLoaderTests : IDisposable
     }
 
     [Theory]
-    [MemberData(nameof(PluginPayloadReaderTests.EndsOfThisHostsRange), MemberType = typeof(PluginPayloadReaderTests))]
-    public void Discover_BuiltAgainstAnApiInRange_IsNotIncompatible(int apiVersion)
+    [MemberData(nameof(PluginPayloadReaderTests.ContractsThisHostRuns), MemberType = typeof(PluginPayloadReaderTests))]
+    public void Discover_NeedsContractsThisHostHas_IsNotIncompatible(string contracts)
     {
-        WritePlugin("in-range", "0f000000-0000-4000-8000-0000000a9e00", apiVersion: apiVersion);
+        WritePlugin("in-range", "0f000000-0000-4000-8000-0000000a9e00", contracts: contracts);
 
         var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
 
@@ -101,20 +104,51 @@ public class PluginLoaderTests : IDisposable
         Assert.Null(plugin.Error);
     }
 
-    /// <summary>The direction the number actually exists for, and the one a mismatch check written
-    /// as "newer than the host" would let through. A plugin built against an older contract still
-    /// implements the interfaces as they were, so loading it is a <c>TypeLoadException</c> the
-    /// moment the host asks for a member that has since been renamed, which is a broken start with
-    /// nothing on the Plugins page to say why, rather than one row reading Incompatible.</summary>
+    /// <summary>The direction a mismatch check written as "newer than the host" would let through. A
+    /// plugin built against an older major still implements the interfaces as they were, so loading
+    /// it is a <c>TypeLoadException</c> the moment the host asks for a member that has since been
+    /// renamed, which is a broken start with nothing on the Plugins page to say why, rather than one
+    /// row reading Incompatible.</summary>
     [Fact]
-    public void Discover_APluginBuiltAgainstAnOlderApi_ReportsIncompatibleSayingItNeedsAnUpdate()
+    public void Discover_NeedsAnOlderMajor_ReportsIncompatibleSayingItNeedsAnUpdate()
     {
-        WritePlugin("stale", "05000000-0000-4000-8000-00000057a1e0", apiVersion: PluginApi.MinimumVersion - 1);
+        WritePlugin("stale", "05000000-0000-4000-8000-00000057a1e0", contracts: "0.60.0");
 
         var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
 
         Assert.Equal(PluginStatus.Incompatible, plugin.Status);
         Assert.EndsWith("it needs an update.", plugin.Error);
+    }
+
+    [Fact]
+    public void Discover_NoDepsJsonButLegacyApiVersion8_IsNotIncompatible()
+    {
+        WritePlugin("legacy", "1e000000-0000-4000-8000-0000001e9ac7", contracts: null, apiVersion: 8);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.Equal(PluginStatus.Disabled, plugin.Status);
+    }
+
+    [Fact]
+    public void Discover_NoDepsJsonAndNoApiVersion_ReportsIncompatibleNamingNoContracts()
+    {
+        WritePlugin("unknown", "0d000000-0000-4000-8000-0000000d0c0d", contracts: null);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.Equal(PluginStatus.Incompatible, plugin.Status);
+        Assert.StartsWith("Names no contracts version", plugin.Error);
+    }
+
+    [Fact]
+    public void Discover_DepsJsonNamesNewerContracts_IsIncompatibleEvenWithLegacyApiVersion8()
+    {
+        WritePlugin("mixed", "0e000000-0000-4000-8000-0000000e1ced", contracts: $"{ContractsVersion.ThisHost.Major + 1}.0.0", apiVersion: 8);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.Equal(PluginStatus.Incompatible, plugin.Status);
     }
 
     [Fact]
@@ -425,12 +459,12 @@ public class PluginLoaderTests : IDisposable
             name = folder,
             version = "1.0.0",
             entryAssembly = "Plugin.dll",
-            apiVersion = PluginApi.CurrentVersion,
             icon,
         };
         var directory = WriteRawManifest(folder, JsonSerializer.Serialize(manifest));
 
         File.WriteAllText(Path.Combine(directory, "Plugin.dll"), "not a real assembly");
+        File.WriteAllText(Path.Combine(directory, "Plugin.deps.json"), PluginDepsJson.For(ContractsVersion.ThisHost.ToString()));
 
         return directory;
     }
@@ -448,7 +482,9 @@ public class PluginLoaderTests : IDisposable
         File.WriteAllBytes(Path.Combine(directory, PluginIcon.FileName), [.. bytes]);
     }
 
-    private string WritePlugin(string folder, string id, int apiVersion = PluginApi.CurrentVersion,
+    /// <param name="contracts">The KHost.Abstractions version the plugin's .deps.json names; null
+    /// writes no .deps.json. Defaults to this host's own.</param>
+    private string WritePlugin(string folder, string id, string? contracts = ThisHostsContracts, int? apiVersion = null,
         string entryAssembly = "Plugin.dll", bool createEntryAssembly = true, string version = "1.0.0")
     {
         var manifest = new
@@ -464,8 +500,17 @@ public class PluginLoaderTests : IDisposable
         if (createEntryAssembly)
             File.WriteAllText(Path.Combine(directory, entryAssembly), "not a real assembly");
 
+        if (contracts is not null)
+            File.WriteAllText(PluginRequirements.DepsJsonPath(directory, new PluginManifest
+            {
+                Id = Guid.Parse(id), Name = id, Version = version, EntryAssembly = entryAssembly,
+            }), PluginDepsJson.For(contracts == ThisHostsContracts ? ContractsVersion.ThisHost.ToString() : contracts));
+
         return directory;
     }
+
+    // A const stand-in, since an optional parameter cannot default to a value read at run time.
+    private const string ThisHostsContracts = "this-host";
 
     private string WriteRawManifest(string folder, string json)
     {

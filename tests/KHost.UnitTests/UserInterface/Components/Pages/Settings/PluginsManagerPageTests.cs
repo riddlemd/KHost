@@ -445,12 +445,19 @@ public class PluginsManagerPageTests : BunitContext
 
     private static PluginCatalogRelease CatalogRelease(
         string version,
-        // The gate itself, not the number it currently holds: a release built for this host is
-        // what these tests mean, and a literal here fails every time that legitimately moves.
-        int apiVersion = PluginApi.CurrentVersion,
+        // This host's own version, not a literal: a release built for this host is what these
+        // tests mean, and a literal here fails every time that legitimately moves.
+        string? contractsVersion = null,
         string sha256 = "abc123",
         string url = "https://example.test/plugin.zip")
-        => new() { Version = version, ApiVersion = apiVersion, Url = url, Sha256 = sha256 };
+        => new()
+        {
+            Version = version,
+            ContractsVersion = contractsVersion ?? ContractsVersion.ThisHost.ToString(),
+            ApiVersion = 9,
+            Url = url,
+            Sha256 = sha256,
+        };
 
     [Fact]
     public void AvailableRow_ReleaseWithNoChecksum_ReadsNotVerifiableRatherThanNotCompatible()
@@ -494,21 +501,21 @@ public class PluginsManagerPageTests : BunitContext
     }
 
     [Fact]
-    public void AvailableRow_EveryReleaseBuiltForANewerApi_TooltipSaysKHostNeedsTheUpdate()
+    public void AvailableRow_EveryReleaseNeedsNewerContracts_TooltipSaysKHostNeedsTheUpdate()
     {
         Arrange(Plugin(PluginStatus.Loaded), enabled: true);
 
-        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Future", CatalogRelease("1.0.0", apiVersion: 99)));
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Future", CatalogRelease("1.0.0", contractsVersion: $"{ContractsVersion.ThisHost.Major + 1}.0.0")));
 
         Assert.StartsWith("Needs a newer KHost", cut.Find(AvailableBadgeSelector).GetAttribute("title"));
     }
 
     [Fact]
-    public void AvailableRow_EveryReleaseBuiltForAnOlderApi_TooltipSaysThePluginNeedsTheUpdate()
+    public void AvailableRow_EveryReleaseNeedsAnOlderMajor_TooltipSaysThePluginNeedsTheUpdate()
     {
         Arrange(Plugin(PluginStatus.Loaded), enabled: true);
 
-        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Stale", CatalogRelease("1.0.0", apiVersion: PluginApi.MinimumVersion - 1)));
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Stale", CatalogRelease("1.0.0", contractsVersion: "0.5.0")));
 
         var badge = cut.Find(AvailableBadgeSelector);
 
@@ -517,11 +524,11 @@ public class PluginsManagerPageTests : BunitContext
     }
 
     [Fact]
-    public void AvailableRow_EveryReleaseTargetsAnotherApi_ReadsNotCompatible()
+    public void AvailableRow_EveryReleaseNeedsOtherContracts_ReadsNotCompatible()
     {
         Arrange(Plugin(PluginStatus.Loaded), enabled: true);
 
-        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Future", CatalogRelease("1.0.0", apiVersion: 99)));
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Future", CatalogRelease("1.0.0", contractsVersion: $"{ContractsVersion.ThisHost.Major + 1}.0.0")));
 
         Assert.Equal("Not compatible", cut.Find(AvailableBadgeSelector).TextContent.Trim());
     }
@@ -807,7 +814,6 @@ public class PluginsManagerPageTests : BunitContext
             Version = "1.0.0",
             Description = "A plugin used by the tests.",
             EntryAssembly = "Test.dll",
-            ApiVersion = PluginApi.CurrentVersion,
             Settings = [.. settings],
         },
     };

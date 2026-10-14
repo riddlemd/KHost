@@ -36,6 +36,14 @@
     <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
 
+  <!-- The host's own contracts version comes from the build, so the gate cannot drift from the package. -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ContractsVersion</_Parameter1>
+      <_Parameter2>$(ContractsVersion)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Remove="Entities\**" />
     <EmbeddedResource Remove="Entities\**" />

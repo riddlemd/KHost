@@ -334,7 +334,6 @@ public class PluginStagingAreaTests : IDisposable
             Name = "Test Plugin",
             Version = version,
             EntryAssembly = "Test.dll",
-            ApiVersion = PluginApi.CurrentVersion,
         };
 
         File.WriteAllText(
