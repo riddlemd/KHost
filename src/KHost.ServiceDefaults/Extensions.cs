@@ -24,8 +24,6 @@ public static class Extensions
 
         builder.AddDefaultHealthChecks();
 
-        builder.Services.AddServiceDiscovery();
-
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
             // Every client, plugins' included, decompresses as a hand-built HttpClient was set to.
@@ -33,8 +31,6 @@ public static class Extensions
 
             // A retried POST can replay a sign-in or anything else with side effects; only safe methods are retried.
             http.AddStandardResilienceHandler(options => options.Retry.DisableForUnsafeHttpMethods());
-
-            http.AddServiceDiscovery();
         });
 
         return builder;
