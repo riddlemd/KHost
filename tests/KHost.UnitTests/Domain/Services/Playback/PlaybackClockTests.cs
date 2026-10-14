@@ -156,6 +156,34 @@ public class PlaybackClockTests
         Assert.Equal(TimeSpan.Zero, _clock.Position);
     }
 
+    /// <summary>The screen reports every quarter second, so one sampled just before a seek can land
+    /// just after it and drag the slider back to where the song was.</summary>
+    [Fact]
+    public void FollowReport_SampledBeforeASeek_LeavesThePlayheadAtTheSeek()
+    {
+        _clock.FollowReport(Report(TimeSpan.FromSeconds(5), Now));
+        var sampledBeforeTheSeek = Now;
+        _time.Advance(TimeSpan.FromMilliseconds(100));
+        _clock.MarkTransportMoved();
+        _clock.Position = TimeSpan.FromSeconds(80);
+
+        _clock.FollowReport(Report(TimeSpan.FromSeconds(5.1), sampledBeforeTheSeek));
+
+        Assert.Equal(TimeSpan.FromSeconds(80), _clock.Position);
+    }
+
+    [Fact]
+    public void FollowReport_SampledAfterASeek_MovesThePlayhead()
+    {
+        _clock.MarkTransportMoved();
+        _clock.Position = TimeSpan.FromSeconds(80);
+        _time.Advance(TimeSpan.FromMilliseconds(250));
+
+        _clock.FollowReport(Report(TimeSpan.FromSeconds(80.25), Now));
+
+        Assert.Equal(TimeSpan.FromSeconds(80.25), _clock.Position);
+    }
+
     [Fact]
     public void FollowReport_MovesThePlayheadOn_ByTheSongTimeSinceItWasSampled()
     {

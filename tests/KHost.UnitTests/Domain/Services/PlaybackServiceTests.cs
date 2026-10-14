@@ -4396,6 +4396,7 @@ public class PlaybackServiceTests : IDisposable
         performance.Tempo = 50;
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
+        _clock.Advance(TimeSpan.FromSeconds(2));
 
         RaiseScreenState(TimeSpan.FromSeconds(60), sampledAgo: TimeSpan.FromSeconds(2));
 
