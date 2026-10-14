@@ -199,9 +199,6 @@ internal class DefaultContext : DbContext
         {
             ConfigureNameFoldedAndNotes(entity, nameMaxLength: 255);
 
-            entity.Property(e => e.PasswordHash)
-                .HasMaxLength(512);
-
             // Uniqueness is on the folded name, not on Name COLLATE NOCASE: NOCASE folds ASCII
             // only, so it let "ZOË" and "zoë" both exist as separate singers.
             entity.HasIndex(e => e.NameFolded).IsUnique();
@@ -267,12 +264,6 @@ internal class DefaultContext : DbContext
 
             entity.HasIndex(e => e.Name).IsUnique();
 
-            entity.Property(e => e.Permissions)
-                .HasColumnType("JSON");
-
-            entity.Property(e => e.IsAdmin)
-                .HasDefaultValue(false);
-
             entity.Property(e => e.ExcludeFromSingerQueue)
                 .HasDefaultValue(false);
 
@@ -283,10 +274,8 @@ internal class DefaultContext : DbContext
                     Name = "Admin",
                     NameFolded = "admin",
                     Description = "Full access to all management features",
-                    IsAdmin = true,
-                    // The admin account is how a host signs in, not somebody waiting to sing.
-                    ExcludeFromSingerQueue = true,
-                    Permissions = []
+                    // Staff, not somebody waiting to sing.
+                    ExcludeFromSingerQueue = true
                 },
                 new KHostUserGroup
                 {
@@ -294,9 +283,7 @@ internal class DefaultContext : DbContext
                     Name = "Regular",
                     NameFolded = "regular",
                     Description = "Frequent singer",
-                    IsAdmin = false,
-                    ExcludeFromSingerQueue = false,
-                    Permissions = []
+                    ExcludeFromSingerQueue = false
                 }
             );
         });

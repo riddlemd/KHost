@@ -70,9 +70,6 @@ public class HomePageFocusTests : BunitContext
         _performances.ReadLastVenueBySingersAsync(Arg.Any<IEnumerable<Guid>>())
             .Returns(new Dictionary<Guid, RecentVenueVisit>());
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         var venues = Substitute.For<IVenuesService>();
         venues.ReadAllAsync(pageSize: 0).ReturnsForAnyArgs(new PaginatedResult<Venue>());
         venues.ReadSelectedVenueAsync().Returns(new Venue { Id = Guid.NewGuid(), Name = "Bar" });
@@ -86,7 +83,6 @@ public class HomePageFocusTests : BunitContext
         Services.AddSingleton(_queue);
         Services.AddSingleton(_users);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(media);
         Services.AddSingleton(search);

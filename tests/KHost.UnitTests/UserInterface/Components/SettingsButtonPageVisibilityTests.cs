@@ -18,15 +18,11 @@ public class SettingsButtonPageVisibilityTests : BunitContext
 {
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public SettingsButtonPageVisibilityTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-
-        _permissions.IsAdminAsync().Returns(true);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
 
         _venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
 
@@ -35,7 +31,6 @@ public class SettingsButtonPageVisibilityTests : BunitContext
 
         Services.AddSingleton(_venues);
         Services.AddSingleton(_breakMusic);
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IFlashService>());

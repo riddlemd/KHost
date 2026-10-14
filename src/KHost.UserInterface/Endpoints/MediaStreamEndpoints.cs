@@ -58,6 +58,5 @@ public static class MediaStreamEndpoints
 
             // Player devices off the box fetch segments with ranged GETs.
             return Results.File(path, contentType, enableRangeProcessing: true);
-        })
-        .AllowAnonymous();
+        });
 }

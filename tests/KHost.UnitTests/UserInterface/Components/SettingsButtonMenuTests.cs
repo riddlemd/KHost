@@ -17,7 +17,6 @@ namespace KHost.UnitTests.UserInterface.Components;
 public class SettingsButtonMenuTests : BunitContext
 {
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
 
     public SettingsButtonMenuTests()
     {
@@ -32,7 +31,6 @@ public class SettingsButtonMenuTests : BunitContext
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IMessageBroker>(_broker);
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IThemeService>());
@@ -52,18 +50,12 @@ public class SettingsButtonMenuTests : BunitContext
     [Fact]
     public void TheMenu_NoLongerOffersKeyboardShortcuts()
     {
-        _permissions.IsAdminAsync().Returns(false);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(false);
-
         Assert.DoesNotContain(MenuItems(), i => i.TextContent.Contains("Keyboard Shortcuts"));
     }
 
     [Fact]
     public void TheMenu_StillOffersAbout()
     {
-        _permissions.IsAdminAsync().Returns(false);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(false);
-
         Assert.Contains(MenuItems(), i => i.TextContent.Contains("About"));
     }
 
@@ -71,9 +63,6 @@ public class SettingsButtonMenuTests : BunitContext
     [Fact]
     public void TheMenu_LeadsWithTheHostingDashboard()
     {
-        _permissions.IsAdminAsync().Returns(false);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(false);
-
         Assert.Equal("Hosting Dashboard", MenuItems()[0].TextContent.Trim());
     }
 }

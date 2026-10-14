@@ -20,6 +20,5 @@ public static class VideoBackdropEndpoints
 
             // A video element seeks and loops with ranged GETs.
             return Results.File(path, "video/mp4", enableRangeProcessing: true);
-        })
-        .AllowAnonymous();
+        });
 }

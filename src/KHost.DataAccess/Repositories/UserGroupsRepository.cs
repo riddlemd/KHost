@@ -14,7 +14,6 @@ internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroup
         new Dictionary<string, Expression<Func<KHostUserGroup, object>>>
         {
             ["name"] = g => g.Name.ToLower(),
-            ["isAdmin"] = g => g.IsAdmin,
         };
 
     public UserGroupsRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<KHostUserGroup>> logger)

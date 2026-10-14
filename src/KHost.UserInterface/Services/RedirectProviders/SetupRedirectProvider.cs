@@ -5,16 +5,12 @@ namespace KHost.UserInterface.Services.RedirectProviders;
 
 public class SetupRedirectProvider : IStartupRedirectProvider
 {
-    private readonly IUsersService _usersService;
     private readonly IVenuesService _venuesService;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<SetupRedirectProvider> _logger;
 
-    public SetupRedirectProvider(IUsersService usersService, IVenuesService venuesService, IConfiguration configuration, ILogger<SetupRedirectProvider> logger)
+    public SetupRedirectProvider(IVenuesService venuesService, ILogger<SetupRedirectProvider> logger)
     {
-        _usersService = usersService;
         _venuesService = venuesService;
-        _configuration = configuration;
         _logger = logger;
     }
 
@@ -26,14 +22,7 @@ public class SetupRedirectProvider : IStartupRedirectProvider
             return false;
 
         _logger.LogDebug("Checking setup status for path {Path}", path);
-        // A no-login console needs no admin account to be usable; a venue is enough.
-        var requireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? false;
-        // HasAdminWithPasswordAsync, not HasAdminUserAsync: a host who flips the flag on by hand
-        // after setup, with no admin that can actually sign in, must land back in the wizard
-        // rather than be sent to a login page nothing can satisfy.
-        var hasAdminUser = !requireLogin || await _usersService.HasAdminWithPasswordAsync();
-        var hasVenue = await _venuesService.HasAnyAsync();
-        var setupComplete = hasAdminUser && hasVenue;
+        var setupComplete = await _venuesService.HasAnyAsync();
         _logger.LogDebug("Setup complete: {SetupComplete}", setupComplete);
         return !setupComplete;
     }

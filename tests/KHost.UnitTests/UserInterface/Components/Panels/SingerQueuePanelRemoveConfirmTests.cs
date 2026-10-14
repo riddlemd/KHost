@@ -30,15 +30,11 @@ public class SingerQueuePanelRemoveConfirmTests : BunitContext
 
         JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
-        Services.AddSingleton(permissions);
         Services.AddSingleton(_venues);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IMediaService>());

@@ -128,26 +128,6 @@ public class UsersRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task HasAdminUser_IsFalse_WhenNobodyIsInAnAdminGroup()
-    {
-        await _database.SeedAsync(User("Steve"), new KHostUserGroup { Name = "Singers", IsAdmin = false });
-
-        Assert.False(await _repository.HasAdminUserAsync());
-    }
-
-    [Fact]
-    public async Task HasAdminUser_IsTrue_OnlyThroughGroupMembership()
-    {
-        var admins = new KHostUserGroup { Name = "Admins", IsAdmin = true };
-        var steve = User("Steve");
-        steve.Groups.Add(admins);
-
-        await _database.SeedAsync(steve);
-
-        Assert.True(await _repository.HasAdminUserAsync());
-    }
-
-    [Fact]
     public async Task Read_BringsTheGroupsWithIt_InNameOrder()
     {
         var steve = User("Steve");
@@ -439,31 +419,6 @@ public class UsersRepositoryTests : IDisposable
         await _repository.DeleteUnsungAsync([]);
 
         Assert.Equal(["Linked"], RemainingNames());
-    }
-
-    [Fact]
-    public async Task DeleteUnsungAsync_ASingerWithAPassword_IsKept()
-    {
-        var host = User("Host");
-        host.PasswordHash = "hash";
-        await _database.SeedAsync(host);
-
-        await _repository.DeleteUnsungAsync([]);
-
-        Assert.Equal(["Host"], RemainingNames());
-    }
-
-    // An empty hash is no login, as HasAdminWithPasswordAsync already reads it.
-    [Fact]
-    public async Task DeleteUnsungAsync_AnEmptyPassword_IsNoLogin()
-    {
-        var walkIn = User("Walk-in");
-        walkIn.PasswordHash = "";
-        await _database.SeedAsync(walkIn);
-
-        await _repository.DeleteUnsungAsync([]);
-
-        Assert.Empty(RemainingNames());
     }
 
     [Fact]

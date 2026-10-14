@@ -23,6 +23,5 @@ public static class ThemeStylesheetEndpoints
             context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
 
             return Results.Text(ThemeCss.Build(theme), "text/css");
-        })
-        .AllowAnonymous();
+        });
 }

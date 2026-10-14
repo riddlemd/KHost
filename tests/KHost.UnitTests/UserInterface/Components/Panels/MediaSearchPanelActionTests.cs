@@ -28,16 +28,12 @@ public class MediaSearchPanelActionTests : BunitContext
         var queue = Substitute.For<ISingerQueueService>();
         queue.Users.Returns(_ => []);
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_search);
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(queue);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(_flash);

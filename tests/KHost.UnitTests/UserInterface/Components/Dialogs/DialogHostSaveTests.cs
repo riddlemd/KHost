@@ -39,7 +39,6 @@ public class DialogHostSaveTests : BunitContext
         Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IVenuesService>());
         Services.AddSingleton(Substitute.For<ITipsService>());
-        Services.AddSingleton(Substitute.For<IPasswordHasher>());
 
         var appSettings = Substitute.For<IAppSettingsService>();
         appSettings.Current.Returns(new AppSettings());

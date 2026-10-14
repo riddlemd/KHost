@@ -33,6 +33,5 @@ public static class MediaImageEndpoints
             context.Response.Headers.AccessControlAllowOrigin = "*";
 
             return Results.File(row.FilePath, contentType);
-        })
-        .AllowAnonymous();
+        });
 }

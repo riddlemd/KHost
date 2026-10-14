@@ -11,9 +11,6 @@ namespace KHost.UserInterface.Services;
 /// <summary>The machine-level settings the App Settings page edits, as one snapshot.</summary>
 public sealed record AppSettings
 {
-    /// <summary>Read-only here: it comes from <c>Auth:RequireLogin</c> in configuration, not from a
-    /// save through this page — see <see cref="IAppSettingsService.SaveAsync"/>.</summary>
-    public bool RequireLogin { get; init; }
     public string? FFmpegPath { get; set; }
     public string? MediaDirectory { get; set; }
 
@@ -165,8 +162,7 @@ public interface IAppSettingsService
     /// <summary>The directory used in place of a blank <see cref="AppSettings.MediaDirectory"/>.</summary>
     string DefaultMediaDirectory { get; }
 
-    /// <summary>Writes the overlay. Does not touch <see cref="AppSettings.RequireLogin"/> — that
-    /// is a configuration-only flag, not something this page saves.</summary>
+    /// <summary>Writes the overlay.</summary>
     Task<AppSettingsSaveResult> SaveAsync(AppSettings settings);
 
     /// <summary>Saves <see cref="AppSettings.NewVenueBackgrounds"/> alone, keeping every other key in

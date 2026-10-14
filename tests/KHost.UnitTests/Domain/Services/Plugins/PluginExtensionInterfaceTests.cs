@@ -10,21 +10,12 @@ namespace KHost.UnitTests.Domain.Services.Plugins;
 /// </summary>
 public class PluginExtensionInterfaceTests
 {
-    /// <summary>Collected from the host's own registrations, not from plugins. Binding it would let
-    /// an installed plugin supply an <b>authentication</b> provider, which is a decision about what
-    /// a plugin is trusted with rather than a list this test may quietly grow.</summary>
-    private static readonly Type[] HostOnly =
-    [
-        typeof(KHost.Abstractions.Services.IAuthProvider),
-    ];
-
     /// <summary>A domain service taking <c>IEnumerable&lt;T&gt;</c> of an Abstractions interface is
     /// collecting plugin implementations of it, so the loader has to be binding it.</summary>
     [Fact]
     public void EveryInterfaceADomainServiceCollects_IsBoundByTheLoader()
     {
         var missing = CollectedInterfaces()
-            .Where(type => !HostOnly.Contains(type))
             .Where(type => !PluginLoader.ExtensionInterfaces.Contains(type))
             .Select(type => type.Name)
             .Order()

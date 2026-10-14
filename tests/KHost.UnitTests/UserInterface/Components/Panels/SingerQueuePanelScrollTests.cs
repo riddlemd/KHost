@@ -17,14 +17,12 @@ public class SingerQueuePanelScrollTests : BunitContext
 {
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     private readonly KHostUser _first = new() { Id = Guid.NewGuid(), Name = "Ann" };
 
     public SingerQueuePanelScrollTests()
     {
         _queue.Users.Returns(_ => [_first]);
         _queue.SelectedUserId.Returns(_ => _first.Id);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
 
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -33,7 +31,6 @@ public class SingerQueuePanelScrollTests : BunitContext
 
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(_broker);
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);
 
         var performances = Substitute.For<IPerformanceService>();

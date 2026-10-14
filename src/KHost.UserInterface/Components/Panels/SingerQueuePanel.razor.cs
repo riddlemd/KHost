@@ -19,7 +19,6 @@ public partial class SingerQueuePanel : IAsyncDisposable
     [Inject] private IPlaybackService PlaybackService { get; set; } = default!;
     [Inject] private IUsersService UsersService { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
-    [Inject] private IPermissionService Permissions { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
@@ -46,9 +45,6 @@ public partial class SingerQueuePanel : IAsyncDisposable
     private Dictionary<Guid, string> _venueNames = [];
     private bool _showEwt = true;
     private bool _promptBeforeRemovingSinger;
-    private bool _canAddToQueue;
-    private bool _canRemoveFromQueue;
-    private bool _canReorderQueue;
     private Guid? _lastScrolledSingerId;
     private SortableBinding _sortable = default!;
 
@@ -71,10 +67,6 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
         var venues = await VenuesService.ReadAllAsync(pageSize: 0);
         _venueNames = venues.Items.ToDictionary(v => v.Id, v => v.Name);
-
-        _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
-        _canRemoveFromQueue = await Permissions.HasAsync(KHostPermission.RemoveFromQueue);
-        _canReorderQueue = await Permissions.HasAsync(KHostPermission.ReorderQueue);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -85,9 +77,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // A truly-async first await in OnInitializedAsync leaves _canReorderQueue still false on
-        // firstRender, so attaching has to follow the permission in rather than fire once on it.
-        await _sortable.SyncAsync(_canReorderQueue, this);
+        await _sortable.SyncAsync(true, this);
 
         // Only on an actual selection change: scrolling on every render yanks the list while
         // the host is scrolling it by hand.
@@ -192,7 +182,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
             e.Key, e.ShiftKey, currentIdx, users.Count, modified: e.CtrlKey || e.MetaKey || e.AltKey);
 
         await ListKeyboardShortcuts.DispatchAsync(
-            action, currentIdx, _canReorderQueue,
+            action, currentIdx, canReorder: true,
             select: idx => SingerQueueService.SelectUserAsync(users[idx].Id),
             move: up => up
                 ? SingerQueueService.MoveUserUpAsync(users[currentIdx].Id)
@@ -200,10 +190,10 @@ public partial class SingerQueuePanel : IAsyncDisposable
             remove: () => RemoveSelectedFromKeyboardAsync(users[currentIdx]));
     }
 
-    /// <summary>The row's remove button with its refusals: no permission, or the singer at the mic.</summary>
+    /// <summary>The row's remove button with its refusal: the singer at the mic.</summary>
     private Task RemoveSelectedFromKeyboardAsync(KHostUser user)
     {
-        if (!_canRemoveFromQueue || PlaybackService.CurrentlyPerformingUserId == user.Id)
+        if (PlaybackService.CurrentlyPerformingUserId == user.Id)
             return Task.CompletedTask;
 
         return ConfirmRemoveUserAsync(user, selectNeighbour: true);

@@ -22,7 +22,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     [Inject] private IUserGroupsService UserGroupsService { get; set; } = default!;
     [Inject] private IMediaService MediaService { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
-    [Inject] private IPermissionService Permissions { get; set; } = default!;
     [Inject] private ITipsService TipsService { get; set; } = default!;
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
@@ -41,9 +40,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     /// <summary>Off for a venue never asked, so an alias stays out of sight until one is wanted.</summary>
     private bool _allowAliases;
     private bool _promptBeforeRemovingPerformance;
-    private bool _canRemoveFromQueue;
-    private bool _canReorderQueue;
-    private bool _canViewHistory;
 
     // The confirm removes the song it was opened for, so the list must not move or open a second
     // one meanwhile: a highlight on another row would name what Remove does not delete.
@@ -64,10 +60,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
 
-        _canRemoveFromQueue = await Permissions.HasAsync(KHostPermission.RemoveFromQueue);
-        _canReorderQueue = await Permissions.HasAsync(KHostPermission.ReorderQueue);
-        _canViewHistory = await Permissions.HasAsync(KHostPermission.ViewPerformanceHistory);
-
         await RefreshVenueSettingsAsync();
         await RefreshPerformancesAsync();
     }
@@ -76,7 +68,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     {
         // Unlike the singer queue's, this table is absent until the singer has a song, so the
         // hook-up cannot be a first-render one-shot: it has to follow the table in and out.
-        await _sortable.SyncAsync(_canReorderQueue && _performances.Count > 0, this);
+        await _sortable.SyncAsync(_performances.Count > 0, this);
     }
 
     [JSInvokable]
@@ -97,7 +89,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             e.Key, e.ShiftKey, currentIdx, _performances.Count, modified: e.CtrlKey || e.MetaKey || e.AltKey);
 
         return ListKeyboardShortcuts.DispatchAsync(
-            action, currentIdx, _canReorderQueue,
+            action, currentIdx, canReorder: true,
             select: idx =>
             {
                 SelectPerformance(_performances[idx].Id);
@@ -109,10 +101,10 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             remove: () => RemoveSelectedFromKeyboardAsync(_performances[currentIdx]));
     }
 
-    /// <summary>The row's remove button with its refusals: no permission, or the loaded song.</summary>
+    /// <summary>The row's remove button with its refusal: the loaded song.</summary>
     private Task RemoveSelectedFromKeyboardAsync(Performance performance)
     {
-        if (!_canRemoveFromQueue || PlaybackService.CurrentPerformance?.Id == performance.Id)
+        if (PlaybackService.CurrentPerformance?.Id == performance.Id)
             return Task.CompletedTask;
 
         return RemoveWithConfirmAsync(performance, selectNeighbour: true);

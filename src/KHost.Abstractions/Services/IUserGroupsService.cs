@@ -2,8 +2,8 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>Groups of users, and who belongs to which; what permissions and rotation rules such as a
-/// VIP group are keyed on.</summary>
+/// <summary>Groups of users, and who belongs to which; what rotation rules such as a VIP group
+/// are keyed on.</summary>
 /// <remarks>A plugin may take it to read or change membership. The host's built-in groups cannot be
 /// deleted: <see cref="IRepositoryService{T}.DeleteAsync"/> answers false for them. A host singleton,
 /// callable from any thread. Group create, update and delete announce

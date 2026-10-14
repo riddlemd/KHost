@@ -33,14 +33,10 @@ public class SelectedSingerInfoPanelEditUserTests : BunitContext
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         Services.AddSingleton(_queue);
         Services.AddSingleton(performances);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(Substitute.For<IVenuesService>());
         Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
