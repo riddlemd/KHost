@@ -13,65 +13,108 @@ public class PluginCatalogExtensionsTests
         Assert.Equal("1.10.0", entry.LatestCompatibleRelease()?.Version);
     }
 
-    [Fact]
-    public void LatestCompatible_NewerReleaseBuiltForANewerApi_ReturnsTheOneInRange()
+    /// <summary>Requirements this host refuses: the next minor and major, an older major, and text that is
+    /// not a version.</summary>
+    public static TheoryData<string> ContractsThisHostDoesNotHave()
     {
-        var entry = EntryWith(Release("1.0.0"), Release("2.0.0", apiVersion: PluginApi.CurrentVersion + 1));
+        var host = ContractsVersion.ThisHost;
+
+        return new TheoryData<string>($"{host.Major}.{host.Minor + 1}.0", $"{host.Major + 1}.0.0", "0.60.0", "not-a-version");
+    }
+
+    [Fact]
+    public void LatestCompatible_NewerReleaseNeedsANewerMinor_ReturnsTheOneThisHostRuns()
+    {
+        var host = ContractsVersion.ThisHost;
+        var entry = EntryWith(Release("1.0.0"), Release("2.0.0", contracts: $"{host.Major}.{host.Minor + 1}.0"));
 
         Assert.Equal("1.0.0", entry.LatestCompatibleRelease()?.Version);
     }
 
     [Fact]
-    public void LatestCompatible_NewerReleaseBuiltForAnOlderApi_ReturnsTheOneInRange()
+    public void LatestCompatible_NewerReleaseNeedsAnOlderMajor_ReturnsTheOneThisHostRuns()
     {
-        var entry = EntryWith(Release("1.0.0"), Release("2.0.0", apiVersion: PluginApi.MinimumVersion - 1));
+        var entry = EntryWith(Release("1.0.0"), Release("2.0.0", contracts: "0.60.0"));
 
         Assert.Equal("1.0.0", entry.LatestCompatibleRelease()?.Version);
     }
 
     [Theory]
-    [InlineData(PluginApi.CurrentVersion + 1)]
-    [InlineData(PluginApi.MinimumVersion - 1)]
-    public void LatestCompatible_EveryReleaseOutOfRange_ReturnsNull(int apiVersion)
-        => Assert.Null(EntryWith(Release("1.0.0", apiVersion: apiVersion)).LatestCompatibleRelease());
+    [MemberData(nameof(ContractsThisHostDoesNotHave))]
+    public void LatestCompatible_EveryReleaseNeedsOtherContracts_ReturnsNull(string contracts)
+        => Assert.Null(EntryWith(Release("1.0.0", contracts: contracts)).LatestCompatibleRelease());
 
     [Fact]
-    public void LatestCompatible_SeveralApisInRange_ReturnsTheHighestPluginVersion()
+    public void LatestCompatible_SeveralRequirementsThisHostHas_ReturnsTheHighestPluginVersion()
     {
-        // Plugin version decides, not plugin API: a newer release may be built against an older API.
+        // Plugin version decides, not contracts: a newer release may need older contracts.
         var entry = EntryWith(
-            Release("3.0.0", apiVersion: 3),
-            Release("4.0.0", apiVersion: 4),
-            Release("5.0.0", apiVersion: 2),
-            Release("6.0.0", apiVersion: 5));
+            Release("3.0.0", contracts: "2.3.0"),
+            Release("4.0.0", contracts: "2.4.0"),
+            Release("5.0.0", contracts: "2.0.0"),
+            Release("6.0.0", contracts: "2.4.1"),
+            Release("7.0.0", contracts: "3.0.0"));
 
-        Assert.Equal("5.0.0", entry.LatestCompatibleRelease(new PluginApiRange(2, 4))?.Version);
+        Assert.Equal("5.0.0", entry.LatestCompatibleRelease(new ContractsVersion(2, 4, 0))?.Version);
     }
 
     [Fact]
-    public void LatestCompatible_ReleasesAtBothEndsOfTheRange_AreBothCandidates()
-    {
-        var range = new PluginApiRange(2, 4);
-
-        Assert.Equal("2.0.0", EntryWith(Release("1.0.0", apiVersion: 4), Release("2.0.0", apiVersion: 2)).LatestCompatibleRelease(range)?.Version);
-        Assert.Equal("2.0.0", EntryWith(Release("1.0.0", apiVersion: 2), Release("2.0.0", apiVersion: 4)).LatestCompatibleRelease(range)?.Version);
-    }
+    public void LatestCompatible_ReleaseNeedingExactlyTheHostsVersion_IsACandidate()
+        => Assert.Equal("1.0.0", EntryWith(Release("1.0.0", contracts: "2.4.0")).LatestCompatibleRelease(new ContractsVersion(2, 4, 0))?.Version);
 
     [Fact]
-    public void DescribeApiRefusal_NewestApiAboveTheRange_SaysKHostNeedsTheUpdate()
+    public void LatestCompatible_LegacyApiVersion8Only_IsACandidateOnA1xHost()
+        => Assert.Equal("1.0.0", EntryWith(Release("1.0.0", contracts: null, apiVersion: 8)).LatestCompatibleRelease(new ContractsVersion(1, 4, 0))?.Version);
+
+    [Theory]
+    [InlineData(7)]
+    [InlineData(9)]
+    public void LatestCompatible_LegacyApiVersionOtherThan8_IsNotACandidate(int apiVersion)
+        => Assert.Null(EntryWith(Release("1.0.0", contracts: null, apiVersion: apiVersion)).LatestCompatibleRelease(new ContractsVersion(1, 4, 0)));
+
+    [Fact]
+    public void LatestCompatible_LegacyApiVersion8OnAnotherMajor_IsNotACandidate()
+        => Assert.Null(EntryWith(Release("1.0.0", contracts: null, apiVersion: 8)).LatestCompatibleRelease(new ContractsVersion(2, 0, 0)));
+
+    [Fact]
+    public void LatestCompatible_ContractsVersionPresent_WinsOverLegacyApiVersion()
+        => Assert.Null(EntryWith(Release("1.0.0", contracts: "2.0.0", apiVersion: 8)).LatestCompatibleRelease(new ContractsVersion(1, 4, 0)));
+
+    [Fact]
+    public void RequiredContracts_ContractsVersionPresent_IsThatVersion()
+        => Assert.Equal(new ContractsVersion(1, 2, 3), Release("1.0.0", contracts: "1.2.3", apiVersion: 8).RequiredContracts());
+
+    [Fact]
+    public void RequiredContracts_ContractsVersionMalformed_IsNullEvenWithLegacyApiVersion8()
+        => Assert.Null(Release("1.0.0", contracts: "1.2", apiVersion: 8).RequiredContracts());
+
+    [Fact]
+    public void RequiredContracts_OnlyLegacyApiVersion8_IsTheLegacyContracts()
+        => Assert.Equal(new ContractsVersion(0, 61, 0), Release("1.0.0", contracts: null, apiVersion: 8).RequiredContracts());
+
+    [Fact]
+    public void RequiredContracts_OnlyLegacyApiVersion9_IsNull()
+        => Assert.Null(Release("1.0.0", contracts: null, apiVersion: 9).RequiredContracts());
+
+    [Fact]
+    public void DescribeApiRefusal_NewestRequirementIsNewer_SaysKHostNeedsTheUpdate()
     {
-        var entry = EntryWith(Release("1.0.0", apiVersion: PluginApi.MinimumVersion - 1), Release("2.0.0", apiVersion: PluginApi.CurrentVersion + 1));
+        var entry = EntryWith(Release("1.0.0", contracts: "0.60.0"), Release("2.0.0", contracts: $"{ContractsVersion.ThisHost.Major + 1}.0.0"));
 
         Assert.StartsWith("Needs a newer KHost", entry.DescribeApiRefusal());
     }
 
     [Fact]
-    public void DescribeApiRefusal_EveryReleaseBelowTheRange_SaysThePluginNeedsTheUpdate()
-        => Assert.EndsWith("it needs an update.", EntryWith(Release("1.0.0", apiVersion: PluginApi.MinimumVersion - 1)).DescribeApiRefusal());
+    public void DescribeApiRefusal_EveryReleaseNeedsAnOlderMajor_SaysThePluginNeedsTheUpdate()
+        => Assert.EndsWith("it needs an update.", EntryWith(Release("1.0.0", contracts: "0.60.0")).DescribeApiRefusal());
 
     [Fact]
-    public void DescribeApiRefusal_AReleaseInRange_IsNull()
-        => Assert.Null(EntryWith(Release("1.0.0", apiVersion: PluginApi.CurrentVersion + 1), Release("0.9.0")).DescribeApiRefusal());
+    public void DescribeApiRefusal_OnlyAnOlderLegacyApiVersion_SaysThePluginNeedsTheUpdate()
+        => Assert.EndsWith("it needs an update.", EntryWith(Release("1.0.0", contracts: null, apiVersion: 7)).DescribeApiRefusal());
+
+    [Fact]
+    public void DescribeApiRefusal_AReleaseThisHostRuns_IsNull()
+        => Assert.Null(EntryWith(Release("1.0.0", contracts: $"{ContractsVersion.ThisHost.Major + 1}.0.0"), Release("0.9.0")).DescribeApiRefusal());
 
     [Fact]
     public void DescribeApiRefusal_NoReleases_IsNull()
@@ -105,16 +148,14 @@ public class PluginCatalogExtensionsTests
     }
 
     [Theory]
-    [InlineData(PluginApi.CurrentVersion + 1)]
-    [InlineData(PluginApi.MinimumVersion - 1)]
-    public void HasReleaseForThisHost_EveryReleaseOutOfRange_IsFalse(int apiVersion)
-        => Assert.False(EntryWith(Release("1.0.0", apiVersion: apiVersion)).HasReleaseForThisHost());
+    [MemberData(nameof(ContractsThisHostDoesNotHave))]
+    public void HasReleaseForThisHost_EveryReleaseNeedsOtherContracts_IsFalse(string contracts)
+        => Assert.False(EntryWith(Release("1.0.0", contracts: contracts)).HasReleaseForThisHost());
 
     [Theory]
-    [InlineData(PluginApi.CurrentVersion + 1)]
-    [InlineData(PluginApi.MinimumVersion - 1)]
-    public void HasReleaseForThisPlatform_NeutralBuildOutOfRange_IsFalse(int apiVersion)
-        => Assert.False(EntryWith(Release("1.0.0", apiVersion: apiVersion)).HasReleaseForThisPlatform());
+    [MemberData(nameof(ContractsThisHostDoesNotHave))]
+    public void HasReleaseForThisPlatform_NeutralBuildNeedsOtherContracts_IsFalse(string contracts)
+        => Assert.False(EntryWith(Release("1.0.0", contracts: contracts)).HasReleaseForThisPlatform());
 
     [Fact]
     public void HasReleaseForThisHost_NoReleases_IsFalse()
@@ -192,15 +233,20 @@ public class PluginCatalogExtensionsTests
         Releases = [.. releases],
     };
 
+    // A const stand-in, since an optional parameter cannot default to a value read at run time.
+    private const string ThisHostsContracts = "this-host";
+
     private static PluginCatalogRelease Release(
         string version,
-        int? apiVersion = null,
+        string? contracts = ThisHostsContracts,
+        int apiVersion = 9,
         string sha256 = "abc123",
         string url = "https://example.test/plugin.zip",
         string? rid = null) => new()
     {
         Version = version,
-        ApiVersion = apiVersion ?? PluginApi.CurrentVersion,
+        ContractsVersion = contracts == ThisHostsContracts ? ContractsVersion.ThisHost.ToString() : contracts,
+        ApiVersion = apiVersion,
         Url = url,
         Sha256 = sha256,
         Rid = rid,

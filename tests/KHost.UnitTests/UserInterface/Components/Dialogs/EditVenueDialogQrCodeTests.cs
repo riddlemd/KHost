@@ -35,7 +35,6 @@ public class EditVenueDialogQrCodeTests : BunitContext
                 Name = name,
                 Version = "1.0.0",
                 EntryAssembly = $"{name}.dll",
-                ApiVersion = PluginApi.CurrentVersion,
                 QrCode = new PluginQrCodeDefinition { Label = label },
             },
         };

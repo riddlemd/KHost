@@ -23,6 +23,22 @@ public sealed record SyncFacts
 
 public static class CatalogMerge
 {
+    /// <summary>The release row for a build needing <paramref name="required"/>, carrying both the
+    /// contracts version and the legacy plugin API number hosts predating it read.</summary>
+    public static PluginCatalogRelease ReleaseFor(string version, ContractsVersion required) => new()
+    {
+        Version = version,
+        ContractsVersion = required.ToString(),
+        ApiVersion = LegacyApiVersionFor(required),
+    };
+
+    /// <summary>The plugin API number a host predating contracts versions reads: 8 for a build that
+    /// runs on contracts 0.61, else one past it, which such a host refuses as needing a newer KHost.</summary>
+    public static int LegacyApiVersionFor(ContractsVersion required)
+        => required.Major == ContractsVersion.Legacy.Major && required.Minor == ContractsVersion.Legacy.Minor
+            ? PluginRequirements.LegacyApiVersion
+            : PluginRequirements.LegacyApiVersion + 1;
+
     /// <summary>Folds one release into the catalog in place.</summary>
     /// <remarks>Re-running with the same release is a no-op, so pointing at a tag twice is safe.</remarks>
     public static void Apply(PluginCatalog catalog, SyncFacts facts)

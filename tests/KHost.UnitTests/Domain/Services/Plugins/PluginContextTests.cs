@@ -173,7 +173,6 @@ public class PluginContextTests
             Name = "Test",
             Version = "1.0.0",
             EntryAssembly = "Test.dll",
-            ApiVersion = PluginApi.CurrentVersion,
         };
         var plugin = new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };
         var broker = new MessageBroker(NullLogger<MessageBroker>.Instance);
@@ -366,7 +365,6 @@ public class PluginContextTests
         Name = "Test",
         Version = "1.0.0",
         EntryAssembly = "Test.dll",
-        ApiVersion = PluginApi.CurrentVersion,
     };
 
     private static PluginContext ContextFor(DiscoveredPlugin discovered, IFlashService flash, ILogger<PluginContext> logger)

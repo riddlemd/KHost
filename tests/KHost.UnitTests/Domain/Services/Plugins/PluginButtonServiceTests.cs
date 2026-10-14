@@ -27,7 +27,6 @@ public class PluginButtonServiceTests
                     Name = "X",
                     Version = "1.0.0",
                     EntryAssembly = "X.dll",
-                    ApiVersion = PluginApi.CurrentVersion,
                     Buttons = [.. buttons],
                 },
             },

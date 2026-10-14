@@ -9,7 +9,7 @@ public enum PluginStatus
     Enabled = 1,
     /// <summary>Loaded into the process and its extensions registered.</summary>
     Loaded = 2,
-    /// <summary>Built against a plugin API outside the range this host runs; never loaded.</summary>
+    /// <summary>Needs contracts this host does not have; never loaded.</summary>
     Incompatible = 3,
     /// <summary>Bad manifest, missing assembly, or a load/scan failure; see Error.</summary>
     Errored = 4,

@@ -24,11 +24,11 @@ public class PluginManifest
     /// <summary>Path to the plugin's entry point assembly, relative to this manifest's own folder.</summary>
     public required string EntryAssembly { get; set; }
 
-    /// <summary>The plugin API this plugin was built against: the <see cref="PluginApi.CurrentVersion"/>
-    /// of the contracts it compiled with. A host runs it only when this lies between its own
-    /// <see cref="PluginApi.MinimumVersion"/> and <see cref="PluginApi.CurrentVersion"/>, and refuses
-    /// it before load otherwise.</summary>
-    public required int ApiVersion { get; set; }
+    /// <summary>The legacy plugin API number, read only from a manifest built before contracts 1.0
+    /// and only when the plugin's <c>.deps.json</c> names no <c>KHost.Abstractions</c>. A new
+    /// plugin omits it: the contracts it needs are read from what it was compiled against.</summary>
+    public int? ApiVersion { get; set; }
+
     /// <summary>A Bootstrap Icons glyph, or <see cref="PluginIcon.ImageSpecifier"/> for its image.</summary>
     public string? Icon { get; set; }
 

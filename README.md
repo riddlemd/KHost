@@ -64,11 +64,11 @@ staged and applied on the next start, never into a running host.
 To install by hand (a plugin that is not in the catalog), unzip its release into its own folder
 under KHost's `plugins/`, enable it on the Plugins page and restart.
 
-Each plugin's manifest carries an `apiVersion`, the plugin API it was built against. A host runs,
-installs and offers it only when that falls between the host's `PluginApi.MinimumVersion` and
-`PluginApi.CurrentVersion` (the current numbers are in
-[`PluginApi.cs`](src/KHost.Abstractions/Models/Plugins/PluginApi.cs)); otherwise the Plugins page
-says which side needs updating.
+A plugin needs the contracts version it was compiled against: the `KHost.Abstractions` version its
+`.deps.json` records, read by the host, never declared. A host runs, installs and offers it only when
+the host's own contracts (`<ContractsVersion>` in [`Directory.Build.props`](Directory.Build.props))
+share its major and are no older; otherwise the Plugins page says which side needs updating. Plugins
+built before contracts 1.0 need 0.61, which every 1.x host runs.
 
 A plugin builds against two NuGet packages, **`KHost.Abstractions`** (the interfaces and models)
 and **`KHost.Common`** (helpers over them), both MIT. It references them with

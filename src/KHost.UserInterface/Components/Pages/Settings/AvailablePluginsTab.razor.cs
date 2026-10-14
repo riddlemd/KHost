@@ -200,7 +200,7 @@ public partial class AvailablePluginsTab
         Staged,
         StageFailed,
         PendingRemoval,
-        /// <summary>Nothing the catalog lists will run here: wrong plugin API, or no build for
+        /// <summary>Nothing the catalog lists will run here: needs other contracts, or no build for
         /// this platform. <see cref="IncompatibleReason"/> says which.</summary>
         Incompatible,
         /// <summary>A release targets this host, but is published without an https URL and a

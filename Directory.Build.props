@@ -4,17 +4,14 @@
     Package identity for the two projects a plugin builds against. Everything else in the solution
     inherits these harmlessly, because only KHost.Abstractions and KHost.Common set IsPackable.
 
-    The version here is the *contract* version, and it is not PluginApi.CurrentVersion. That one,
-    with PluginApi.MinimumVersion, is the runtime range the host checks a manifest against; this one moves
-    whenever the shape a plugin author compiles against changes at all, additions included. Keeping
-    them apart is the point: an author needs to know their source will still compile, which a
-    number that only ever counts breaks cannot tell them.
-
-    0.x on purpose. The contracts still move under people — ScreenQrCode changed shape twice in one
-    day — and a 1.0 would promise otherwise.
+    The version here is the *contract* version, and it is the host's runtime gate. A plugin needs the
+    KHost.Abstractions version recorded in its .deps.json; a host runs it only on the same major and
+    no older than that (Common/Plugins/ContractsVersion). So a major is how a break is signalled: a
+    removal, a changed signature, a member without a default body on an extension point, a changed
+    enum value. A minor is an addition; a patch a fix in KHost.Common with no change of shape.
   -->
   <PropertyGroup>
-    <ContractsVersion>0.61.0</ContractsVersion>
+    <ContractsVersion>1.0.0</ContractsVersion>
     <!--
       The assembly version is pinned and the package version is not, because they answer to
       different people. A plugin's compiled reference binds to this number, so moving it makes
@@ -22,13 +19,12 @@
       these were packed: KHost.Plugins.Spotify bound to 1.0.0.0, the host served 0.1.0.0, and its
       break-music provider silently vanished with one line in the log.
 
-      So it does not move at all, and has not since, while PluginApi.CurrentVersion has moved many
-      times. The plugin API range is the host's real compatibility gate, and
-      it is checked against a manifest before a single assembly is bound, so an incompatible plugin
-      is refused with a message a host can act on rather than failing to load for a reason nobody
-      can read. Moving this as well would only replace that message with the outage above.
-      ContractsVersion goes on the package and the file version, where it tells an author what they
-      are compiling against without breaking anything already built.
+      So it does not move at all, not even on a new major. The contracts version is the host's real
+      compatibility gate, and it is checked against a plugin's .deps.json before a single assembly is
+      bound, so an incompatible plugin is refused with a message a host can act on rather than failing
+      to load for a reason nobody can read. Moving this as well would only replace that message with
+      the outage above. ContractsVersion goes on the package, the file version and the assembly's
+      metadata, where the host reads its own.
     -->
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>$(ContractsVersion).0</FileVersion>

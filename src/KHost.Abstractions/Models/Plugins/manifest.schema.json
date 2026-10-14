@@ -3,7 +3,7 @@
   "title": "KHost Plugin Manifest",
   "description": "Metadata for a KHost plugin. Place as manifest.json beside the plugin's entry assembly.",
   "type": "object",
-  "required": ["id", "name", "version", "entryAssembly", "apiVersion"],
+  "required": ["id", "name", "version", "entryAssembly"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
@@ -27,7 +27,7 @@
     },
     "apiVersion": {
       "type": "integer",
-      "description": "KHost plugin API version this plugin was built against."
+      "description": "Legacy: the plugin API number of a plugin built before contracts 1.0. Omit it; KHost reads the contracts a plugin needs from its .deps.json."
     },
     "settings": {
       "type": "array",
