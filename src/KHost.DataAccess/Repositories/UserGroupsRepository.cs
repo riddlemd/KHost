@@ -12,7 +12,7 @@ internal class UserGroupsRepository : BaseSearchableRepository<KHostUserGroup>, 
     private static readonly IReadOnlyDictionary<string, Expression<Func<KHostUserGroup, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<KHostUserGroup, object>>>
         {
-            ["name"] = g => g.Name.ToLower(),
+            ["name"] = g => EF.Property<string>(g, EntityFolding.NameFolded),
         };
 
     public UserGroupsRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<KHostUserGroup>> logger)
@@ -56,7 +56,7 @@ internal class UserGroupsRepository : BaseSearchableRepository<KHostUserGroup>, 
     }
 
     protected override IReadOnlyDictionary<string, Expression<Func<KHostUserGroup, object>>> SortColumns => _sortColumns;
-    protected override Expression<Func<KHostUserGroup, object>> DefaultSortExpression => g => g.Name.ToLower();
+    protected override Expression<Func<KHostUserGroup, object>> DefaultSortExpression => g => EF.Property<string>(g, EntityFolding.NameFolded);
 
     protected override IQueryable<KHostUserGroup> ApplySearchFilters(IQueryable<KHostUserGroup> queryable, string query)
     {
