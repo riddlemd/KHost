@@ -336,6 +336,8 @@ internal class DefaultContext : DbContext
             entity.HasIndex(e => e.MediaId);
             entity.HasIndex(e => e.VenueId);
             entity.HasIndex(e => e.CreatedDate);
+            // ReadQueuedAsync runs on every console-panel redraw; without this it scans all performance history.
+            entity.HasIndex(e => e.QueuePosition).HasFilter("\"QueuePosition\" IS NOT NULL");
         });
 
         modelBuilder.Entity<Tip>(entity =>
