@@ -97,6 +97,19 @@
   </Target>
 
 
+  <!-- A generated Foo.razor.css outlives a deleted Foo.razor (it is gitignored) and fails the build
+       with BLAZOR102. The Remove matters as much as the Delete: the file is already an evaluation-time item. -->
+  <Target Name="DeleteOrphanedScopedCss" BeforeTargets="ResolveScopedCssInputs">
+    <ItemGroup>
+      <_ScopedCssOnDisk Include="Components\**\*.razor.css" />
+      <_OrphanedScopedCss Include="@(_ScopedCssOnDisk)"
+                          Condition="!Exists('%(_ScopedCssOnDisk.RootDir)%(_ScopedCssOnDisk.Directory)%(_ScopedCssOnDisk.Filename)')" />
+      <None Remove="@(_OrphanedScopedCss)" />
+      <Content Remove="@(_OrphanedScopedCss)" />
+    </ItemGroup>
+    <Delete Files="@(_OrphanedScopedCss)" />
+  </Target>
+
   <!-- Copy wwwroot to output directory to mimic standalone release -->
   <Target Name="CopyWwwrootToOutput" AfterTargets="Build">
     <ItemGroup>
