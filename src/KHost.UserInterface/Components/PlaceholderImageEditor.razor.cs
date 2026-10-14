@@ -42,7 +42,7 @@ public partial class PlaceholderImageEditor
 
     // Only Original needs the picture's own width; until it is known the picture shows at its own pixels.
     private string? OriginalWidthStyle => ShownScaling == ImageScaling.Original && _naturalWidth > 0
-        ? string.Create(CultureInfo.InvariantCulture, $"width: {_naturalWidth * 100.0 / PreviewScreenWidth:0.##}%")
+        ? string.Create(CultureInfo.InvariantCulture, $"--kh-original-width: {_naturalWidth * 100.0 / PreviewScreenWidth:0.##}%")
         : null;
 
     // Read whenever the id changes from outside too (a caller resetting it), not only on a pick here.

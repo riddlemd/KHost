@@ -33,7 +33,7 @@
         inset: auto;
         top: 50%;
         left: 50%;
-        width: auto;
+        width: var(--kh-original-width, auto);
         height: auto;
         max-width: none;
         transform: translate(-50%, -50%);

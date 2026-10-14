@@ -237,6 +237,7 @@
 
     &__progress-fill {
         height: 100%;
+        width: var(--kh-fill);
         background: linear-gradient(90deg, var(--kh-primary), var(--kh-primary-bright));
         border-radius: 2px;
         position: relative;

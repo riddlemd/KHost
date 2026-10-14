@@ -1,0 +1,4 @@
+// Width comes from --kh-fill; the caller's fill class (via ::deep) owns the rest of the look.
+.kh-progress-bar__fill {
+    width: var(--kh-fill);
+}

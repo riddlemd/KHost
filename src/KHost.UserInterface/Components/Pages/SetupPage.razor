@@ -9,7 +9,7 @@
 <div class="kh-setup-wizard">
     <div class="kh-setup-wizard__progress">
         <div class="kh-setup-wizard__progress-bar">
-            <div class="kh-setup-wizard__progress-fill" style="@($"width: {CurrentStepProgress}%")"></div>
+            <div class="kh-setup-wizard__progress-fill" style="--kh-fill: @(CurrentStepProgress)%"></div>
         </div>
         <div class="kh-setup-wizard__progress-text">
             Step @(_currentStep + 1) of @_steps.Count

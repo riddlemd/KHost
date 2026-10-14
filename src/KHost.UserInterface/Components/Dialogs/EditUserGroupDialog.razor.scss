@@ -1,4 +1,8 @@
 .kh-user-group-edit-dialog {
+    &__table--locked {
+        opacity: 0.6;
+    }
+
     &__checkbox-col {
         width: 40px;
     }
