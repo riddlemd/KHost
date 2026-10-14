@@ -7,10 +7,11 @@ welcome — bug reports, fixes, features, docs, and tests.
 
 1. **Open an issue first** for anything non-trivial (new features, refactors,
    dependency changes) so the approach can be agreed before you invest time.
-2. Fork, branch from `master`, and keep changes focused.
-3. Build and test before opening a pull request:
+2. Fork, branch from `main`, and keep changes focused.
+3. Build and test before opening a pull request (the same commands CI runs):
    ```bash
-   dotnet build KHost.slnx
+   (cd src/KHost.UserInterface && npm install)
+   dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"
    dotnet test tests/KHost.UnitTests
    ```
 4. Match the existing code style and conventions (see `AGENTS.md` for the

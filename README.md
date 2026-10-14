@@ -66,8 +66,9 @@ under KHost's `plugins/`, enable it on the Plugins page and restart.
 
 Each plugin's manifest carries an `apiVersion`, the plugin API it was built against. A host runs,
 installs and offers it only when that falls between the host's `PluginApi.MinimumVersion` and
-`PluginApi.CurrentVersion` (currently 1 and 2); otherwise the Plugins page says which side needs
-updating.
+`PluginApi.CurrentVersion` (the current numbers are in
+[`PluginApi.cs`](src/KHost.Abstractions/Models/Plugins/PluginApi.cs)); otherwise the Plugins page
+says which side needs updating.
 
 A plugin builds against two NuGet packages, **`KHost.Abstractions`** (the interfaces and models)
 and **`KHost.Common`** (helpers over them), both MIT. It references them with
@@ -87,8 +88,9 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo>
 
 ## Requirements
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Node.js](https://nodejs.org/): the build needs `node_modules` (`npm install` in
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0): the exact version is pinned in
+  [`global.json`](global.json)
+- [Node.js](https://nodejs.org/) 22 or later: the build needs `node_modules` (`npm install` in
   `src/KHost.UserInterface`)
 - [FFmpeg](https://ffmpeg.org/download.html) (`ffmpeg` and `ffprobe`): on `PATH`, in a folder named
   in App Settings, or installed by KHost from a pinned third-party build on Windows x64 and macOS
@@ -144,6 +146,9 @@ dotnet test tests/KHost.IntegrationTests   # drives real ffmpeg
 SCSS compiles inside `dotnet build`; there is no separate sass step. The unit tests are hermetic
 and never skip. The integration tests need ffmpeg and fail without it; set
 `KHOST_SKIP_ENVIRONMENT_TESTS=1` to accept skipping them.
+
+[CI](.github/workflows/ci.yml) builds and runs the unit tests on Ubuntu, Windows and macOS for
+every pull request.
 
 ## Further reading
 
