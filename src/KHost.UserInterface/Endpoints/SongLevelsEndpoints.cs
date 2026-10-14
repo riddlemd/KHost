@@ -26,6 +26,5 @@ public static class SongLevelsEndpoints
             context.Response.Headers.CacheControl = "no-store";
 
             return Results.Bytes(track, "application/octet-stream");
-        })
-        .AllowAnonymous();
+        });
 }

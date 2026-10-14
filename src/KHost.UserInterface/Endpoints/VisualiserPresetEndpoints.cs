@@ -24,6 +24,5 @@ public static class VisualiserPresetEndpoints
             context.Response.Headers.CacheControl = "no-cache";
 
             return Results.Text(json, "application/json");
-        })
-        .AllowAnonymous();
+        });
 }

@@ -1,4 +1,3 @@
-using System.Reflection;
 using KHost.Abstractions.Models;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
@@ -18,8 +17,6 @@ public partial class EditUserGroupDialog
 
     private EditUserGroupModel _model = new();
     private EditContext _editContext = default!;
-    private ElementReference _permissionsTableElement;
-    private Dictionary<string, object?> _permissionsTableAttrs = [];
 
     // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
     // runs exactly once with Group already bound.
@@ -32,59 +29,11 @@ public partial class EditUserGroupDialog
                 Id = Group.Id,
                 Name = Group.Name,
                 Description = Group.Description,
-                IsAdmin = Group.IsAdmin,
-                ExcludeFromSingerQueue = Group.ExcludeFromSingerQueue,
-                Permissions = [.. Group.Permissions]
+                ExcludeFromSingerQueue = Group.ExcludeFromSingerQueue
             };
 
         _editContext = new EditContext(_model);
     }
-
-    protected override void OnParametersSet()
-    {
-        _permissionsTableAttrs = _model.IsAdmin
-            ? new Dictionary<string, object?> { { "style", "opacity: 0.6;" } }
-            : [];
-    }
-
-    private void TogglePermission(KHostPermission permission, bool enabled)
-    {
-        if (_model.IsAdmin) return;
-
-        if (enabled)
-        {
-            if (!_model.Permissions.Contains(permission))
-                _model.Permissions.Add(permission);
-        }
-        else
-        {
-            _model.Permissions.Remove(permission);
-        }
-    }
-
-    private static IEnumerable<IGrouping<string, KHostPermission>> GetGroupedPermissions()
-        => Enum.GetValues<KHostPermission>()
-            .GroupBy(p => typeof(KHostPermission)
-                .GetField(p.ToString())!
-                .GetCustomAttribute<PermissionGroupAttribute>()?.GroupName ?? "Other");
-
-    private static string GetPermissionDescription(KHostPermission permission) => permission switch
-    {
-        KHostPermission.EditUser => "Edit user profiles and settings",
-        KHostPermission.DeleteUser => "Delete user accounts",
-        KHostPermission.EditGroup => "Edit user group properties",
-        KHostPermission.DeleteGroup => "Delete user groups",
-        KHostPermission.EditVenue => "Edit venue settings",
-        KHostPermission.DeleteVenue => "Delete venues",
-        KHostPermission.ImportLibrary => "Import songs into the library",
-        KHostPermission.DeleteMedia => "Delete songs from the library",
-        KHostPermission.AddToQueue => "Add songs to the performance queue",
-        KHostPermission.RemoveFromQueue => "Remove songs from the queue",
-        KHostPermission.ReorderQueue => "Reorder songs in the queue",
-        KHostPermission.SkipQueue => "Skip the current song",
-        KHostPermission.ViewPerformanceHistory => "View user performance history",
-        _ => ""
-    };
 
     public async Task CloseAsync()
     {
@@ -99,9 +48,7 @@ public partial class EditUserGroupDialog
         var group = Group ?? new KHostUserGroup { Id = _model.Id, Name = _model.Name };
         group.Name = _model.Name;
         group.Description = _model.Description;
-        group.IsAdmin = _model.IsAdmin;
         group.ExcludeFromSingerQueue = _model.ExcludeFromSingerQueue;
-        group.Permissions = _model.IsAdmin ? [] : [.. _model.Permissions];
 
         // DialogHost closes after awaiting this itself; closing again here would also fire
         // OnClose's onCancel, marking a successful save as a cancel.

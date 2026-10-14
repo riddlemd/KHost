@@ -19,7 +19,6 @@ public partial class MediaSearchPanel : IDisposable
     [Inject] private ISingerQueueService SingerQueueService { get; set; } = default!;
     [Inject] private IPerformanceService PerformanceService { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
-    [Inject] private IPermissionService Permissions { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IControlState ControlState { get; set; } = default!;
     [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
@@ -42,7 +41,6 @@ public partial class MediaSearchPanel : IDisposable
     private List<MediaSearchEntity>? _results;
     private string? _errorMessage;
     private IEnumerable<MediaProviderAction> _globalActions = [];
-    private bool _canAddToQueue;
     private Dictionary<Guid, List<string>> _queuedBySinger = [];
 
     /// <summary>What is being searched, for the wait message. Null while nothing is running.</summary>
@@ -71,8 +69,6 @@ public partial class MediaSearchPanel : IDisposable
         // Someone else queueing a song changes this panel's badges without touching the singer
         // list, so the performance service has to be listened to as well.
         _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
-
-        _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
 
         await SeedSearchModeAsync();
 
@@ -287,7 +283,7 @@ public partial class MediaSearchPanel : IDisposable
     /// <summary>The row's first action button, under the same conditions that leave it enabled.</summary>
     private Task EnqueueFromKeyboardAsync(MediaSearchEntity entity)
     {
-        if (!_canAddToQueue || SingerQueueService.SelectedUserId is null)
+        if (SingerQueueService.SelectedUserId is null)
             return Task.CompletedTask;
 
         return CombineWithGlobalActions(entity.SupportedActions).FirstOrDefault() is { } action

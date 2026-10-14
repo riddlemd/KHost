@@ -1,4 +1,3 @@
-using KHost.UserInterface.Auth;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Http;
 
@@ -27,19 +26,6 @@ internal static class PipelineExtensions
             app.UseExceptionHandler("/Error", createScopeForErrors: true);
         }
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-        app.UseAuthentication();
-
-        // Login requirement off: every session is the console admin, and the gates stay wired and all pass
-        // rather than a second code path. Read per request, so the toggle applies on the next page load.
-        app.Use((context, next) =>
-        {
-            if (!(app.Configuration.GetValue<bool?>("Auth:RequireLogin") ?? false))
-                context.User = KHostClaimsFactory.CreateConsolePrincipal();
-
-            return next(context);
-        });
-
-        app.UseAuthorization();
         app.UseAntiforgery();
 
         app.UseStartupRedirect();

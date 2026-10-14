@@ -50,15 +50,10 @@ public class SettingsButtonDisplayTests : BunitContext
         var venues = Substitute.For<IVenuesService>();
         venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.IsAdminAsync().Returns(true);
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         var appSettings = Substitute.For<IAppSettingsService>();
         appSettings.Current.Returns(new AppSettings());
 
         Services.AddSingleton(venues);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IBreakMusicService>());
         Services.AddSingleton(Substitute.For<IDialogService>());

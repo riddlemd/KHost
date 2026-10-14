@@ -10,7 +10,6 @@ using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -68,17 +67,12 @@ public class UserManagerPageEditTests : BunitContext
         Services.AddSingleton(userGroups);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IMediaService>());
-        Services.AddSingleton(Substitute.For<IPasswordHasher>());
         Services.AddSingleton(Substitute.For<ITipsService>());
         Services.AddSingleton(_dialogs);
         Services.AddSingleton(Substitute.For<IVenuesService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(broker);
-
-        var auth = AddAuthorization();
-        auth.SetAuthorized("tester");
-        auth.SetPolicies("EditUser", "DeleteUser");
     }
 
     [Fact]
@@ -88,7 +82,7 @@ public class UserManagerPageEditTests : BunitContext
         await _groups.AddUserToGroupAsync(_ada.Id, _hosts.Id);
         await _users.AddForeignKeyAsync(_ada.Id, "Example", "account-1");
 
-        var page = Render<CascadingAuthenticationState>(ps => ps.AddChildContent<UserManagerPage>());
+        var page = Render<UserManagerPage>();
 
         // Written behind the page's back, as another console's group editor would: the row on
         // screen no longer knows, so only a fresh read keeps it.
@@ -113,7 +107,7 @@ public class UserManagerPageEditTests : BunitContext
         Assert.Equal(["account-1", "guest-7"], stored.ForeignKeys.Select(k => k.Key).Order().ToArray());
     }
 
-    private async Task OpenAdaAsync(IRenderedComponent<CascadingAuthenticationState> page)
+    private async Task OpenAdaAsync(IRenderedComponent<UserManagerPage> page)
     {
         page.WaitForAssertion(() => Assert.Contains(page.FindAll("tr"), row => row.TextContent.Contains("Ada")));
         var row = page.FindAll("tr").First(r => r.TextContent.Contains("Ada"));

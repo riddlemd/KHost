@@ -69,15 +69,11 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
                 ((QueueRotationContext)args[0]).Queue.Select(u => u.Id).ToList()));
         rotationFactory.Resolve(Arg.Any<QueueRotationConfig>()).Returns(strategy);
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         var queue = new SingerQueueService(
             NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.Abstractions.Repositories.IUsersRepository>(), venues, analytics, rotationFactory, _broker);
 
         Services.AddSingleton<ISingerQueueService>(queue);
         Services.AddSingleton<IMessageBroker>(_broker);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
         Services.AddSingleton(users);

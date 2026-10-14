@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using KHost.Abstractions.Models;
 
 namespace KHost.UserInterface.Models;
 
@@ -14,9 +13,5 @@ public class EditUserGroupModel
     [MaxLength(500, ErrorMessage = "Description cannot exceed 500 characters.")]
     public string Description { get; set; } = "";
 
-    public bool IsAdmin { get; set; }
-
     public bool ExcludeFromSingerQueue { get; set; }
-
-    public List<KHostPermission> Permissions { get; set; } = [];
 }

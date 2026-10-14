@@ -1,5 +1,4 @@
 using Bunit;
-using Microsoft.AspNetCore.Components.Authorization;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
@@ -32,19 +31,13 @@ public class MediaManagerPageDateTests : BunitContext
         Services.AddSingleton(_dialogs);
         Services.AddSingleton<IMessageBroker>(_broker);
 
-        // AuthorizeView and the eager dialogs both need their services present or the render throws.
+        // The eager dialogs need their services present or the render throws.
         Services.AddSingleton(Substitute.For<IMediaFileParsingService>());
         Services.AddSingleton(Substitute.For<IMediaImportService>());
         Services.AddSingleton(Substitute.For<IMediaPoolService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<KHost.Abstractions.Repositories.IMediaRepository>());
         JSInterop.Mode = JSRuntimeMode.Loose;
-
-        // Authorized against every policy rather than listing them: this test is about a date,
-        // and the page's permissions would otherwise fail it for reasons it does not test.
-        var auth = AddAuthorization();
-        auth.SetAuthorized("tester");
-        auth.SetPolicies("DeleteMedia", "EditMedia", "ManageMedia", "ImportMedia");
     }
 
     [Fact]
@@ -61,9 +54,7 @@ public class MediaManagerPageDateTests : BunitContext
 
         Arrange(straddling);
 
-        // AuthorizeView needs the cascading state, not just the provider behind it.
-        var cut = Render<CascadingAuthenticationState>(ps => ps
-            .AddChildContent<MediaManagerPage>());
+        var cut = Render<MediaManagerPage>();
         var shown = cut.FindAll("tbody tr td").Select(c => c.TextContent.Trim()).ToList();
         var local = straddling.ToLocalTime().ToString("yyyy-MM-dd");
         var utc = straddling.ToString("yyyy-MM-dd");

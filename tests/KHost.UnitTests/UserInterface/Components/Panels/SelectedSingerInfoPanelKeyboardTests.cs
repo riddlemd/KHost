@@ -20,7 +20,6 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     private readonly KHostUser _singer = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly Performance _first;
     private readonly Performance _second;
@@ -33,7 +32,6 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
         _queue.SelectedUser.Returns(_singer);
         _queue.SelectedUserId.Returns(_singer.Id);
         _performances.ReadQueuedAsync().Returns(_ => [_first, _second]);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
 
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -43,7 +41,6 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
@@ -81,16 +78,6 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
         body.KeyDown(new KeyboardEventArgs { Key = "ArrowUp", ShiftKey = true });
 
         _performances.Received(1).MoveUpInQueueAsync(_singer.Id, _second.Id);
-    }
-
-    [Fact]
-    public void ShiftArrow_DoesNotReorder_WithoutTheReorderPermission()
-    {
-        _permissions.HasAsync(KHostPermission.ReorderQueue).Returns(false);
-
-        RenderAndSelectFirstSong().KeyDown(new KeyboardEventArgs { Key = "ArrowDown", ShiftKey = true });
-
-        _performances.DidNotReceive().MoveDownInQueueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
     [Fact]

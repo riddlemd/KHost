@@ -1,9 +1,9 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>A set of permissions and members; a user's permissions are the union of their groups'.</summary>
+/// <summary>A named set of members, e.g. the singers a VIP rotation favours.</summary>
 public class KHostUserGroup : RepositoryModel
 {
-    /// <summary>Id of the built-in group holding every <see cref="KHostPermission"/>.</summary>
+    /// <summary>Id of the built-in Admin group, for staff left out of the singer queue.</summary>
     public static readonly Guid AdminGroupId   = new("00000000-0000-0000-0000-000000000001");
 
     /// <summary>Id of the built-in group every new user starts in.</summary>
@@ -19,14 +19,8 @@ public class KHostUserGroup : RepositoryModel
     /// <summary>Free text describing the group's purpose.</summary>
     public string Description { get; set; } = "";
 
-    /// <summary>True grants every <see cref="KHostPermission"/>, regardless of <see cref="Permissions"/>.</summary>
-    public bool IsAdmin { get; set; }
-
-    /// <summary>Members are login accounts, not singers; left out of the queue's suggestions.</summary>
+    /// <summary>Members are not singers; left out of the queue's suggestions.</summary>
     public bool ExcludeFromSingerQueue { get; set; }
-
-    /// <summary>What members of this group may do, unless <see cref="IsAdmin"/> is true.</summary>
-    public List<KHostPermission> Permissions { get; set; } = [];
 
     /// <summary>The users belonging to this group.</summary>
     public ICollection<KHostUser> Users { get; set; } = [];

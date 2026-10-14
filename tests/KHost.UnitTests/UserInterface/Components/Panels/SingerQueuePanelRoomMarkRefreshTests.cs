@@ -51,14 +51,10 @@ public class SingerQueuePanelRoomMarkRefreshTests : BunitContext
         _queue = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.Abstractions.Repositories.IUsersRepository>(),
             venues, Substitute.For<IAnalyticsService>(), rotation, _broker);
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         Services.AddSingleton<ISingerQueueService>(_queue);
         Services.AddSingleton<IMessageBroker>(_broker);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IMediaService>());

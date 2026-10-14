@@ -5,7 +5,6 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -38,10 +37,6 @@ public class MediaManagerPageColumnTests : BunitContext
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<KHost.Abstractions.Repositories.IMediaRepository>());
         JSInterop.Mode = JSRuntimeMode.Loose;
-
-        var auth = AddAuthorization();
-        auth.SetAuthorized("tester");
-        auth.SetPolicies("DeleteMedia", "EditMedia", "ManageMedia", "ImportMedia");
     }
 
     [Fact]
@@ -49,7 +44,7 @@ public class MediaManagerPageColumnTests : BunitContext
     {
         Arrange();
 
-        var cut = Render<CascadingAuthenticationState>(ps => ps.AddChildContent<MediaManagerPage>());
+        var cut = Render<MediaManagerPage>();
         var fill = cut.FindAll("tbody tr td.kh-table__cell--fill");
 
         // Two, matching _tables.scss's 50/50 split; one fill cell leaves it dormant, the other rigid.
@@ -62,7 +57,7 @@ public class MediaManagerPageColumnTests : BunitContext
     {
         Arrange();
 
-        var cut = Render<CascadingAuthenticationState>(ps => ps.AddChildContent<MediaManagerPage>());
+        var cut = Render<MediaManagerPage>();
         var artist = cut.FindAll("tbody tr td.kh-table__cell--fill")[1];
 
         Assert.Equal("The Smashing Pumpkins", artist.GetAttribute("title"));

@@ -92,31 +92,28 @@
 
                     RenderFragment<MediaSearchEntity> Actions = entity =>
                         @<text>
-                            @if (_canAddToQueue)
+                            @foreach (var action in CombineWithGlobalActions(entity.SupportedActions))
                             {
-                                @foreach (var action in CombineWithGlobalActions(entity.SupportedActions))
-                                {
-                                    <SplitButton
-                                            disabled="@(SingerQueueService.SelectedUserId is null)"
-                                            @onclick="() => PerformActionAsync(action, entity)"
-                                            title="@action.Description">
-                                        <Text>
-                                            <Icon Name="@action.Icon" />
-                                            <span class="kh-media-search-panel__action-label">@action.DisplayName</span>
-                                        </Text>
-                                        <Buttons>
-                                            @foreach (var subAction in action.SubActions)
-                                            {
-                                                <button class="kh-button kh-button--primary"
-                                                        disabled="@(SingerQueueService.SelectedUserId is null)"
-                                                        @onclick="() => PerformActionAsync(subAction, entity)"
-                                                        title="@subAction.Description">
-                                                    <Icon Name="@subAction.Icon" /> @subAction.DisplayName
-                                                </button>
-                                            }
-                                        </Buttons>
-                                    </SplitButton>
-                                }
+                                <SplitButton
+                                        disabled="@(SingerQueueService.SelectedUserId is null)"
+                                        @onclick="() => PerformActionAsync(action, entity)"
+                                        title="@action.Description">
+                                    <Text>
+                                        <Icon Name="@action.Icon" />
+                                        <span class="kh-media-search-panel__action-label">@action.DisplayName</span>
+                                    </Text>
+                                    <Buttons>
+                                        @foreach (var subAction in action.SubActions)
+                                        {
+                                            <button class="kh-button kh-button--primary"
+                                                    disabled="@(SingerQueueService.SelectedUserId is null)"
+                                                    @onclick="() => PerformActionAsync(subAction, entity)"
+                                                    title="@subAction.Description">
+                                                <Icon Name="@subAction.Icon" /> @subAction.DisplayName
+                                            </button>
+                                        }
+                                    </Buttons>
+                                </SplitButton>
                             }
                         </text>;
 
