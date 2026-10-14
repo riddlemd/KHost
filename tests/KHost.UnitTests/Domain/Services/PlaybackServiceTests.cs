@@ -5515,6 +5515,86 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(adSession.PlaylistUrl, LastBroadcast<LoadMediaCommand>()?.StreamUrl);
     }
 
+    private List<string> ClosedSessions() => [.. _mediaStreams.ReceivedCalls()
+        .Where(c => c.GetMethodInfo().Name == nameof(IMediaStreamService.CloseAsync))
+        .Select(c => (string)c.GetArguments()[0]!)];
+
+    /// <summary>Starts a key change whose rebuild is held mid-build, then stops the song under it.</summary>
+    private async Task<MediaStreamSession> StopWhileAReopenIsBuildingAsync()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        var (building, release) = HoldTheStreamOpenedAtPitch(2);
+
+        await _service.SetPitchAsync(2);
+        await building.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var stopping = _service.StopAsync();
+        release.SetResult();
+        await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+
+        MediaStreamSession? rebuilt = null;
+        await WaitForAsync(() =>
+        {
+            lock (_sessions) rebuilt = _sessions.FirstOrDefault(s => s.Pitch == 2);
+            return rebuilt is not null && ClosedSessions().Contains(rebuilt.Id);
+        });
+
+        return Assert.IsType<MediaStreamSession>(rebuilt);
+    }
+
+    [Fact]
+    public async Task AReopenStillBuilding_WhenTheSongStops_ClosesItsEncodeAndLeavesTheDisplayAlone()
+    {
+        var loadsBefore = 0;
+        _screenServer.When(s => s.BroadcastCommandAsync(Arg.Any<StopCommand>())).Do(_ => loadsBefore = LoadsSent());
+
+        var rebuilt = await StopWhileAReopenIsBuildingAsync();
+        await Task.Delay(50);
+
+        Assert.Equal(loadsBefore, LoadsSent());
+        Assert.Single(ClosedSessions(), id => id == rebuilt.Id);
+    }
+
+    [Fact]
+    public async Task AStopDuringAReopen_ClosesEveryEncodeOnce()
+    {
+        await StopWhileAReopenIsBuildingAsync();
+        await Task.Delay(50);
+
+        var closed = ClosedSessions();
+        Assert.Equal(closed.Distinct().Count(), closed.Count);
+        Assert.Contains("stream-1", closed);
+    }
+
+    [Fact]
+    public async Task APlayCancellingAFadingStop_WaitsForAReopenInsteadOfOpeningASecondStream()
+    {
+        using var service = MakeService(TimeSpan.FromSeconds(5));
+        var (performance, media) = CreatePerformance();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+        await service.SeekAsync(TimeSpan.FromSeconds(45));
+        await service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        var (building, release) = HoldTheStreamOpenedAtPitch(2);
+
+        // Behind the rebuilt stream, so this reopens at 10s and moves the playhead there first.
+        var seeking = service.SeekAsync(TimeSpan.FromSeconds(10));
+        await building.WaitAsync(TimeSpan.FromSeconds(5));
+        var stopping = service.StopAsync();
+        var playing = service.PlayAsync();
+        release.SetResult();
+        await Task.WhenAll(seeking, playing).WaitAsync(TimeSpan.FromSeconds(5));
+        _clock.Advance(TimeSpan.FromSeconds(5));
+        await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+
+        lock (_sessions)
+            Assert.Single(_sessions, s => s.StartOffset == TimeSpan.FromSeconds(10));
+        Assert.Equal(PlaybackState.Playing, service.State);
+    }
+
     [Fact]
     public async Task EveryPathThatRebuildsOrParks_StillLetsTheNextSongAndAnAdLoad()
     {
