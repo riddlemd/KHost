@@ -37,6 +37,70 @@ function createLyricsOverlay(canvas, clock) {
         return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
     }
 
+    // The venue's colours as drawn, made once per change rather than once per syllable; a page's
+    // own colours are kept against coloursVersion, since a page falls back to these.
+    let outlineInk = rgba(colours.outline, 0.85);
+    let unsungFaint = rgba(colours.unsung, 0.12);
+    let coloursVersion = 0;
+
+    // Fonts and widths per page, measured once per scale: measureText is the dearest call a frame
+    // would make, and the lead-in dots would make it for every syllable before their target.
+    const layouts = new WeakMap();
+
+    function pageLayout(page) {
+        let layout = layouts.get(page);
+        if (!layout || layout.scale !== scale) {
+            const lines = page.lines || [];
+            const boxes = lineBoxes(lines);
+            layout = { scale, boxes, lines: lines.map((line, i) => lineLayout(line, boxes[i])), coloursVersion: -1 };
+            layouts.set(page, layout);
+        }
+        if (layout.coloursVersion !== coloursVersion) {
+            layout.sung = css(page.active, colours.sung);
+            layout.unsung = css(page.inactive, colours.unsung);
+            layout.coloursVersion = coloursVersion;
+        }
+        return layout;
+    }
+
+    /// One line's font, each syllable's width at it, and the ink box of the syllable its lead-in
+    /// dots sit over.
+    function lineLayout(line, box) {
+        const syllables = line.syllables || [];
+        const h = box.height * scale;
+        const boxWidth = box.width * scale;
+
+        // Height alone decides the size a renderer draws this at, because the box was authored
+        // against the font that renderer shapes with. This draws in whatever sans-serif the web
+        // view has, which is wider, so a line that just fits there can run off the screen here —
+        // and whether it shows depends on the window's shape, which makes it look intermittent.
+        // The box is the width the format promised the line would keep, so hold it to that.
+        let fontSize = h * 0.82;
+        let font = `600 ${fontSize.toFixed(2)}px sans-serif`;
+        ctx2d.font = font;
+
+        let widths = syllables.map((syl) => (syl.text ? ctx2d.measureText(syl.text).width : 0));
+        let measured = 0;
+        for (let i = 0; i < syllables.length; i++) if (syllables[i].text) measured += widths[i];
+
+        if (measured > boxWidth && boxWidth > 0) {
+            fontSize *= boxWidth / measured;
+            font = `600 ${fontSize.toFixed(2)}px sans-serif`;
+            ctx2d.font = font;
+            widths = syllables.map((syl) => (syl.text ? ctx2d.measureText(syl.text).width : 0));
+        }
+
+        let ink = null;
+        const index = (line.leadIn && line.leadIn.arriveAtSyllable) || 0;
+        const target = syllables[index];
+        if (index > 0 && target && target.text) {
+            const lead = target.text.startsWith(' ') ? ctx2d.measureText(' ').width : 0;
+            ink = { index, lead, width: ctx2d.measureText(target.text.replace(/^\s+/, '')).width };
+        }
+
+        return { fontSize, font, widths, ink };
+    }
+
     function visiblePages(t) {
         const out = [];
         for (const page of lyrics.pages || []) {
@@ -132,7 +196,7 @@ function createLyricsOverlay(canvas, clock) {
         ctx2d.textBaseline = 'alphabetic';
         ctx2d.lineWidth = Math.max(2, fontSize * 0.06);
         ctx2d.lineJoin = 'round';
-        ctx2d.strokeStyle = rgba(colours.outline, 0.85);
+        ctx2d.strokeStyle = outlineInk;
         ctx2d.strokeText(String(n), x + w / 2, y + h * 1.25);
         ctx2d.fillStyle = colours.unsung;
         ctx2d.fillText(String(n), x + w / 2, y + h * 1.25);
@@ -142,24 +206,24 @@ function createLyricsOverlay(canvas, clock) {
     /// Where a syllable part way along the line sits, ink only — its own text with a leading space
     /// trimmed off, in canvas pixels, laid out exactly as drawLine lays it. Null when there is no
     /// text to sit over.
-    function syllableInkBox(box, line, index) {
+    function syllableInkBox(box, line, layout, index) {
         const syllables = line.syllables || [];
-        const target = syllables[index];
-        if (!target || !target.text) return null;
+        const ink = layout.ink;
+        if (!ink || ink.index !== index) return null;
 
+        // Summed from the line's left edge in the order drawLine adds them, so the dots land on
+        // the same pixel the wipe starts from.
         let penX = offsetX + box.x * scale;
-        for (let i = 0; i < index; i++) if (syllables[i].text) penX += ctx2d.measureText(syllables[i].text).width;
+        for (let i = 0; i < index; i++) if (syllables[i].text) penX += layout.widths[i];
 
-        const lead = target.text.startsWith(' ') ? ctx2d.measureText(' ').width : 0;
-        const ink = target.text.replace(/^\s+/, '');
-        return { left: penX + lead, width: ctx2d.measureText(ink).width };
+        return { left: penX + ink.lead, width: ink.width };
     }
 
     /// Three dots sitting just above a syllable part way along the line, counting down to it going
     /// out one per third — first in reading order, so left to right, mirrored right to left — the
     /// last going as the syllable lights. The host's painter draws the same count by the same rule.
-    function drawLeadInDots(page, box, line, index, target, t, baseline, fontSize) {
-        const ink = syllableInkBox(box, line, index);
+    function drawLeadInDots(pageLayout, box, line, layout, index, target, t, baseline, fontSize) {
+        const ink = syllableInkBox(box, line, layout, index);
         if (!ink) return;
 
         const r = Math.max(3, fontSize * 0.09);
@@ -174,10 +238,10 @@ function createLyricsOverlay(canvas, clock) {
             const x = cx + (physical - 1) * gap;
             ctx2d.beginPath();
             ctx2d.arc(x, y, r, 0, Math.PI * 2);
-            ctx2d.fillStyle = order >= goneOut ? css(page.active, colours.sung) : rgba(colours.unsung, 0.12);
+            ctx2d.fillStyle = order >= goneOut ? pageLayout.sung : unsungFaint;
             ctx2d.fill();
             ctx2d.lineWidth = Math.max(1.5, r * 0.45);
-            ctx2d.strokeStyle = rgba(colours.outline, 0.85);
+            ctx2d.strokeStyle = outlineInk;
             ctx2d.stroke();
         }
     }
@@ -186,7 +250,7 @@ function createLyricsOverlay(canvas, clock) {
     /// way along, the run would cross words already sung in the same colour, so a count of dots sits
     /// over the target syllable instead — see drawLeadInDots. The host's painter draws either by the
     /// same rule.
-    function drawLeadIn(page, line, t, baseline, fontSize) {
+    function drawLeadIn(pageLayout, line, layout, t, baseline, fontSize) {
         const leadIn = line.leadIn;
         const box = line.position;
         const index = (leadIn && leadIn.arriveAtSyllable) || 0;
@@ -194,7 +258,7 @@ function createLyricsOverlay(canvas, clock) {
         if (!leadIn || !box || !target || index < 0 || t < leadIn.startSeconds || t >= target.startSeconds) return;
 
         if (index > 0) {
-            drawLeadInDots(page, box, line, index, target, t, baseline, fontSize);
+            drawLeadInDots(pageLayout, box, line, layout, index, target, t, baseline, fontSize);
             return;
         }
 
@@ -208,10 +272,10 @@ function createLyricsOverlay(canvas, clock) {
         const x = offsetX + head * scale - w / 2;
         const y = baseline - fontSize * 0.35 - h / 2;
 
-        ctx2d.fillStyle = css(page.active, colours.sung);
+        ctx2d.fillStyle = pageLayout.sung;
         ctx2d.fillRect(x, y, w, h);
         ctx2d.lineWidth = 3 * scale;
-        ctx2d.strokeStyle = rgba(colours.outline, 0.85);
+        ctx2d.strokeStyle = outlineInk;
         ctx2d.strokeRect(x, y, w, h);
     }
 
@@ -226,47 +290,34 @@ function createLyricsOverlay(canvas, clock) {
         return boxes;
     }
 
-    function drawLine(page, line, box, t) {
+    function drawLine(pageLayout, line, box, layout, t) {
         const h = box.height * scale;
-        const boxWidth = box.width * scale;
         const baseline = offsetY + box.y * scale + h * 0.8;
         let penX = offsetX + box.x * scale;
+        const fontSize = layout.fontSize;
 
         ctx2d.textBaseline = 'alphabetic';
-
-        // Height alone decides the size a renderer draws this at, because the box was authored
-        // against the font that renderer shapes with. This draws in whatever sans-serif the web
-        // view has, which is wider, so a line that just fits there can run off the screen here —
-        // and whether it shows depends on the window's shape, which makes it look intermittent.
-        // The box is the width the format promised the line would keep, so hold it to that.
-        let fontSize = h * 0.82;
-        ctx2d.font = `600 ${fontSize.toFixed(2)}px sans-serif`;
-
-        let measured = 0;
-        for (const syl of line.syllables || []) if (syl.text) measured += ctx2d.measureText(syl.text).width;
-
-        if (measured > boxWidth && boxWidth > 0) {
-            fontSize *= boxWidth / measured;
-            ctx2d.font = `600 ${fontSize.toFixed(2)}px sans-serif`;
-        }
+        ctx2d.font = layout.font;
 
         // Under the words: a line-start block overlaps the first letter, and the words must win.
-        drawLeadIn(page, line, t, baseline, fontSize);
+        drawLeadIn(pageLayout, line, layout, t, baseline, fontSize);
 
-        for (const syl of line.syllables || []) {
+        const syllables = line.syllables || [];
+        for (let i = 0; i < syllables.length; i++) {
+            const syl = syllables[i];
             if (!syl.text) continue;
 
             // Spacing is the provider's: a syllable is part of a word as often as it is a whole
             // one, so a space put in here would land inside every word that was split.
-            const w = ctx2d.measureText(syl.text).width;
+            const w = layout.widths[i];
 
             // The outline is what keeps the words legible over whatever is behind them.
             ctx2d.lineWidth = Math.max(2, fontSize * 0.09);
             ctx2d.lineJoin = 'round';
-            ctx2d.strokeStyle = rgba(colours.outline, 0.85);
+            ctx2d.strokeStyle = outlineInk;
             ctx2d.strokeText(syl.text, penX, baseline);
 
-            ctx2d.fillStyle = css(page.inactive, colours.unsung);
+            ctx2d.fillStyle = pageLayout.unsung;
             ctx2d.fillText(syl.text, penX, baseline);
 
             // Linear, no easing.
@@ -283,7 +334,7 @@ function createLyricsOverlay(canvas, clock) {
                 ctx2d.rect(lyrics.isRightToLeft ? penX + w * (1 - frac) : penX, baseline - h,
                     w * frac, h * 2);
                 ctx2d.clip();
-                ctx2d.fillStyle = css(page.active, colours.sung);
+                ctx2d.fillStyle = pageLayout.sung;
                 ctx2d.fillText(syl.text, penX, baseline);
                 ctx2d.restore();
             }
@@ -310,9 +361,8 @@ function createLyricsOverlay(canvas, clock) {
         for (const countIn of lyrics.countIns || []) drawCountIn(countIn, t);
 
         for (const page of pages) {
-            const lines = page.lines || [];
-            const boxes = lineBoxes(lines);
-            lines.forEach((line, i) => drawLine(page, line, boxes[i], t));
+            const layout = pageLayout(page);
+            (page.lines || []).forEach((line, i) => drawLine(layout, line, layout.boxes[i], layout.lines[i], t));
         }
     }
 
@@ -355,6 +405,9 @@ function createLyricsOverlay(canvas, clock) {
         setColours({ sung, unsung, outline } = {}) {
             const hex = (value, own) => (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : own);
             colours = { sung: hex(sung, OWN_COLOURS.sung), unsung: hex(unsung, OWN_COLOURS.unsung), outline: hex(outline, OWN_COLOURS.outline) };
+            outlineInk = rgba(colours.outline, 0.85);
+            unsungFaint = rgba(colours.unsung, 0.12);
+            coloursVersion++;
         },
 
         get colours() { return { ...colours }; },
