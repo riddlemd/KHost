@@ -15,7 +15,14 @@ public class BaseRepositoryServiceTests
     }
 
     public sealed class TestRepositoryService(ILogger logger, IRepository<TestEntity> repository, IMessageBroker broker)
-        : BaseRepositoryService<TestEntity, IRepository<TestEntity>>(logger, repository, broker, new TestEntityChanged());
+        : BaseRepositoryService<TestEntity, IRepository<TestEntity>>(logger, repository, broker, new TestEntityChanged())
+    {
+        public override Task<PaginatedResult<TestEntity>> SearchAsync(string query, int pageNumber = 1, int pageSize = 50)
+            => throw new NotSupportedException();
+
+        public override Task<PaginatedResult<TestEntity>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
+            => throw new NotSupportedException();
+    }
 
     public sealed record TestEntityChanged;
 

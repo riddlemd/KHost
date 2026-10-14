@@ -68,6 +68,16 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         return deleted;
     }
 
+    public override Task<PaginatedResult<Performance>> SearchAsync(string query, int pageNumber = 1, int pageSize = 50)
+        => SearchAsync(query, pageNumber, pageSize, sort: null);
+
+    // A performance holds only ids and dates, so no text can match; passing a query through to the
+    // listing would read as "everything matched".
+    public override Task<PaginatedResult<Performance>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
+        => string.IsNullOrWhiteSpace(query)
+            ? Repository.ReadAllAsync(pageNumber, pageSize, sort)
+            : Task.FromResult(new PaginatedResult<Performance> { PageNumber = Math.Max(1, pageNumber), PageSize = pageSize });
+
     public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued, DateTime? startDate = null)
         => await Repository.ReadBySingerIdAsync(singerId, pageNumber, pageSize, filter, startDate);
 

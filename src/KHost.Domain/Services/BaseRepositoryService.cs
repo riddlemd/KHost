@@ -67,21 +67,11 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
         return Repository.ReadAllAsync(pageNumber, pageSize, sort);
     }
 
-    public virtual async Task<PaginatedResult<TClass>> SearchAsync<TOptions>(string query, int pageNumber = 1, int pageSize = 50, TOptions? options = null)
-        where TOptions : class
-    {
-        return await Repository.SearchAsync(query, pageNumber, pageSize, options);
-    }
+    // Abstract rather than forwarded: only a repository that implements ISearchable can search, so
+    // each service says what search means for it (BaseSearchableRepositoryService forwards).
+    public abstract Task<PaginatedResult<TClass>> SearchAsync(string query, int pageNumber = 1, int pageSize = 50);
 
-    public virtual async Task<PaginatedResult<TClass>> SearchAsync(string query, int pageNumber = 1, int pageSize = 50)
-    {
-        return await Repository.SearchAsync(query, pageNumber, pageSize);
-    }
-
-    public virtual Task<PaginatedResult<TClass>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
-    {
-        return Repository.SearchAsync(query, pageNumber, pageSize, sort);
-    }
+    public abstract Task<PaginatedResult<TClass>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort);
 
     public virtual async Task<bool> HasAnyAsync()
     {

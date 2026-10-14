@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.Domain.Services;
 
-public class MediaService : BaseRepositoryService<Media, IMediaRepository>, IMediaService
+public class MediaService : BaseSearchableRepositoryService<Media, IMediaRepository>, IMediaService
 {
 
     // Resolved on use, never in the constructor: PerformanceService takes IMediaService, so asking here

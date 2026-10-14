@@ -1,6 +1,7 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>Extra conditions for a pool search, passed through the searchable options hook.</summary>
+/// <summary>Extra conditions for a pool search, passed to
+/// <see cref="Services.IMediaPoolService"/>'s typed <c>SearchAsync</c>.</summary>
 public sealed class MediaPoolSearchOptions
 {
     /// <summary>Null returns break music and ad playlists together.</summary>

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
-internal class MediaRepository : BaseRepository<Media>, IMediaRepository
+internal class MediaRepository : BaseSearchableRepository<Media, MediaSearchOptions>, IMediaRepository
 {
     private const int TrigramLength = 3;
 
@@ -224,12 +224,11 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title.ToLower();
 
-    protected override IQueryable<Media> ApplySearchFilters<TOptions>(IQueryable<Media> queryable, string query, TOptions? options = null)
-        where TOptions : class
+    protected override IQueryable<Media> ApplySearchFilters(IQueryable<Media> queryable, string query, MediaSearchOptions? options)
     {
-        // Anything that is not MediaSearchOptions, including the null the sort-only overloads pass,
-        // lands on the default, karaoke: forgetting to pass options narrows the result, not widens it.
-        queryable = ApplyTypeAndStatus(queryable, options as MediaSearchOptions);
+        // Null, which the plain and sort-only overloads pass, lands on the default, karaoke:
+        // forgetting to pass options narrows the result, not widens it.
+        queryable = ApplyTypeAndStatus(queryable, options);
 
         // Only reached when the query cannot go to FTS: a term too short for the trigram index,
         // or one left empty once the metacharacters were stripped.
@@ -291,32 +290,12 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return PaginationComponent.BuildResult(items, totalCount, page, size);
     }
 
-    public override async Task<PaginatedResult<Media>> SearchAsync<TOptions>(string query, int pageNumber = 1, int pageSize = 50, TOptions? options = null)
-        where TOptions : class
+    public override async Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options)
     {
         var match = BuildFtsMatchExpression(query);
 
         if (match is null)
-            return await base.SearchAsync(query, pageNumber, pageSize, options);
-
-        return await WithSearchDurationRecordedAsync(
-            () => SearchRankedAsync(match, query, pageNumber, pageSize, options as MediaSearchOptions));
-    }
-
-    public override Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
-        => SearchAsync(query, pageNumber, pageSize, sort, options: null);
-
-    public async Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options)
-    {
-        var match = BuildFtsMatchExpression(query);
-
-        // Neither base overload carries a sort and options at once, so the fallback is built here:
-        // handing options to base.SearchAsync picks the generic overload and silently drops the sort.
-        if (match is null)
-        {
-            return await SearchableComponent.SearchAsync(query, pageNumber, pageSize,
-                q => ApplySort(ApplySearchFilters(q, query, options ?? MediaSearchOptions.Default), sort));
-        }
+            return await base.SearchAsync(query, pageNumber, pageSize, sort, options);
 
         // An explicit sort supersedes relevance rather than combining with it (bm25 could only
         // break ties within it), but with no sort the ranking is the order, paged in this query.

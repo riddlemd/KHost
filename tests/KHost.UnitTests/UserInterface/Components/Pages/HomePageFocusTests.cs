@@ -56,7 +56,7 @@ public class HomePageFocusTests : BunitContext
 
         // The combo box's own debounced search overload also needs a non-null result, unread here.
         _users.SearchAsync(Arg.Any<string>()).Returns(new PaginatedResult<KHostUser>());
-        _users.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<UserSearchOptions>())
+        _users.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<SortDescriptor?>(), Arg.Any<UserSearchOptions>())
             .Returns(new PaginatedResult<KHostUser>());
         _users.CreateAsync(Arg.Any<KHostUser>()).Returns(callInfo =>
         {

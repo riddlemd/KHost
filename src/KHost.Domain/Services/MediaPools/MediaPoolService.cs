@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.MediaPools;
 
-public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepository>, IMediaPoolService
+public class MediaPoolService : BaseSearchableRepositoryService<MediaPool, IMediaPoolRepository>, IMediaPoolService
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IMessageBroker _broker;
@@ -117,6 +117,9 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
             _lock.Release();
         }
     }
+
+    public Task<PaginatedResult<MediaPool>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaPoolSearchOptions? options)
+        => Repository.SearchAsync(query, pageNumber, pageSize, sort, options);
 
     public void ResetSelection(Guid poolId)
     {
