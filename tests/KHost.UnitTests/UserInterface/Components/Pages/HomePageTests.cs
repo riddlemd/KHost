@@ -2,11 +2,9 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Pages;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages;
 
@@ -20,8 +18,7 @@ public class HomePageTests : BunitContext
 
     public HomePageTests()
     {
-        // The page and its panels reach for JS on first render; none of it matters here.
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         _queue.Users.Returns([]);
         _playback.State.Returns(PlaybackState.Stopped);
@@ -41,24 +38,19 @@ public class HomePageTests : BunitContext
         Services.AddSingleton(_queue);
         Services.AddSingleton(_playback);
         Services.AddSingleton(Substitute.For<INextSingerCardService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(media);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<ICacheService>());
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
-        Services.AddSingleton(Substitute.For<IDialogService>());
         // The Now Playing panel reads a song's timing to draw who sings where.
         Services.AddSingleton(Substitute.For<ITimedLyricsService>());
         Services.AddSingleton(Substitute.For<IAdService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         // Same trap: with a singer queued the panel counts that singer's performances, and a
         // substitute's null list reaches Count() rather than an empty one.
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
         Services.AddSingleton(performances);
         Services.AddSingleton(venues);
-        Services.AddSingleton(Substitute.For<IUsersService>());
     }
 
     /// <summary>Wanted most with nobody up, break music must not render only for a selected singer.</summary>

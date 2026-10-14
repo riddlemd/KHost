@@ -17,16 +17,14 @@ public class AppSettingsPageFlashTests : BunitContext
 
     public AppSettingsPageFlashTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(flash: _flash);
+
         Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
         _settings.DefaultMediaDirectory.Returns("/karaoke");
 
         Services.AddSingleton(_settings);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(_flash);
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
         Services.AddSearchSection();
         Services.AddBreakMusicSection();

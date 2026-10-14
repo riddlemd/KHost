@@ -16,11 +16,10 @@ public class WizardStepPlaceholderImageTests : BunitContext
 
     public WizardStepPlaceholderImageTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         _appSettings.Current.Returns(new AppSettings());
         Services.AddSingleton(_appSettings);
-        Services.AddSingleton(Substitute.For<IFlashService>());
         _media = Services.AddNewVenuesSection(_card);
         _media.ReadAsync(_card.Id).Returns(_card);
     }

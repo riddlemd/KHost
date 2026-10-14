@@ -2,25 +2,22 @@ using AngleSharp.Dom;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
 /// <summary>Shortcuts moved to the header's help glyph; About did not move.</summary>
 public class SettingsButtonMenuTests : BunitContext
 {
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public SettingsButtonMenuTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         var venues = Substitute.For<IVenuesService>();
         venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
@@ -28,9 +25,6 @@ public class SettingsButtonMenuTests : BunitContext
         var appSettings = Substitute.For<IAppSettingsService>();
         appSettings.Current.Returns(new AppSettings());
 
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(venues);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IThemeService>());

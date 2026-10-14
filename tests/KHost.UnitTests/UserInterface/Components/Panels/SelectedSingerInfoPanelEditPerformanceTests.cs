@@ -2,12 +2,10 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -35,6 +33,8 @@ public class SelectedSingerInfoPanelEditPerformanceTests : BunitContext
 
     public SelectedSingerInfoPanelEditPerformanceTests()
     {
+        this.AddKHostTestDefaults(dialogs: _dialogs, media: _mediaService);
+
         _first = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid(), Pitch = 1, SungAs = "flo" };
         _second = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
 
@@ -50,23 +50,17 @@ public class SelectedSingerInfoPanelEditPerformanceTests : BunitContext
             Status = MediaStatus.Ready,
         });
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         // Tipping off: an unstubbed tips read is a null list the panel would sum.
         var venues = Substitute.For<IVenuesService>();
         venues.ReadSelectedVenueAsync().Returns(_ => _venue);
 
         Services.AddSingleton(_queue);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(_mediaService);
         Services.AddSingleton(_playback);
         Services.AddSingleton(venues);
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
-        Services.AddSingleton(_dialogs);
         Services.AddSingleton(Substitute.For<ITipsService>());
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

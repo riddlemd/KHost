@@ -52,7 +52,7 @@ public class EditPerformanceDialogTests : BunitContext
 
     public EditPerformanceDialogTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         _appSettings.Current.Returns(_settings);
         _audioTracks.ReadTracksAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -81,7 +81,6 @@ public class EditPerformanceDialogTests : BunitContext
             new VisualiserPreset { Name = "_Mig_049", Source = VisualiserPresetSource.Bundled },
         ]);
         Services.AddSingleton(_presets);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IVideoBackdropService>());
     }
 

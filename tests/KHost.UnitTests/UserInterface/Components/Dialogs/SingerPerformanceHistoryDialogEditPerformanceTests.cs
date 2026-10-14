@@ -3,7 +3,6 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
@@ -30,7 +29,7 @@ public class SingerPerformanceHistoryDialogEditPerformanceTests : BunitContext
 
     public SingerPerformanceHistoryDialogEditPerformanceTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(media: _mediaService);
 
         _media = new Media { Id = Guid.NewGuid(), FilePath = "/music/song.mp4", Title = "Africa", Status = MediaStatus.Ready };
         _sung = new Performance { Id = Guid.NewGuid(), SingerId = _singerId, MediaId = _media.Id, Pitch = -1, SungAs = "flo" };
@@ -51,7 +50,6 @@ public class SingerPerformanceHistoryDialogEditPerformanceTests : BunitContext
 
         Services.AddSingleton<IDialogService>(_dialogs);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(_mediaService);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(venues);
         Services.AddSingleton(tracks);
@@ -61,7 +59,6 @@ public class SingerPerformanceHistoryDialogEditPerformanceTests : BunitContext
         var presets = Substitute.For<IVisualiserPresetService>();
         presets.ReadAll().Returns([]);
         Services.AddSingleton(presets);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

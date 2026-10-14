@@ -3,11 +3,9 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.MediaProviders;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -22,12 +20,11 @@ public class MediaSearchPanelSourceSelectionTests : BunitContext
     private const string LocalSource = nameof(LocalMediaProvider);
 
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly ControlState _controlState = new();
 
     public MediaSearchPanelSourceSelectionTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         // Both, in the order the real console has them: the local library is a provider like any
         // other, and it is what the button falls back to.
@@ -50,11 +47,8 @@ public class MediaSearchPanelSourceSelectionTests : BunitContext
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_search);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(queue);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IControlState>(_controlState);
         AddDefaultSearchModeServices();
     }

@@ -33,6 +33,8 @@ public class UserManagerPageEditTests : BunitContext
 
     public UserManagerPageEditTests()
     {
+        this.AddKHostTestDefaults(dialogs: _dialogs);
+
         var broker = new MessageBroker(NullLogger<MessageBroker>.Instance);
         _groups = new UserGroupsRepository(_database, NullLogger<BaseRepository<KHostUserGroup>>.Instance);
         _users = new UsersService(
@@ -61,16 +63,11 @@ public class UserManagerPageEditTests : BunitContext
         performances.ReadBySingerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<PerformanceFilter>(), Arg.Any<DateTime?>())
             .Returns(new PaginatedResult<Performance>());
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         Services.AddSingleton<IUsersService>(_users);
         Services.AddSingleton(userGroups);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<ITipsService>());
-        Services.AddSingleton(_dialogs);
         Services.AddSingleton(Substitute.For<IVenuesService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(broker);
     }

@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
-using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -17,33 +15,26 @@ public class SingerQueuePanelKeyboardTests : BunitContext
     private const string QueueSelector = ".kh-singer-queue-panel__singer-queue";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly KHostUser _first = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly KHostUser _second = new() { Id = Guid.NewGuid(), Name = "Bob" };
 
     public SingerQueuePanelKeyboardTests()
     {
+        this.AddKHostTestDefaults();
+
         _queue.Users.Returns(_ => [_first, _second]);
         _queue.SelectedUserId.Returns(_ => _second.Id);
-
-        // The panel and its combo box both call into JS on first render; none of it matters here.
-        JSInterop.Mode = JSRuntimeMode.Loose;
 
         var venues = Substitute.For<IVenuesService>();
         venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
 
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(venues);
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]
