@@ -14,7 +14,7 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_WithoutBurnIn_HasNoPipeAndNoOverlay()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
 
         Assert.DoesNotContain("pipe:0", arguments);
         Assert.DoesNotContain("overlay", arguments);
@@ -23,8 +23,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningIn_ReadsThePaintedFramesOffThePipe()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { BurnIn = OverSource });
 
         Assert.Contains(" -f rawvideo -pix_fmt rgba -s 1280x720 -r 30 -thread_queue_size 64 -i pipe:0", arguments);
     }
@@ -34,8 +34,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningIn_LaysTheWordsOverTheSourcesOwnPicture()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { BurnIn = OverSource });
 
         Assert.Contains("[0:v:0]fps=30,scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1[base]", arguments);
         Assert.Contains("[base][1:v]overlay=0:0:eof_action=pass[v]", arguments);
@@ -47,8 +47,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningInOverNothing_PaintsOverBlackThatEndsWithTheWords()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mka", TimeSpan.Zero, 0, 0, 2, burnIn: OverFill);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mka", TimeSpan.Zero, 0, 0, 2) { BurnIn = OverFill });
 
         Assert.Contains(" -f lavfi -i color=c=black:s=1280x720:r=30", arguments);
         Assert.Contains("[2:v]setsar=1[base];[base][1:v]overlay=0:0:shortest=1[v]", arguments);
@@ -92,8 +92,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningIn_MapsTheSourcesSoundAlongsideThePicture()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { BurnIn = OverSource });
 
         Assert.Contains("-map 0:a:0?", arguments);
     }
@@ -101,8 +101,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningInWithACompanion_TakesTheSoundFromIt()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", BurnIn = OverSource });
 
         Assert.Contains("[base][2:v]overlay", arguments);
         Assert.Contains("-map 1:a:0?", arguments);
@@ -115,8 +115,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningInGraphics_SeeksOnTheOutputAfterEveryInput()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 0, 2, "/songs/a.mp3", burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", BurnIn = OverSource });
 
         Assert.True(
             arguments.IndexOf(" -ss 42.000", StringComparison.Ordinal) > arguments.IndexOf("pipe:0", StringComparison.Ordinal),
@@ -126,8 +126,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningIn_KeepsTheKeyAndTheTempo()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 2, -10, 2, burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 2, -10, 2) { BurnIn = OverSource });
 
         Assert.Contains("asetrate=44100*", arguments);
         Assert.Contains("atempo=", arguments);
@@ -140,15 +140,13 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningIn_KeepsTheVoiceLevelsInTheSameGraph()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null,
-            new AudioMix(
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = new AudioMix(
             [
                 new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
                 new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
                 new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal"),
-            ], 40, 80),
-            OverSource);
+            ], 40, 80), BurnIn = OverSource });
 
         Assert.Contains("[0:a:2]volume=0.400[l2]", arguments);
         Assert.Contains("overlay=0:0:eof_action=pass[v];[0:a:0]volume=1.000[m0]", arguments);
@@ -159,8 +157,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningIn_KeepsKeyframesOnTheClock()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { BurnIn = OverSource });
 
         Assert.Contains("-force_key_frames \"expr:gte(t,n_forced*2)\" -sc_threshold 0", arguments);
     }
@@ -168,8 +166,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningInGraphics_HoldsThePictureUntilTheAudioEnds()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", BurnIn = OverSource });
 
         Assert.Contains("[0:v:0]tpad=stop=-1:stop_mode=clone,fps=30[graphics]", arguments);
         Assert.Contains(" -shortest ", arguments);
@@ -178,8 +176,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningIntoAVideo_LeavesItsEndAlone()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { BurnIn = OverSource });
 
         Assert.DoesNotContain("tpad", arguments);
         Assert.DoesNotContain("-shortest", arguments);
@@ -188,8 +186,8 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void BuildArguments_BurningInGraphics_KeepsTheConstantFrameRate()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", burnIn: OverSource);
+        var arguments = HlsArguments.BuildArguments(
+            new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", BurnIn = OverSource });
 
         Assert.Contains(" -r 30 ", arguments);
     }

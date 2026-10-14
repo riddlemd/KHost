@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using FFMpegCore;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
@@ -39,11 +38,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         public VideoEncoderPreference Encoder { get; set; } = VideoEncoderPreference.Auto;
     }
 
-    internal const string PlaylistFileName = "stream.m3u8";
-
     internal const string FfmpegMissingCode = "KH-FFMPEG-MISSING";
-
-    private const string EndList = "#EXT-X-ENDLIST";
 
     /// <summary>Generous: a first segment normally lands in well under a second.</summary>
     private static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(15);
@@ -53,9 +48,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     private readonly ConcurrentDictionary<string, Session> _sessions = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IPlayableMediaSourceService _playableSources;
-    private readonly IFFmpegService? _ffmpeg;
+    private readonly IFFmpegService _ffmpeg;
     private readonly TimeProvider _time;
-    private readonly IVideoEncoderSelector? _encoders;
+    private readonly IVideoEncoderSelector _encoders;
     private readonly string _root;
     private int _disposed;
 
@@ -64,18 +59,14 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         IOptionsMonitor<ServiceOptions> options,
         IPlayableMediaSourceService playableSources,
         TimeProvider time,
-        IFFmpegService? ffmpeg = null,
-        IVideoEncoderSelector? encoders = null)
+        IFFmpegService ffmpeg,
+        IVideoEncoderSelector encoders)
         : base(logger)
     {
         _options = options;
         _playableSources = playableSources;
         _time = time;
-
-        // Optional so an encode test can run whatever ffmpeg is on PATH without the whole service.
         _ffmpeg = ffmpeg;
-
-        // Null encodes on libx264 without probing, which is what a test building this by hand wants.
         _encoders = encoders;
 
         // The root is resolved once and the rest is read live. Moving the directory under running
@@ -157,7 +148,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int tempo = 0,
         AudioMix? mix = null,
         CancellationToken cancellationToken = default)
-        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, hasTimedLyrics: false, cancellationToken);
+        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, displayDrawsWords: false, cancellationToken);
 
     public Task<MediaStreamSession> OpenBurningInAsync(
         string filePath,
@@ -167,7 +158,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         AudioMix? mix,
         TimedLyrics words,
         CancellationToken cancellationToken = default)
-        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words, hasTimedLyrics: true, cancellationToken);
+        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words, displayDrawsWords: false, cancellationToken);
 
     public Task<MediaStreamSession> OpenUnderDrawnWordsAsync(
         string filePath,
@@ -176,7 +167,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int tempo,
         AudioMix? mix,
         CancellationToken cancellationToken = default)
-        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, hasTimedLyrics: true, cancellationToken);
+        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, displayDrawsWords: true, cancellationToken);
 
     private async Task<MediaStreamSession> OpenEncodeAsync(
         string filePath,
@@ -185,7 +176,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int tempo,
         AudioMix? mix,
         TimedLyrics? words,
-        bool hasTimedLyrics,
+        bool displayDrawsWords,
         CancellationToken cancellationToken)
     {
         if (!File.Exists(filePath))
@@ -199,8 +190,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         // Everything below reads the resolved path: a companion audio file sits beside the original, but
         // what ffmpeg opens, and what decides the graphics-only frame rate, is what it will read.
-        var companionAudio = ResolveCompanionAudio(source);
-        if (companionAudio is null && IsGraphicsOnly(source))
+        var companionAudio = HlsArguments.ResolveCompanionAudio(source);
+        if (companionAudio is null && HlsArguments.IsGraphicsOnly(source))
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", source);
 
         // Read once per open, so a change made mid-song applies from the next song or reopen.
@@ -209,17 +200,26 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         var picture = words is null ? default : await ProbePictureAsync(source, cancellationToken);
         BurnInPlan? BurnInAt(TimeSpan at) => words is null
             ? null
-            : PlanBurnIn(source, picture.HasVideo, picture.DurationSeconds, IsGraphicsOnly(source), words, at, tempo, graphicsHeight);
+            : PlanBurnIn(source, picture.HasVideo, picture.DurationSeconds, HlsArguments.IsGraphicsOnly(source), words, at, tempo, graphicsHeight);
 
         var burnIn = BurnInAt(startOffset);
         var segmentSeconds = Options.SegmentSeconds;
         var songTime = SongTimeAfter(startOffset, tempo);
 
+        var inputs = new EncodeInputs(source, startOffset, pitch, tempo, segmentSeconds)
+        {
+            CompanionAudioPath = companionAudio,
+            Mix = mix,
+            BurnIn = burnIn?.Overlay,
+            GraphicsHeight = graphicsHeight,
+            DisplayDrawsWords = displayDrawsWords,
+        };
+
         var recipe = new EncodeRecipe(
-            (encoder, part) => BuildArguments(
-                source, songTime(part.After), pitch, tempo, segmentSeconds, companionAudio, mix, burnIn?.Overlay,
-                graphicsHeight, hasTimedLyrics, encoder, part),
-            after => after == TimeSpan.Zero ? burnIn : BurnInAt(songTime(after)));
+            (encoder, part) => HlsArguments.BuildArguments(
+                inputs with { StartOffset = songTime(part.After) }, encoder, part),
+            after => after == TimeSpan.Zero ? burnIn : BurnInAt(songTime(after)),
+            HlsArguments.HasPicture(inputs));
 
         Logger.LogInformation(
             "Opening stream {SessionId} for '{FilePath}' at {Offset}{BurnIn}",
@@ -262,10 +262,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             var segmentSeconds = Options.SegmentSeconds;
             var songTime = SongTimeAfter(startOffset, tempo);
 
+            // A stem set has no picture of its own: only burned-in words bring one.
             var recipe = new EncodeRecipe(
-                (encoder, part) => BuildStemArguments(
+                (encoder, part) => HlsArguments.BuildStemArguments(
                     inputs, songTime(part.After), pitch, tempo, segmentSeconds, burnIn?.Overlay, encoder, part),
-                after => after == TimeSpan.Zero ? burnIn : BurnInAt(songTime(after)));
+                after => after == TimeSpan.Zero ? burnIn : BurnInAt(songTime(after)),
+                HasPicture: burnIn is not null);
 
             Logger.LogInformation(
                 "Opening stream {SessionId} from {Count} stems of '{FilePath}' at {Offset}{BurnIn}",
@@ -343,8 +345,10 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <param name="Arguments">The command line on an encoder, for a place in the playlist.</param>
     /// <param name="BurnInAfter">The words to paint into a run that starts after that much output
     /// is listed; null when none are burned in.</param>
+    /// <param name="HasPicture">Whether the encode cuts any video, and so has an encoder to choose.</param>
     private sealed record EncodeRecipe(
-        Func<VideoEncoderProfile, PlaylistPart, string> Arguments, Func<TimeSpan, BurnInPlan?> BurnInAfter);
+        Func<VideoEncoderProfile, PlaylistPart, string> Arguments, Func<TimeSpan, BurnInPlan?> BurnInAfter,
+        bool HasPicture);
 
     /// <summary>Where in the song a run starts once <c>after</c> of output is already listed.</summary>
     /// <remarks>Output runs at the tempo against the song, so listed output is that much more song.</remarks>
@@ -362,15 +366,10 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         TimeSpan startOffset, int pitch, int tempo, string? adopted, CancellationToken cancellationToken,
         IReadOnlyList<StemSource>? mixedStems = null)
     {
-        var chosen = _encoders is null
-            ? VideoEncoderProfile.Software
-            : await _encoders.SelectAsync(Options.Encoder, cancellationToken);
+        var chosen = await _encoders.SelectAsync(Options.Encoder, cancellationToken);
 
-        // Audio alone reads the same either way, so there is no hardware run to fall back from.
-        var encoder = chosen.IsHardware
-                      && recipe.Arguments(chosen, PlaylistPart.Whole) != recipe.Arguments(VideoEncoderProfile.Software, PlaylistPart.Whole)
-            ? chosen
-            : VideoEncoderProfile.Software;
+        // Audio alone names no encoder, so there is no hardware run to fall back from.
+        var encoder = chosen.IsHardware && recipe.HasPicture ? chosen : VideoEncoderProfile.Software;
 
         var started = await TryStartAsync(id, directory, recipe, encoder, adopted, mixedStems, cancellationToken);
 
@@ -384,7 +383,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                 id, directory, recipe, VideoEncoderProfile.Software, adopted, mixedStems, cancellationToken);
 
             // Blamed only when software then works: a source that cannot be read fails both.
-            if (started) _encoders!.ReportFailure(encoder);
+            if (started) _encoders.ReportFailure(encoder);
         }
 
         if (!started)
@@ -398,7 +397,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         {
             Id = id,
             SourcePath = filePath,
-            PlaylistUrl = $"{MediaPrefix}{id}/{PlaylistFileName}",
+            PlaylistUrl = $"{MediaPrefix}{id}/{HlsPlaylistFile.FileName}",
             StartOffset = startOffset,
             Pitch = pitch,
             Tempo = tempo,
@@ -521,7 +520,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         failed?.Stop();
 
-        foreach (var file in Directory.EnumerateFiles(directory, "seg_*.ts").Append(Path.Combine(directory, PlaylistFileName)))
+        foreach (var file in Directory.EnumerateFiles(directory, "seg_*.ts").Append(Path.Combine(directory, HlsPlaylistFile.FileName)))
         {
             try { File.Delete(file); } catch { /* overwritten by the retry */ }
         }
@@ -584,7 +583,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <remarks>Gives up as soon as ffmpeg has exited without one, so a failed start costs no timeout.</remarks>
     private async Task<bool> WaitForPlaylistAsync(string directory, Session session, CancellationToken cancellationToken)
     {
-        var playlist = Path.Combine(directory, PlaylistFileName);
+        var playlist = Path.Combine(directory, HlsPlaylistFile.FileName);
         var deadline = _time.GetUtcNow() + PlaylistTimeout;
 
         while (_time.GetUtcNow() < deadline)
@@ -635,7 +634,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             try { exitCode = process.ExitCode; }
             catch (InvalidOperationException) { return; /* closed just now, which disposed it */ }
 
-            if (await CompletePlaylistAsync(session.Directory))
+            if (await HlsPlaylistFile.CompletePlaylistAsync(session.Directory))
                 Logger.LogWarning("ffmpeg could not put the last playlist for {SessionId} in place; the host moved it", session.Id);
 
             if (exitCode != 0 && session.Encoder.IsHardware)
@@ -644,9 +643,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                 return;
             }
 
-            if (exitCode == 0 && session.TookOverFrom is { } failed) _encoders?.ReportFailure(failed);
+            if (exitCode == 0 && session.TookOverFrom is { } failed) _encoders.ReportFailure(failed);
 
-            if (session.Encoder.IsHardware && await EndPlaylistAsync(session.Directory))
+            if (session.Encoder.IsHardware && await HlsPlaylistFile.EndPlaylistAsync(session.Directory))
                 Logger.LogDebug("Ended the playlist for {SessionId}", session.Id);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -662,7 +661,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// from its own start, which is a segment boundary, so the segments stay on the clock.</remarks>
     private async Task ContinueOnSoftwareAsync(Session failed, int exitCode)
     {
-        var listed = ListedSegmentSeconds(await File.ReadAllTextAsync(Path.Combine(failed.Directory, PlaylistFileName)));
+        var listed = HlsPlaylistFile.ListedSegmentSeconds(await File.ReadAllTextAsync(Path.Combine(failed.Directory, HlsPlaylistFile.FileName)));
         var after = TimeSpan.FromSeconds(listed.Sum());
 
         Logger.LogWarning(
@@ -681,7 +680,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         catch (KHostException ex)
         {
             Logger.LogWarning(ex, "Could not carry {SessionId} on in libx264; the song ends early", failed.Id);
-            await EndPlaylistAsync(failed.Directory);
+            await HlsPlaylistFile.EndPlaylistAsync(failed.Directory);
             return;
         }
 
@@ -707,66 +706,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         // Its process is gone already; this releases the painter still feeding the dead pipe.
         failed.Stop();
-    }
-
-    /// <summary>Adds the end marker to a playlist ffmpeg left open; true when it was added.</summary>
-    /// <remarks>Replaced whole rather than appended to, so a display never reads half a line; retried,
-    /// as on Windows a scanner may hold the file for a moment.</remarks>
-    internal static async Task<bool> EndPlaylistAsync(string directory, int attempts = 20, int retryMilliseconds = 100)
-    {
-        var playlist = Path.Combine(directory, PlaylistFileName);
-        var pending = playlist + ".end";
-
-        for (var attempt = 1; ; attempt++)
-        {
-            try
-            {
-                var text = await File.ReadAllTextAsync(playlist);
-                if (text.Contains(EndList, StringComparison.Ordinal)) return false;
-
-                await File.WriteAllTextAsync(pending, (text.EndsWith('\n') ? text : text + "\n") + EndList + "\n");
-                File.Move(pending, playlist, overwrite: true);
-                return true;
-            }
-            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < attempts)
-            {
-                await Task.Delay(retryMilliseconds);
-            }
-        }
-    }
-
-    /// <summary>The duration of each segment a playlist lists, in order; -1 for one it cannot read.</summary>
-    internal static List<double> ListedSegmentSeconds(string playlist) =>
-    [
-        .. playlist.Split('\n')
-            .Where(line => line.StartsWith("#EXTINF:", StringComparison.Ordinal))
-            .Select(line => double.TryParse(
-                line["#EXTINF:".Length..].TrimEnd(',', '\r'), NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
-                ? d
-                : -1)
-    ];
-
-    /// <summary>Moves a playlist .tmp ffmpeg left behind over the playlist; true when one was moved.</summary>
-    /// <remarks>Retried, as whatever blocked ffmpeg's rename may still hold the file for a moment.</remarks>
-    internal static async Task<bool> CompletePlaylistAsync(string directory, int attempts = 20, int retryMilliseconds = 100)
-    {
-        var playlist = Path.Combine(directory, PlaylistFileName);
-        var pending = playlist + ".tmp";
-
-        for (var attempt = 1; ; attempt++)
-        {
-            if (!File.Exists(pending)) return false;
-
-            try
-            {
-                File.Move(pending, playlist, overwrite: true);
-                return true;
-            }
-            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < attempts)
-            {
-                await Task.Delay(retryMilliseconds);
-            }
-        }
     }
 
     /// <summary>The id of the ffmpeg behind a session, or null for none: lets a test watch the
@@ -833,455 +772,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         return File.Exists(path) ? path : null;
     }
 
-    /// <summary>EVENT playlist type so a consumer can start on the first segment.</summary>
-    /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and in WKWebView, which is what
-    /// LocalScreen renders through; a display provider's device is a third consumer it also suits.
-    /// A frame taller than 1080 lines is Main@5.1, the lowest level that allows one.</remarks>
-    /// <param name="hasTimedLyrics">Whether the song has timed words a display draws over it: its
-    /// picture is then only the source's own moving one, never a cover, and nothing from an audio
-    /// file (<see cref="SongBackdrops"/>).</param>
-    internal static string BuildArguments(
-        string filePath,
-        TimeSpan startOffset,
-        int pitch,
-        int tempo,
-        int segmentSeconds,
-        string? companionAudioPath = null,
-        AudioMix? mix = null,
-        BurnInOverlay? burnIn = null,
-        int graphicsHeight = GraphicsScaling.Off,
-        bool hasTimedLyrics = false,
-        VideoEncoderProfile? encoder = null,
-        PlaylistPart part = default)
-    {
-        var arguments = "-hide_banner -loglevel error";
-
-        // CDG decoding is stateful, so an input seek lands mid-packet and the graphics decode to
-        // garbage. Such a source seeks on the output instead and eats the frames.
-        //
-        // Asked of the graphics, not of the companion audio: a .cdg with no audio beside it is still
-        // a stateful decode, and keying this off the pairing seeked it on the input and drew
-        // garbage for the one case that already had no sound. Reused below for the frame-rate
-        // decision, which asks the same question of the same file.
-        var isGraphicsOnly = IsGraphicsOnly(filePath);
-
-        // A .cdg decodes a frame only when its graphics change, so its picture stops at the last
-        // change, seconds before the audio. A player then stalls on the missing video rather than
-        // ending, and the song never concludes. The picture is held until the audio ends it.
-        // Never without audio: an endless picture with nothing to end it would never finish.
-        var holdsPictureToTheAudio = isGraphicsOnly && companionAudioPath is not null;
-
-        // Zero when unscaled: the native picture, as it always was.
-        var scaledHeight = isGraphicsOnly && graphicsHeight > GraphicsScaling.Off ? graphicsHeight : 0;
-
-        // Left to itself ffmpeg encodes an MP3's cover art as a one-frame video, which a screen then
-        // shows under the words. A burn-in maps its own picture.
-        var picksOwnPicture = hasTimedLyrics && burnIn is null;
-        var hasNoPicture = picksOwnPicture && !SongBackdrops.MayShowPictureFrom(filePath);
-
-        if (startOffset > TimeSpan.Zero && !isGraphicsOnly)
-            arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
-
-        arguments += $" -i \"{filePath}\"";
-
-        if (companionAudioPath is not null)
-        {
-            arguments += $" -i \"{companionAudioPath}\"";
-
-            // Without the mapping ffmpeg picks one stream per type from the first input that has
-            // one, and a .cdg carries no audio at all. A burn-in and a held picture each map their
-            // own, after their graph.
-            if (burnIn is null && !holdsPictureToTheAudio) arguments += " -map 0:v:0 -map 1:a:0";
-        }
-
-        // Inputs come before the output seek below, or that -ss would bind to the next input.
-        var pipeInput = companionAudioPath is null ? 1 : 2;
-        if (burnIn is not null) arguments += BurnInInputs(burnIn);
-
-        if (startOffset > TimeSpan.Zero && isGraphicsOnly)
-            arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
-
-        var segment = Math.Max(1, segmentSeconds);
-
-        // A .cdg only emits a frame when the graphics change, so x264 is handed a wildly variable
-        // rate and encodes far more than the picture needs. Measured on two songs: 110 and 154
-        // CPU-seconds without this against 33 and 44 with it, for the same segments either way.
-        if (isGraphicsOnly)
-            arguments += $" -r {GraphicsFramesPerSecond}";
-
-        // The filters above all run on the CPU, so whichever encoder is chosen sees the same frames.
-        if (!hasNoPicture)
-            arguments += (encoder ?? VideoEncoderProfile.Software).Arguments(burnIn?.Height ?? scaledHeight, segment);
-
-        var audioFilter = BuildAudioFilter(pitch, tempo);
-        var mixGraph = BuildMixGraph(mix, audioFilter);
-
-        // Capital V matches no attached picture, so a video's own picture survives and a cover does not.
-        var pictureMap = hasNoPicture ? "" : picksOwnPicture ? " -map 0:V:0?" : " -map 0:v:0?";
-
-        if (burnIn is not null)
-        {
-            arguments += BurnInMapping(
-                burnIn, pipeInput, tempo, companionAudioPath is null ? 0 : 1, mixGraph, audioFilter,
-                isGraphicsOnly, holdsPictureToTheAudio);
-        }
-        else if (holdsPictureToTheAudio)
-        {
-            var picture = GraphicsOnCanvas(
-                tempo, GraphicsFramesPerSecond, GraphicsFill(scaledHeight), "v");
-
-            arguments += mixGraph.Length > 0
-                ? $" -filter_complex \"{picture};{mixGraph}\" -map \"[v]\" -map \"[a]\""
-                : $" -filter_complex \"{picture}\" -map \"[v]\" -map 1:a:0"
-                  + (audioFilter.Length > 0 ? $" -af \"{audioFilter}\"" : "");
-        }
-        else if (mixGraph.Length > 0)
-        {
-            // Explicit maps: the graph names the audio output, and without saying so ffmpeg would
-            // also carry one of the raw tracks through beside it. The picture is optional ("?")
-            // because a multi-track container can be audio alone — a mix is the one case where a
-            // missing video stream would otherwise be a fatal unmatched mapping rather than a
-            // silently dropped one.
-            arguments += $" -filter_complex \"{mixGraph}\"{pictureMap} -map \"[a]\"";
-        }
-        else
-        {
-            // Any -map switches off ffmpeg's own pick for every stream type, so the audio is named too.
-            if (picksOwnPicture) arguments += $"{pictureMap} -map 0:a:0?";
-            if (audioFilter.Length > 0) arguments += $" -af \"{audioFilter}\"";
-        }
-
-        // -vf rather than a filter_complex: ffmpeg drops it silently on a source with no video
-        // rather than failing on an unmatched label. A burn-in and a held picture retime inside
-        // their own graphs instead.
-        var videoFilter = scaledHeight > 0
-            ? string.Join(',', new[]
-            {
-                BuildVideoFilter(tempo), $"fps={GraphicsFramesPerSecond}", GraphicsFill(scaledHeight),
-            }.Where(f => f.Length > 0))
-            : BuildVideoFilter(tempo);
-        if (videoFilter.Length > 0 && burnIn is null && !holdsPictureToTheAudio && !hasNoPicture)
-            arguments += $" -vf \"{videoFilter}\"";
-
-        if (holdsPictureToTheAudio) arguments += " -shortest";
-
-        return arguments + HlsOutput(segment, part);
-    }
-
-    /// <summary>Where one ffmpeg run sits in its session's playlist.</summary>
-    /// <param name="After">Output the playlist already lists, which this run appends after; zero for
-    /// the first run.</param>
-    /// <param name="LeftOpen">Whether the run leaves off the end marker, for the host to write or to
-    /// carry the song on past.</param>
-    internal readonly record struct PlaylistPart(TimeSpan After, bool LeftOpen)
-    {
-        public static readonly PlaylistPart Whole = default;
-
-        public bool Appends => After > TimeSpan.Zero;
-    }
-
-    /// <summary>One stem as ffmpeg reads it: a local path or an http address, and its level.</summary>
-    internal sealed record StemInput(string Input, AudioTrackRole Role, int Volume);
-
-    /// <summary>The encode for a song that arrived as separate stems: every stem an input, mixed at
-    /// its own level, then keyed and retimed as one.</summary>
-    /// <remarks>Audio alone unless words are burned in, as a stems-only song has no picture of its own
-    /// and a display drawing its own words wants none. Burned-in words go over black, a stem set
-    /// having no picture of its own.
-    /// </remarks>
-    internal static string BuildStemArguments(
-        IReadOnlyList<StemInput> stems,
-        TimeSpan startOffset,
-        int pitch,
-        int tempo,
-        int segmentSeconds,
-        BurnInOverlay? burnIn = null,
-        VideoEncoderProfile? encoder = null,
-        PlaylistPart part = default)
-    {
-        var arguments = "-hide_banner -loglevel error";
-
-        // Each input seeks on its own: -ss binds to the next -i only.
-        var seek = startOffset > TimeSpan.Zero
-            ? string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds)
-            : "";
-
-        foreach (var stem in stems) arguments += $"{seek} -i \"{stem.Input}\"";
-
-        if (burnIn is not null) arguments += BurnInInputs(burnIn);
-
-        var segment = Math.Max(1, segmentSeconds);
-        var audioFilter = BuildAudioFilter(pitch, tempo);
-        var mixGraph = MixGraph(
-            stems.Select((stem, index) => (Pad: $"{index}:a:0", stem.Role, Index: index, stem.Volume)), audioFilter);
-
-        if (burnIn is not null)
-        {
-            arguments += (encoder ?? VideoEncoderProfile.Software).Arguments(burnIn.Height, segment)
-                         + BurnInMapping(burnIn, stems.Count, tempo, 0, mixGraph, audioFilter, false, false);
-        }
-        else
-        {
-            arguments += $" -filter_complex \"{mixGraph}\" -map \"[a]\"";
-        }
-
-        return arguments + HlsOutput(segment, part);
-    }
-
-    /// <remarks>MPEG-TS segments rather than fMP4: TS plays everywhere, and CMAF needs a newer device
-    /// than some display providers reach. Wanting CMAF means asking the provider first.
-    ///
-    /// <para>A run appending to a playlist numbers on from it and shifts its timestamps to follow
-    /// what is listed; ffmpeg marks the join a discontinuity itself.</para></remarks>
-    private static string HlsOutput(int segment, PlaylistPart part)
-        => " -c:a aac -ar 44100 -ac 2 -b:a 128k"
-           + (part.Appends
-               ? string.Format(CultureInfo.InvariantCulture, " -output_ts_offset {0:F6}", part.After.TotalSeconds)
-               : "")
-           + string.Format(
-               CultureInfo.InvariantCulture,
-               " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments{1}{2}"
-               + " -hls_segment_filename seg_%05d.ts",
-               segment,
-               part.LeftOpen ? "+omit_endlist" : "",
-               part.Appends ? "+append_list" : "")
-           + $" {PlaylistFileName}";
-
-    /// <summary>A loose .cdg: this is asked of what ffmpeg opens, after a zipped pair is written out.</summary>
-    internal static bool IsGraphicsOnly(string filePath) => MediaFormats.IsGraphicsOnlyKaraoke(filePath);
-
-    /// <summary>A .cdg holds only graphics; its audio is the same-named audio file beside it.</summary>
-    /// <remarks>Through <see cref="MediaFormats.FindKaraokeAudio"/>, so the importer, the probe and
-    /// the renderer all decide a pair the same way.</remarks>
-    internal static string? ResolveCompanionAudio(string filePath)
-        => IsGraphicsOnly(filePath) ? MediaFormats.FindKaraokeAudio(filePath) : null;
-
-    /// <summary>The painted words, read raw off the pipe, and the picture they go over when the
-    /// source has none of its own.</summary>
-    private static string BurnInInputs(BurnInOverlay burnIn)
-    {
-        var inputs = string.Format(
-            CultureInfo.InvariantCulture,
-            " -f rawvideo -pix_fmt rgba -s {0}x{1} -r {2} -thread_queue_size 64 -i pipe:0",
-            burnIn.Width, burnIn.Height, burnIn.FramesPerSecond);
-
-        return burnIn.Base switch
-        {
-            BurnInBase.Fill => inputs + string.Format(
-                CultureInfo.InvariantCulture,
-                " -f lavfi -i color=c=black:s={0}x{1}:r={2}",
-                burnIn.Width, burnIn.Height, burnIn.FramesPerSecond),
-            _ => inputs,
-        };
-    }
-
-    /// <summary>One graph laying the painted frames over the picture, carrying the audio graph with
-    /// it when there is one, and the maps that pick both.</summary>
-    /// <remarks>The base is always the picture and the words always the overlay: <c>overlay</c> takes
-    /// its alpha from the base, so the other way round composites onto transparency and the words
-    /// vanish from an encode that still runs cleanly.
-    ///
-    /// <para>The base is brought to the painted frames' rate, because a source that only emits a
-    /// frame when its picture changes would hold the chase still between them. A source's own video
-    /// is fitted inside the frame. An endless base ends with the words (<c>shortest=1</c>); a finite one ends the picture
-    /// itself and carries on without them if the words run out first.</para></remarks>
-    private static string BurnInMapping(
-        BurnInOverlay burnIn, int pipeInput, int tempo, int audioInput, string mixGraph, string audioFilter,
-        bool isGraphicsOnly, bool holdsPictureToTheAudio)
-    {
-        var size = string.Format(CultureInfo.InvariantCulture, "{0}:{1}", burnIn.Width, burnIn.Height);
-        var rate = burnIn.FramesPerSecond.ToString(CultureInfo.InvariantCulture);
-        var baseInput = pipeInput + 1;
-        var retime = BuildVideoFilter(tempo) is { Length: > 0 } filter ? filter + "," : "";
-
-        var picture = burnIn.Base switch
-        {
-            // Scaled exactly as it is without words over it, so turning the words on moves no block.
-            BurnInBase.SourceVideo when holdsPictureToTheAudio
-                => GraphicsOnCanvas(tempo, burnIn.FramesPerSecond, GraphicsFit(burnIn.Width, burnIn.Height), "base"),
-            BurnInBase.SourceVideo when isGraphicsOnly
-                => $"[0:v:0]{retime}fps={rate},{GraphicsFit(burnIn.Width, burnIn.Height)}[base]",
-            BurnInBase.SourceVideo => $"[0:v:0]{retime}"
-                + $"fps={rate},scale={size}:force_original_aspect_ratio=decrease,"
-                + $"pad={size}:(ow-iw)/2:(oh-ih)/2,setsar=1[base]",
-            _ => $"[{baseInput}:v]setsar=1[base]",
-        };
-
-        var ending = burnIn.Base == BurnInBase.SourceVideo ? "eof_action=pass" : "shortest=1";
-        var graph = $"{picture};[base][{pipeInput}:v]overlay=0:0:{ending}[v]";
-
-        if (mixGraph.Length > 0)
-            return $" -filter_complex \"{graph};{mixGraph}\" -map \"[v]\" -map \"[a]\"";
-
-        // "?" so a source with no sound still encodes its picture rather than failing the map.
-        var audio = $" -filter_complex \"{graph}\" -map \"[v]\" -map {audioInput}:a:0?";
-        return audioFilter.Length > 0 ? audio + $" -af \"{audioFilter}\"" : audio;
-    }
-
-    private static string BuildAudioFilter(int pitch, int tempo)
-    {
-        var rate = StreamRate.FromTempo(tempo);
-
-        if (pitch == 0 && rate == 1.0) return string.Empty;
-
-        var ratio = Math.Pow(2.0, pitch / 12.0);
-
-        // asetrate reinterprets whatever rate reaches it, so the leading resample is what makes
-        // its base true: a 48kHz source would otherwise carry an uncorrected 44100/48000 as well.
-        var stages = new List<string> { "aresample=44100" };
-
-        if (pitch != 0)
-        {
-            stages.Add(FormattableString.Invariant($"asetrate=44100*{ratio:F6}"));
-            stages.Add("aresample=44100");
-        }
-
-        // One factor, not two: asetrate already moved the speed by the pitch ratio, so undoing
-        // that and applying the wanted tempo is a single atempo.
-        stages.AddRange(TempoStages(rate / ratio));
-
-        return string.Join(',', stages);
-    }
-
-    /// <summary>atempo rejects below 0.5, but pitch-up with tempo-down can reach 0.354 together.</summary>
-    /// <remarks>Two chained stages cover the whole envelope.</remarks>
-    private static IEnumerable<string> TempoStages(double factor)
-    {
-        if (Math.Abs(factor - 1.0) < 1e-9) yield break;
-
-        if (factor >= 0.5)
-        {
-            yield return FormattableString.Invariant($"atempo={factor:F6}");
-            yield break;
-        }
-
-        var stage = Math.Sqrt(factor);
-        yield return FormattableString.Invariant($"atempo={stage:F6}");
-        yield return FormattableString.Invariant($"atempo={stage:F6}");
-    }
-
-    /// <summary>Balances the named voices over the music; empty when there is nothing to balance.</summary>
-    /// <remarks>Leaves the simpler -af path in place.</remarks>
-    private static string BuildMixGraph(AudioMix? mix, string audioFilter)
-    {
-        if (mix is not { IsMixable: true }) return string.Empty;
-
-        return MixGraph(
-            mix.Tracks.Select(track => (Pad: $"0:a:{track.Index}", track.Role, track.Index, Volume: mix.VolumeFor(track))),
-            audioFilter);
-    }
-
-    /// <summary>Each source pad at its own level, summed, then carried through the pitch and tempo
-    /// chain; ends in <c>[a]</c>.</summary>
-    private static string MixGraph(
-        IEnumerable<(string Pad, AudioTrackRole Role, int Index, int Volume)> sources, string audioFilter)
-    {
-        var stages = new List<string>();
-        var labels = new List<string>();
-
-        foreach (var (pad, role, index, volume) in sources)
-        {
-            // Suffixed by index: a duet carries two leads, and a repeated pad label is an ffmpeg error.
-            var label = role switch
-            {
-                AudioTrackRole.Music => "m",
-                AudioTrackRole.Lead => "l",
-                _ => "b",
-            } + index.ToString(CultureInfo.InvariantCulture);
-
-            stages.Add(FormattableString.Invariant($"[{pad}]volume={volume / 100.0:F3}[{label}]"));
-            labels.Add($"[{label}]");
-        }
-
-        // normalize=0 or amix divides by the number of inputs, quietly dropping the whole mix by
-        // several decibels the moment a second track joins.
-        stages.Add(FormattableString.Invariant(
-            $"{string.Concat(labels)}amix=inputs={labels.Count}:normalize=0[x]"));
-
-        // The pitch and tempo chain rides on the mixed result rather than any one track.
-        stages.Add(audioFilter.Length > 0 ? $"[x]{audioFilter}[a]" : "[x]anull[a]");
-
-        return string.Join(';', stages);
-    }
-
-    /// <summary>Repeats the last frame without end; <c>-shortest</c> is what stops it.</summary>
-    private const string HoldLastFrame = "tpad=stop=-1:stop_mode=clone";
-
-    /// <summary>The rate a graphics-only source is brought to.</summary>
-    private const int GraphicsFramesPerSecond = 30;
-
-    /// <summary>A .cdg held to its audio, laid on black, and fitted into its frame; ends in
-    /// <c>[<paramref name="label"/>]</c>.</summary>
-    /// <remarks>
-    /// <para>The canvas is what a disc that never draws still shows: with no decoded frame the
-    /// graph emits nothing, and the encode produces no segment at all. Native size, so it is cheap.</para>
-    /// <para>The order is load-bearing. The hold precedes <c>fps</c>, which drops the last frames
-    /// at the end of its input. <c>fps</c> precedes the scale: a .cdg decodes up to 300 frames a
-    /// second while it draws, and scaling each doubles the CPU. The overlay is RGB, since YUV
-    /// halves the colour before the scale.</para>
-    /// </remarks>
-    private static string GraphicsOnCanvas(int tempo, int fps, string fit, string label)
-        => string.Format(
-               CultureInfo.InvariantCulture,
-               "color=c=black:s={0}x{1}:r={2}[canvas];",
-               GraphicsScaling.SourceWidth, GraphicsScaling.SourceHeight, fps)
-           + $"[0:v:0]{HoldLastFrame},"
-           + (BuildVideoFilter(tempo) is { Length: > 0 } retime ? retime + "," : "")
-           + string.Format(CultureInfo.InvariantCulture, "fps={0}[graphics];", fps)
-           + $"[canvas][graphics]overlay=format=rgb,{fit}[{label}]";
-
-    /// <summary>Scales the native picture up to <paramref name="height"/> at its own shape, with no
-    /// bands; zero leaves it native.</summary>
-    /// <remarks>Whole pixels on nearest neighbour as far as they go, then one short bicubic step to the
-    /// exact height where the height is not a multiple of the native one. Bicubic over lanczos: at
-    /// ~1.1x it is as sharp, and rings less around hard colour edges.</remarks>
-    internal static string GraphicsFill(int height)
-    {
-        if (height <= 0) return "setsar=1";
-
-        var (width, _) = GraphicsScaling.PictureOfHeight(height);
-        var factor = GraphicsScaling.WholeScaleFor(width, height);
-        var finish = factor * GraphicsScaling.SourceHeight == height
-            ? ""
-            : string.Format(CultureInfo.InvariantCulture, "scale={0}:{1}:flags=bicubic,", width, height);
-
-        return string.Format(CultureInfo.InvariantCulture, "scale=iw*{0}:ih*{0}:flags=neighbor,", factor)
-               + finish + "setsar=1";
-    }
-
-    /// <summary>Scales the native picture by the largest whole number that fits the frame, on
-    /// nearest neighbour, and centres it; a zero-sized frame leaves it native.</summary>
-    /// <remarks>The burn-in frame only. A .cdg never reaches it, since its renderer burns no words.
-    /// </remarks>
-    internal static string GraphicsFit(int width, int height)
-    {
-        if (width <= 0 || height <= 0) return "setsar=1";
-
-        var factor = GraphicsScaling.WholeScaleFor(width, height);
-
-        return string.Format(
-            CultureInfo.InvariantCulture,
-            "scale=iw*{0}:ih*{0}:flags=neighbor,pad={1}:{2}:(ow-iw)/2:(oh-ih)/2,setsar=1",
-            factor, width, height);
-    }
-
-    /// <summary>Retimes the picture: output frame rate becomes the source times the rate.</summary>
-    /// <remarks>The keyframe expression is immune, since it is written in output time.</remarks>
-    private static string BuildVideoFilter(int tempo)
-    {
-        var rate = StreamRate.FromTempo(tempo);
-
-        return rate == 1.0
-            ? string.Empty
-            : FormattableString.Invariant($"setpts=PTS/{rate:F6}");
-    }
-
     /// <summary>Looked for afresh per song, so a copy installed or configured mid-show is used by
     /// the next one without a restart.</summary>
-    private string? ResolveFfmpegPath() => _ffmpeg is not null
-        ? _ffmpeg.Locate(FFmpegTool.FFmpeg)
-        : FFmpegLocator.Resolve(FFmpegTool.FFmpeg, GlobalFFOptions.Current.BinaryFolder, null,
-            Environment.GetEnvironmentVariable("PATH"), OperatingSystem.IsWindows());
+    private string? ResolveFfmpegPath() => _ffmpeg.Locate(FFmpegTool.FFmpeg);
 
     private static KHostException FfmpegMissing(Exception? inner) => new(
         "KHost cannot find FFmpeg, so it cannot play this song.",
