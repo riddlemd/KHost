@@ -27,7 +27,8 @@ public sealed class HlsMediaStreamServiceFfmpegMissingTests : IDisposable
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
             TimeProvider.System,
-            _ffmpeg);
+            _ffmpeg,
+            new SoftwareEncoderSelector());
     }
 
     public void Dispose()

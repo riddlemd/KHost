@@ -223,7 +223,7 @@ internal sealed class VideoEncoderSelector : BaseService, IVideoEncoderSelector,
         var playlist = Path.Combine(scratch, ProbePlaylist);
         if (!File.Exists(playlist)) return "the test encode wrote no playlist";
 
-        var durations = HlsMediaStreamService.ListedSegmentSeconds(await File.ReadAllTextAsync(playlist));
+        var durations = HlsPlaylistFile.ListedSegmentSeconds(await File.ReadAllTextAsync(playlist));
 
         return durations.Count >= 2 && durations.SkipLast(1).All(d => d is >= 0.9 and <= 1.1)
             ? null
