@@ -56,7 +56,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
     public string? ScreenId { get; private set; }
 
-    /// <summary>Set from the hub's "RegistrationRefused" message, and reset at the start of every
+    /// <summary>Set from the hub's <see cref="ScreenClientMethods.RegistrationRefused"/> message, and reset at the start of every
     /// registration attempt in <see cref="SendRegisterAsync"/> so a stale reason is never blamed
     /// on a later, genuine network failure.</summary>
     public string? LastRefusalReason { get; private set; }
@@ -140,7 +140,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
             // Resetting the sequences on a new nonce is what makes a reconnect a fresh session
             // rather than one the host rejects for repeating the old one.
-            _connection.On<string>("Session", nonce =>
+            _connection.On<string>(ScreenClientMethods.Session, nonce =>
             {
                 lock (_signLock)
                 {
@@ -156,11 +156,11 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
                     _sessionReady.TrySetResult();
             });
 
-            _connection.On<string>("ReceiveCommand", OnCommandEnvelope);
+            _connection.On<string>(ScreenClientMethods.ReceiveCommand, OnCommandEnvelope);
 
             // Arrives right before the hub aborts a refused registration, so it is in hand by the
             // time the abort turns SendRegisterAsync's pending invoke into an exception.
-            _connection.On<string>("RegistrationRefused", reason => LastRefusalReason = reason);
+            _connection.On<string>(ScreenClientMethods.RegistrationRefused, reason => LastRefusalReason = reason);
 
             _connection.Closed += error => OnClosedAsync(connection, error);
 
