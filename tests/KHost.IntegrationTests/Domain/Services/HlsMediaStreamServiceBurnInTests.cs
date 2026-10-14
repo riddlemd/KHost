@@ -30,7 +30,9 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
                 WorkingDirectory = _workingDirectory,
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
-            TimeProvider.System);
+            TimeProvider.System,
+            new PathFFmpeg(),
+            new SoftwareEncoderSelector());
 
     /// <summary>A song with no picture of its own: the words go over black, lit as they are sung.</summary>
     [RequiresFfmpegFact]

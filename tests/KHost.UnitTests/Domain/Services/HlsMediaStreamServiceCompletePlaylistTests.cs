@@ -22,7 +22,7 @@ public sealed class HlsMediaStreamServiceCompletePlaylistTests : IDisposable
         File.WriteAllText(Playlist, "#EXTM3U\nseg_00000.ts\n");
         File.WriteAllText(Pending, "#EXTM3U\nseg_00000.ts\nseg_00001.ts\n#EXT-X-ENDLIST\n");
 
-        Assert.True(await HlsMediaStreamService.CompletePlaylistAsync(_directory));
+        Assert.True(await HlsPlaylistFile.CompletePlaylistAsync(_directory));
 
         Assert.False(File.Exists(Pending));
         Assert.Contains("#EXT-X-ENDLIST", File.ReadAllText(Playlist));
@@ -33,7 +33,7 @@ public sealed class HlsMediaStreamServiceCompletePlaylistTests : IDisposable
     {
         File.WriteAllText(Playlist, "#EXTM3U\nseg_00000.ts\n#EXT-X-ENDLIST\n");
 
-        Assert.False(await HlsMediaStreamService.CompletePlaylistAsync(_directory));
+        Assert.False(await HlsPlaylistFile.CompletePlaylistAsync(_directory));
 
         Assert.Equal("#EXTM3U\nseg_00000.ts\n#EXT-X-ENDLIST\n", File.ReadAllText(Playlist));
     }
@@ -48,7 +48,7 @@ public sealed class HlsMediaStreamServiceCompletePlaylistTests : IDisposable
         var holder = new FileStream(Playlist, FileMode.Open, FileAccess.Read, FileShare.Read);
         var release = Task.Delay(300).ContinueWith(_ => holder.Dispose(), TaskScheduler.Default);
 
-        var moved = await HlsMediaStreamService.CompletePlaylistAsync(_directory, attempts: 20, retryMilliseconds: 50);
+        var moved = await HlsPlaylistFile.CompletePlaylistAsync(_directory, attempts: 20, retryMilliseconds: 50);
         await release;
 
         Assert.True(moved);

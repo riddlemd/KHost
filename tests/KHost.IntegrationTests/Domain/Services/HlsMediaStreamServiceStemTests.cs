@@ -25,7 +25,9 @@ public partial class HlsMediaStreamServiceStemTests : IDisposable
                 WorkingDirectory = _workingDirectory,
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
-            TimeProvider.System);
+            TimeProvider.System,
+            new PathFFmpeg(),
+            new SoftwareEncoderSelector());
 
     /// <summary>Three tones at different pitches, so their powers add: muting one voice drops the mix
     /// by the share that voice carried, and a voice at zero contributes nothing.</summary>

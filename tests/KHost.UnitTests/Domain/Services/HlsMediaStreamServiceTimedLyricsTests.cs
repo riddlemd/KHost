@@ -70,7 +70,7 @@ public class HlsMediaStreamServiceTimedLyricsTests
     [Fact]
     public void BuildArguments_NoTimedWords_LeavesAnAudioFilesPictureAlone()
     {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp3", TimeSpan.Zero, 0, 0, 2);
+        var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp3", TimeSpan.Zero, 0, 0, 2));
 
         Assert.DoesNotContain("-map", arguments);
         Assert.Contains("libx264", arguments);
@@ -80,7 +80,7 @@ public class HlsMediaStreamServiceTimedLyricsTests
     public void BuildArguments_NoTimedWords_KeepsAMixedVideosPictureMapAsItWas()
         => Assert.Contains(
             " -map 0:v:0? -map \"[a]\"",
-            HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, mix: Mix));
+            HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2) { Mix = Mix }));
 
     /// <summary>A burn-in and a .cdg pair already name every stream they carry.</summary>
     [Fact]
@@ -89,13 +89,13 @@ public class HlsMediaStreamServiceTimedLyricsTests
         var fill = new BurnInOverlay(1280, 720, 30, BurnInBase.Fill);
 
         Assert.Equal(
-            HlsMediaStreamService.BuildArguments("/songs/a.mp3", TimeSpan.Zero, 0, 0, 2, burnIn: fill),
-            HlsMediaStreamService.BuildArguments("/songs/a.mp3", TimeSpan.Zero, 0, 0, 2, burnIn: fill, hasTimedLyrics: true));
+            HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp3", TimeSpan.Zero, 0, 0, 2) { BurnIn = fill }),
+            HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp3", TimeSpan.Zero, 0, 0, 2) { BurnIn = fill, DisplayDrawsWords = true }));
         Assert.Equal(
-            HlsMediaStreamService.BuildArguments("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3"),
-            HlsMediaStreamService.BuildArguments("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", hasTimedLyrics: true));
+            HlsArguments.BuildArguments(new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3" }),
+            HlsArguments.BuildArguments(new EncodeInputs("/songs/a.cdg", TimeSpan.Zero, 0, 0, 2) { CompanionAudioPath = "/songs/a.mp3", DisplayDrawsWords = true }));
     }
 
     private static string Timed(string source, int pitch = 0, int tempo = 0, AudioMix? mix = null)
-        => HlsMediaStreamService.BuildArguments(source, TimeSpan.Zero, pitch, tempo, 2, mix: mix, hasTimedLyrics: true);
+        => HlsArguments.BuildArguments(new EncodeInputs(source, TimeSpan.Zero, pitch, tempo, 2) { Mix = mix, DisplayDrawsWords = true });
 }
