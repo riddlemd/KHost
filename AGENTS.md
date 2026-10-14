@@ -442,7 +442,9 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 - xUnit + NSubstitute; bunit for components.
 - Anything outside the process (an external binary like ffmpeg, a live network device) → `KHost.IntegrationTests`. `KHost.UnitTests` stays skip-free. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
-- Naming `MethodUnderTest_Scenario_ExpectedBehavior`; substitutes in field initializers; mirror the source layout (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`).
+- Substitutes in field initializers.
+- **Naming: the name states the behaviour and reads as a sentence, underscores for spaces.** Two shapes: `Member_Scenario_Outcome` when one member is under test (`HasPreviousPage_IsFalse_OnFirstPage`), `Scenario_Outcome` when the subject is the class or a flow (`ABlankName_CannotBeSaved`). Name the observable result, never the implementation (`_CallsRepository`).
+- **Layout: a test file mirrors its subject's path** (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`); split by aspect as `Foo<Aspect>Tests.cs` once one file would pass ~600 lines. A test spanning several services lives in the owning layer's folder, named for the behaviour.
 - Test an announcement by subscribing a counter to the real broker the service was built with (`using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised++)`), or substitute `IMessageBroker` and assert `Received(1).Announce(...)`.
 - A bunit fixture must register a broker (components `[Inject]` one), or every render throws.
 - **A service that starts work in its constructor races a test that stubs a substitute after building it**: the constructor can consume the first call and break an exact call count. Arrange everything before construction, or give the fixture a way to settle the constructor's work.
