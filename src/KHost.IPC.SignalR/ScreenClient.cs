@@ -61,6 +61,12 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
     /// on a later, genuine network failure.</summary>
     public string? LastRefusalReason { get; private set; }
 
+    /// <summary>How the reconnect loop waits out each backoff step.</summary>
+    internal Func<TimeSpan, CancellationToken, Task> Delay { get; init; } = Task.Delay;
+
+    /// <summary>SignalR's own reconnect schedule; null keeps its default of 0, 2, 10 and 30 seconds.</summary>
+    internal TimeSpan[]? AutomaticReconnectDelays { get; init; }
+
     public ScreenClient(ILoggerFactory? loggerFactory)
     {
         _logger = (loggerFactory ?? new Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory())
@@ -133,10 +139,11 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
                 _connection = null;
             }
 
-            var connection = _connection = new HubConnectionBuilder()
-                .WithUrl(serverUri)
-                .WithAutomaticReconnect()
-                .Build();
+            var builder = new HubConnectionBuilder().WithUrl(serverUri);
+            builder = AutomaticReconnectDelays is { } delays
+                ? builder.WithAutomaticReconnect(delays)
+                : builder.WithAutomaticReconnect();
+            var connection = _connection = builder.Build();
 
             // Resetting the sequences on a new nonce is what makes a reconnect a fresh session
             // rather than one the host rejects for repeating the old one.
@@ -314,7 +321,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         {
             try
             {
-                await Task.Delay(ReconnectBackoff[Math.Min(attempt, ReconnectBackoff.Length - 1)], cancellationToken);
+                await Delay(ReconnectBackoff[Math.Min(attempt, ReconnectBackoff.Length - 1)], cancellationToken);
 
                 await _stateLock.WaitAsync(cancellationToken);
                 try
