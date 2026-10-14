@@ -441,6 +441,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 ## Tests
 
 - xUnit + NSubstitute; bunit for components.
+- The screen page's scripts: `npm test` in `src/KHost.LocalScreen/screen-ui-tests` (`node --test`, no packages), loading `screen-ui/*.js` in `index.html`'s tag order into one `vm` context; test the factories that take injected clocks, canvases and senders.
 - Anything outside the process (an external binary like ffmpeg, a live network device) → `KHost.IntegrationTests`. `KHost.UnitTests` stays skip-free. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
 - Naming `MethodUnderTest_Scenario_ExpectedBehavior`; substitutes in field initializers; mirror the source layout (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`).
 - Test an announcement by subscribing a counter to the real broker the service was built with (`using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised++)`), or substitute `IMessageBroker` and assert `Received(1).Announce(...)`.
