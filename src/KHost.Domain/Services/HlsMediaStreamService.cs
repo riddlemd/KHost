@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -48,7 +49,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     private static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(15);
 
     private readonly IOptionsMonitor<ServiceOptions> _options;
-    private readonly Dictionary<string, Session> _sessions = [];
+    // Read without _lock on every segment and playlist GET; every write still takes _lock.
+    private readonly ConcurrentDictionary<string, Session> _sessions = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IPlayableMediaSourceService _playableSources;
     private readonly IFFmpegService? _ffmpeg;
@@ -97,6 +99,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <summary>Read per use, never snapshotted: a host changing the segment length in App
     /// Settings expects the next song to honour it, not the next launch.</summary>
     private ServiceOptions Options => _options.CurrentValue;
+
+    /// <summary>Where every URL this service hands out starts, read live with the base address.</summary>
+    private string MediaPrefix => $"{Options.BaseAddress.TrimEnd('/')}/media/";
 
     /// <summary>A fresh session's id and scratch directory, shared by both open paths.</summary>
     private (string Id, string Directory) NewSession()
@@ -284,7 +289,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <remarks>Read off disk where it can be: fetching our own server over loopback only adds a hop.</remarks>
     public string ResolveStemInput(string url)
     {
-        var prefix = $"{Options.BaseAddress.TrimEnd('/')}/media/";
+        var prefix = MediaPrefix;
 
         if (url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
@@ -306,15 +311,13 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
     public IReadOnlyList<StemSource>? StemsMixedInto(string streamUrl)
     {
-        var prefix = $"{Options.BaseAddress.TrimEnd('/')}/media/";
+        var prefix = MediaPrefix;
         if (!streamUrl.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
 
         var parts = streamUrl[prefix.Length..].Split('/');
         if (parts.Length != 2) return null;
 
-        _lock.Wait();
-        try { return _sessions.TryGetValue(parts[0], out var session) ? session.MixedStems : null; }
-        finally { _lock.Release(); }
+        return _sessions.TryGetValue(parts[0], out var session) ? session.MixedStems : null;
     }
 
     /// <remarks>A stem that cannot be probed counts as zero: the words then last as long as they run.</remarks>
@@ -395,7 +398,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         {
             Id = id,
             SourcePath = filePath,
-            PlaylistUrl = $"{Options.BaseAddress.TrimEnd('/')}/media/{id}/{PlaylistFileName}",
+            PlaylistUrl = $"{MediaPrefix}{id}/{PlaylistFileName}",
             StartOffset = startOffset,
             Pitch = pitch,
             Tempo = tempo,
@@ -513,7 +516,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         Session? failed;
 
         await _lock.WaitAsync();
-        try { _sessions.Remove(id, out failed); }
+        try { _sessions.TryRemove(id, out failed); }
         finally { _lock.Release(); }
 
         failed?.Stop();
@@ -782,7 +785,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         await _lock.WaitAsync();
         try
         {
-            if (!_sessions.Remove(sessionId, out session)) return;
+            if (!_sessions.TryRemove(sessionId, out session)) return;
         }
         finally { _lock.Release(); }
 
@@ -808,10 +811,10 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     }
 
     public string BuildImageUrl(Guid mediaId)
-        => $"{Options.BaseAddress.TrimEnd('/')}/media/image/{mediaId}";
+        => $"{MediaPrefix}image/{mediaId}";
 
     public string BuildArtifactUrl(string sessionId, string fileName)
-        => $"{Options.BaseAddress.TrimEnd('/')}/media/{sessionId}/{fileName}";
+        => $"{MediaPrefix}{sessionId}/{fileName}";
 
     public string? ResolveArtifact(string sessionId, string fileName)
     {
@@ -822,17 +825,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             || Path.IsPathRooted(fileName))
             return null;
 
-        string directory;
+        // A close removes the session before deleting its folder, so a racing lookup finds no
+        // session, or a folder whose files may already be going.
+        if (!_sessions.TryGetValue(sessionId, out var session)) return null;
 
-        _lock.Wait();
-        try
-        {
-            if (!_sessions.TryGetValue(sessionId, out var session)) return null;
-            directory = session.Directory;
-        }
-        finally { _lock.Release(); }
-
-        var path = Path.Combine(directory, fileName);
+        var path = Path.Combine(session.Directory, fileName);
         return File.Exists(path) ? path : null;
     }
 

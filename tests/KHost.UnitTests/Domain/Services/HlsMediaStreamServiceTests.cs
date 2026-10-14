@@ -519,6 +519,74 @@ public class HlsMediaStreamServiceTests : IDisposable
     public void ResolveArtifact_ReturnsNullForAnUnknownSession()
         => Assert.Null(_service.ResolveArtifact("no-such-session", "stream.m3u8"));
 
+    [Fact]
+    public async Task ResolveArtifact_AFileInAnOpenSession_IsItsPathInThatSessionsFolder()
+    {
+        var session = await OpenEmptySessionAsync();
+        var written = Path.Combine(session.WorkingDirectory!, "lead.ogg");
+        await File.WriteAllTextAsync(written, "x");
+
+        Assert.Equal(written, _service.ResolveArtifact(session.Id, "lead.ogg"));
+    }
+
+    [Fact]
+    public async Task ResolveArtifact_AFileTheSessionDoesNotHave_IsNull()
+    {
+        var session = await OpenEmptySessionAsync();
+
+        Assert.Null(_service.ResolveArtifact(session.Id, "lead.ogg"));
+    }
+
+    [Fact]
+    public async Task ResolveArtifact_AfterTheSessionCloses_IsNull()
+    {
+        var session = await OpenEmptySessionAsync();
+        await _service.CloseAsync(session.Id);
+
+        // Put back after the close's own delete, so only the session lookup can answer null.
+        Directory.CreateDirectory(session.WorkingDirectory!);
+        await File.WriteAllTextAsync(Path.Combine(session.WorkingDirectory!, "lead.ogg"), "x");
+
+        Assert.Null(_service.ResolveArtifact(session.Id, "lead.ogg"));
+    }
+
+    [Fact]
+    public void BuildArtifactUrl_IsTheMediaRouteUnderTheBaseAddress()
+        => Assert.Equal("http://host:5251/media/abc/seg_00001.ts", _service.BuildArtifactUrl("abc", "seg_00001.ts"));
+
+    [Fact]
+    public void BuildImageUrl_IsTheImageRouteUnderTheBaseAddress()
+    {
+        var id = Guid.Parse("0f8fad5b-d9cb-469f-a165-70867728950e");
+
+        Assert.Equal("http://host:5251/media/image/0f8fad5b-d9cb-469f-a165-70867728950e", _service.BuildImageUrl(id));
+    }
+
+    [Fact]
+    public void BuildArtifactUrl_ABaseAddressEndingInASlash_GetsNoDoubleSlash()
+    {
+        using var service = new HlsMediaStreamService(
+            NullLogger<HlsMediaStreamService>.Instance,
+            new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions
+            {
+                BaseAddress = "http://host:5251/",
+                WorkingDirectory = _workingDirectory,
+            }),
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+            TimeProvider.System);
+
+        Assert.Equal("http://host:5251/media/abc/stream.m3u8", service.BuildArtifactUrl("abc", "stream.m3u8"));
+    }
+
+    private async Task<MediaStreamSession> OpenEmptySessionAsync()
+    {
+        Directory.CreateDirectory(_workingDirectory);
+        var anchor = Path.Combine(_workingDirectory, "anchor.txt");
+        await File.WriteAllTextAsync(anchor, "x");
+
+        return await _service.OpenWithoutEncodeAsync(anchor);
+    }
+
     public void Dispose()
     {
         _service.Dispose();
