@@ -72,9 +72,13 @@ public class MediaRepositorySourceTests : IDisposable
     {
         var created = await _repository.CreateAsync(Row("/downloads/song.mp4", source: "YouTube"));
 
-        var read = await _repository.ReadAsync(created.Id);
+        using var context = _factory.CreateDbContext();
+        var folded = await context.Media
+            .Where(m => m.Id == created.Id)
+            .Select(m => EF.Property<string>(m, EntityFolding.SearchFolded))
+            .SingleAsync();
 
-        Assert.DoesNotContain("youtube", read!.SearchFolded, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("youtube", folded, StringComparison.OrdinalIgnoreCase);
     }
 
     private static Media Row(string path, string? source = null) => new()

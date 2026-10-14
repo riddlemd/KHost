@@ -20,8 +20,4 @@ public class Tip : RepositoryModel
 
     /// <summary>Free-form note about the tip.</summary>
     public string Notes { get; set; } = "";
-
-    /// <summary>A search-friendly form of <see cref="Notes"/>, computed by the host — do not set
-    /// this directly.</summary>
-    public string NotesFolded { get; set; } = string.Empty;
 }

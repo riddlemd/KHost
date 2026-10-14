@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

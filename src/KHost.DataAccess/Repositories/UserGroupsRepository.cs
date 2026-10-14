@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Models;
 using Microsoft.EntityFrameworkCore;
@@ -65,6 +64,6 @@ internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroup
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(g => EF.Functions.Like(g.NameFolded, FoldedContainsPattern(query), "\\"));
+        return queryable.Where(g => EF.Functions.Like(EF.Property<string>(g, EntityFolding.NameFolded), FoldedContainsPattern(query), "\\"));
     }
 }

@@ -1,3 +1,5 @@
+using KHost.DataAccess.Repositories;
+using KHost.Domain.Services.QueueRotation;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
@@ -70,7 +72,7 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
         rotationFactory.Resolve(Arg.Any<QueueRotationConfig>()).Returns(strategy);
 
         var queue = new SingerQueueService(
-            NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.Abstractions.Repositories.IUsersRepository>(), venues, analytics, rotationFactory, _broker);
+            NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.DataAccess.Repositories.IUsersRepository>(), venues, analytics, rotationFactory, _broker);
 
         Services.AddSingleton<ISingerQueueService>(queue);
         Services.AddSingleton<IMessageBroker>(_broker);

@@ -1,11 +1,11 @@
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.DataAccess.Repositories;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Visualisations;
-using KHost.Abstractions.Repositories;
 using Microsoft.Extensions.Options;
 using KHost.IPC.SignalR.Contracts;
 using Microsoft.Extensions.DependencyInjection;

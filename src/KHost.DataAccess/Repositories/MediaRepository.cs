@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq.Expressions;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using KHost.Telemetry;
 using Microsoft.EntityFrameworkCore;
@@ -237,7 +236,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(m => EF.Functions.Like(m.SearchFolded, FoldedContainsPattern(query), "\\"));
+        return queryable.Where(m => EF.Functions.Like(EF.Property<string>(m, EntityFolding.SearchFolded), FoldedContainsPattern(query), "\\"));
     }
 
     /// <summary>SQL twin of <see cref="ApplyTypeAndStatus"/> for the FTS path; cannot compose LINQ.</summary>

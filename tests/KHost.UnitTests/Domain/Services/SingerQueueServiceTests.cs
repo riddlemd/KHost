@@ -1,8 +1,8 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Models.QueueRotation;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
+using KHost.DataAccess.Repositories;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.QueueRotation;

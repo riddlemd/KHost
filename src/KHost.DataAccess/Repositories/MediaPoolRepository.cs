@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -96,6 +95,6 @@ internal class MediaPoolRepository : BaseRepository<MediaPool>, IMediaPoolReposi
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(p => EF.Functions.Like(p.NameFolded, FoldedContainsPattern(query), "\\"));
+        return queryable.Where(p => EF.Functions.Like(EF.Property<string>(p, EntityFolding.NameFolded), FoldedContainsPattern(query), "\\"));
     }
 }

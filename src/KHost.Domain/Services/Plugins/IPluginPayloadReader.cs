@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models.Plugins;
 
-namespace KHost.Abstractions.Services;
+namespace KHost.Domain.Services.Plugins;
 
 /// <summary>Turns a plugin zip into files on disk, or refuses it: one call, validation included.</summary>
 /// <remarks>Host-only: the one set of rules a release must satisfy, shared by the installer and the

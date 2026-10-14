@@ -1,11 +1,11 @@
-namespace KHost.Abstractions.Repositories;
+namespace KHost.DataAccess.Repositories;
 
 using KHost.Abstractions.Models;
 
 /// <summary>Tips recorded against singers.</summary>
 /// <remarks>
-/// <para>Host-implemented. A plugin goes through <see cref="Services.ITipsService"/>, which
-/// announces <see cref="Messaging.Messages.TipsChanged"/>, refuses a tip with no singer, and stamps
+/// <para>Host-implemented. A plugin goes through <see cref="KHost.Abstractions.Services.ITipsService"/>, which
+/// announces <see cref="KHost.Abstractions.Messaging.Messages.TipsChanged"/>, refuses a tip with no singer, and stamps
 /// the selected venue on a new tip that names none.</para>
 /// <para>Search matches the tip's notes, case- and accent-insensitive. Sort keys:
 /// <c>createdDate</c> (default, newest first), <c>amount</c>, <c>paymentMethod</c>.</para>

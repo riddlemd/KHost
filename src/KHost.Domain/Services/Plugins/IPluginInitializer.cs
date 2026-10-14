@@ -1,4 +1,6 @@
-namespace KHost.Abstractions.Services;
+using KHost.Abstractions.Services;
+
+namespace KHost.Domain.Services.Plugins;
 
 /// <summary>Runs every loaded plugin's entry point, once, after the host is built.</summary>
 /// <remarks>Host-only; a plugin has no business with it. The host calls it once at startup.</remarks>

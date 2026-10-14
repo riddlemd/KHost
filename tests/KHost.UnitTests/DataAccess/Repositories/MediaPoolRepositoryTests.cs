@@ -49,9 +49,13 @@ public class MediaPoolRepositoryTests : IDisposable
     {
         var created = await _repository.CreateAsync(new MediaPool { Name = "Björk Set" });
 
-        var stored = await _repository.ReadAsync(created.Id);
+        using var context = _database.CreateDbContext();
+        var folded = await context.Set<MediaPool>()
+            .Where(p => p.Id == created.Id)
+            .Select(p => EF.Property<string>(p, EntityFolding.NameFolded))
+            .SingleAsync();
 
-        Assert.Equal("bjork set", stored?.NameFolded);
+        Assert.Equal("bjork set", folded);
     }
 
     [Fact]

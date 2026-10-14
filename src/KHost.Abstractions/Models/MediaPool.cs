@@ -48,10 +48,6 @@ public class MediaPool : RepositoryModel
     /// <summary>The name shown throughout the app.</summary>
     public required string Name { get; set; }
 
-    /// <summary>Case- and accent-insensitive form of <see cref="Name"/>, used to match it; the host
-    /// keeps this in sync, so a plugin should treat it as read-only.</summary>
-    public string NameFolded { get; set; } = string.Empty;
-
     /// <summary>Null belongs to every venue; a value scopes it to one.</summary>
     public Guid? VenueId { get; set; }
 

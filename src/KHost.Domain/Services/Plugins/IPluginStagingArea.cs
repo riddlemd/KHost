@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models.Plugins;
 
-namespace KHost.Abstractions.Services;
+namespace KHost.Domain.Services.Plugins;
 
 /// <summary>Payloads and removals staged until the next start; loading is restart-based.</summary>
 /// <remarks>Host-only; a plugin has no business with it. Keeps no state of its own beyond what is on

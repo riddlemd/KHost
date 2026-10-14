@@ -1,11 +1,11 @@
 using KHost.Abstractions.Models;
 
-namespace KHost.Abstractions.Repositories;
+namespace KHost.DataAccess.Repositories;
 
 /// <summary>User groups and their memberships.</summary>
 /// <remarks>
-/// <para>Host-implemented. A plugin goes through <see cref="Services.IUserGroupsService"/>, which
-/// announces <see cref="Messaging.Messages.UserGroupsChanged"/> and refuses to delete the built-in
+/// <para>Host-implemented. A plugin goes through <see cref="KHost.Abstractions.Services.IUserGroupsService"/>, which
+/// announces <see cref="KHost.Abstractions.Messaging.Messages.UserGroupsChanged"/> and refuses to delete the built-in
 /// groups; deleting here does not.</para>
 /// <para>Search matches the group name, case- and accent-insensitive. Sort key: <c>name</c>
 /// (the default).</para>
