@@ -1,0 +1,18 @@
+@foreach (var venue in Venues)
+{
+    <button class="kh-dropdown__item @(venue.Id == SelectedVenue?.Id ? "kh-dropdown__item--selected" : "")"
+            type="button" @onclick="() => SelectVenueAsync(venue.Id)">
+        <span class="kh-dropdown__check">
+            @if (venue.Id == SelectedVenue?.Id) { <Icon Name="check2" /> }
+        </span>
+        @venue.Name
+    </button>
+}
+
+<div class="kh-dropdown__divider"></div>
+
+<button class="kh-dropdown__item" type="button" disabled="@(SelectedVenue is null)"
+        @onclick="EditVenueAsync">
+    <span class="kh-dropdown__check"><Icon Name="sliders" /></span>
+    Edit venue…
+</button>

@@ -20,7 +20,7 @@ public class SingerQueuePanelRemovePendingTests : BunitContext
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     // The real service and host, so the confirm is the one a host actually sees.
-    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, []);
+    private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, Substitute.For<IDisplaySwitcher>());
     private readonly KHostUser _first = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly KHostUser _second = new() { Id = Guid.NewGuid(), Name = "Bob <i>" };
     private int _confirmsShown;

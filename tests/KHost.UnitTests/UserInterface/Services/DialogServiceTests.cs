@@ -37,7 +37,7 @@ public class DialogServiceTests
     [Fact]
     public async Task ShowNoScreensAsync_Confirmed_ConnectsTheLocalDisplay()
     {
-        var service = new DialogService(NullLogger<DialogService>.Instance, [_cast, _screens]);
+        var service = new DialogService(NullLogger<DialogService>.Instance, new DisplaySwitcher(NullLogger<DisplaySwitcher>.Instance, [_cast, _screens]));
 
         await ConfirmNoScreensAsync(service);
 
@@ -49,7 +49,7 @@ public class DialogServiceTests
     public async Task ShowNoScreensAsync_Confirmed_TakesTheSongOffAnyOtherDisplayFirst()
     {
         _cast.ConnectedDeviceId.Returns("tv");
-        var service = new DialogService(NullLogger<DialogService>.Instance, [_cast, _screens]);
+        var service = new DialogService(NullLogger<DialogService>.Instance, new DisplaySwitcher(NullLogger<DisplaySwitcher>.Instance, [_cast, _screens]));
 
         await ConfirmNoScreensAsync(service);
 
@@ -63,7 +63,7 @@ public class DialogServiceTests
     [Fact]
     public async Task ShowNoScreensAsync_Confirmed_LeavesAnIdleDisplayAlone()
     {
-        var service = new DialogService(NullLogger<DialogService>.Instance, [_cast, _screens]);
+        var service = new DialogService(NullLogger<DialogService>.Instance, new DisplaySwitcher(NullLogger<DisplaySwitcher>.Instance, [_cast, _screens]));
 
         await ConfirmNoScreensAsync(service);
 

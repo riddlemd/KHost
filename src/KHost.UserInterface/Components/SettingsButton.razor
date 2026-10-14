@@ -31,7 +31,7 @@
         <button class="kh-dropdown__item" type="button" @ref="_themeRowRef" @onclick="() => ToggleSection(ThemeSection)">
             <span class="kh-dropdown__check"><Icon Name="palette-fill" /></span>
             Theme
-            <span class="kh-settings-menu__value">@ThemeName(ThemeService.CurrentTheme)</span>
+            <span class="kh-settings-menu__value">@ThemeFlyout.NameOf(ThemeService, ThemeService.CurrentTheme)</span>
             <Icon Name="chevron-left" Class="kh-settings-menu__chevron" />
         </button>
 
@@ -44,7 +44,7 @@
             @foreach (var settingsPage in group)
             {
                 <button class="kh-dropdown__item @CurrentClass(settingsPage.Route)" type="button"
-                        @onclick="() => SelectAsync(settingsPage)">
+                        @onclick="() => NavigateTo(settingsPage.Route)">
                     <span class="kh-dropdown__check"><Icon Name="@settingsPage.Icon" /></span>
                     @settingsPage.Title
                 </button>
@@ -65,79 +65,15 @@
             <div class="kh-settings-menu__flyout" @ref="_flyoutRef">
                 @if (IsOpen(VenueSection))
                 {
-                    @foreach (var venue in _venues)
-                    {
-                        <button class="kh-dropdown__item @(venue.Id == _selectedVenue?.Id ? "kh-dropdown__item--selected" : "")"
-                                type="button" @onclick="() => SelectVenueAsync(venue.Id)">
-                            <span class="kh-dropdown__check">
-                                @if (venue.Id == _selectedVenue?.Id) { <Icon Name="check2" /> }
-                            </span>
-                            @venue.Name
-                        </button>
-                    }
-
-                    <div class="kh-dropdown__divider"></div>
-
-                    <button class="kh-dropdown__item" type="button" disabled="@(_selectedVenue is null)"
-                            @onclick="EditVenueAsync">
-                        <span class="kh-dropdown__check"><Icon Name="sliders" /></span>
-                        Edit venue…
-                    </button>
+                    <VenueFlyout Venues="_venues" SelectedVenue="_selectedVenue" Done="CloseMenu" />
                 }
                 else if (IsOpen(DisplaySection))
                 {
-                    @foreach (var (provider, device) in AvailableDisplays())
-                    {
-                        var live = IsLive(provider, device);
-
-                        <button class="kh-dropdown__item @(live ? "kh-dropdown__item--selected" : "")"
-                                type="button" @onclick="() => SelectDisplayAsync(provider, device)">
-                            <span class="kh-dropdown__check">
-                                @if (live) { <Icon Name="check2" /> }
-                            </span>
-                            <span class="kh-settings-menu__stacked">
-                                <span class="kh-settings-menu__stacked-name">
-                                    @device.Name
-                                </span>
-                                <span class="kh-settings-menu__stacked-meta">@DescribeDisplay(provider, device)</span>
-                            </span>
-                        </button>
-                    }
-
-                    @if (liveDisplay is not null)
-                    {
-                        <button class="kh-dropdown__item" type="button" @onclick="TurnOffDisplayAsync">
-                            <span class="kh-dropdown__check"><Icon Name="x-lg" /></span>
-                            Turn off
-                        </button>
-                    }
-
-                    @if (CanSearch)
-                    {
-                        <div class="kh-dropdown__divider"></div>
-
-                        <button class="kh-dropdown__item" type="button" @onclick="ToggleSearchAsync">
-                            <span class="kh-dropdown__check">
-                                <Icon Name="@(IsSearching ? "broadcast" : "search")" />
-                            </span>
-                            @(IsSearching ? "Stop searching" : "Search for devices")
-                        </button>
-                    }
+                    <DisplayFlyout Displays="Displays" LiveDisplay="liveDisplay" Done="CloseMenu" Changed="StateHasChanged" />
                 }
                 else
                 {
-                    @foreach (var theme in ThemeService.AvailableThemes)
-                    {
-                        var isCurrent = ThemeService.CurrentTheme == theme;
-
-                        <button class="kh-dropdown__item @(isCurrent ? "kh-dropdown__item--selected" : "")"
-                                type="button" @onclick="() => SelectThemeAsync(theme)">
-                            <span class="kh-dropdown__check">
-                                @if (isCurrent) { <Icon Name="check2" /> }
-                            </span>
-                            @ThemeName(theme)
-                        </button>
-                    }
+                    <ThemeFlyout Done="CloseMenu" />
                 }
             </div>
         }

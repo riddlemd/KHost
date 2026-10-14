@@ -33,7 +33,6 @@ public partial class SettingsButton : IDisposable
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
-    [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private ILogger<SettingsButton> Logger { get; set; } = default!;
     [Inject] private IConfiguration Configuration { get; set; } = default!;
     [Inject] private IHostApplicationLifetime Lifetime { get; set; } = default!;
@@ -49,9 +48,6 @@ public partial class SettingsButton : IDisposable
 
         /// <summary>Set for a page that only means anything under some other setting.</summary>
         public Func<SettingsButton, bool>? Applies { get; set; }
-
-        /// <summary>Set instead of Route for an item that opens a dialog rather than navigating.</summary>
-        public Func<SettingsButton, Task>? Opens { get; set; }
     }
 
     private static readonly List<SettingsPage> _allPages =
@@ -181,20 +177,6 @@ public partial class SettingsButton : IDisposable
     // One at a time: both open at once pushes the managers off the bottom of the menu.
     private void ToggleSection(string section) => _openSection = IsOpen(section) ? null : section;
 
-    private async Task SelectVenueAsync(Guid venueId)
-    {
-        await VenuesService.SelectVenueAsync(venueId);
-
-        CloseMenu();
-    }
-
-    private async Task SelectThemeAsync(string theme)
-    {
-        await ThemeService.SetThemeAsync(theme);
-
-        CloseMenu();
-    }
-
     // --- display ---
 
     internal IReadOnlyList<IDisplayProvider> Displays => _displays;
@@ -216,156 +198,6 @@ public partial class SettingsButton : IDisposable
     private static DisplayDevice? DeviceOf(IDisplayProvider display)
         => display.Devices.FirstOrDefault(device => device.Id == display.ConnectedDeviceId)
             ?? display.Devices.FirstOrDefault(device => device.IsConnected);
-
-    /// <summary>Every device every transport knows about, live one included — unlike a split
-    /// button's primary half, a checked row in a list is the ordinary way to show the current
-    /// choice, and it sits beside the others so switching back is one press.</summary>
-    internal IEnumerable<(IDisplayProvider Provider, DisplayDevice Device)> AvailableDisplays()
-    {
-        foreach (var provider in Displays)
-        {
-            IReadOnlyList<DisplayDevice> devices;
-
-            // A provider mid-sweep can throw here, and one bad plugin must not empty the list.
-            try { devices = provider.Devices; }
-            catch { continue; }
-
-            foreach (var device in devices)
-                yield return (provider, device);
-        }
-    }
-
-    internal static bool IsLive(IDisplayProvider provider, DisplayDevice device)
-        => provider.ConnectedDeviceId == device.Id;
-
-    /// <summary>Names the transport under the device, so two rooms called "TV" are still telling.</summary>
-    internal static string DescribeDisplay(IDisplayProvider provider, DisplayDevice device)
-    {
-        var model = string.IsNullOrWhiteSpace(device.Model) ? provider.Name : device.Model;
-
-        return string.IsNullOrWhiteSpace(device.Address) ? model : $"{model} · {device.Address}";
-    }
-
-    /// <summary>True while any transport is actually sweeping — asked of the providers, never
-    /// tracked here: discovery outlives the call that started it, so a flag of our own would say
-    /// "searching" for five seconds and then lie for the rest of the night.</summary>
-    internal bool IsSearching => Displays.Any(display => display.SearchesForDevices && display.IsDiscovering);
-
-    /// <summary>Nothing to offer when every transport opens its own device rather than finding one.</summary>
-    internal bool CanSearch => Displays.Any(display => display.SearchesForDevices);
-
-    /// <summary>Switches the song to a device, taking it off whatever had it.</summary>
-    internal async Task SelectDisplayAsync(IDisplayProvider provider, DisplayDevice device)
-    {
-        // Already there: a press on the checked row should not tear the song down and rebuild it.
-        if (IsLive(provider, device))
-        {
-            CloseMenu();
-            return;
-        }
-
-        // Off first, and every other provider, or a press that fails below leaves the song on two.
-        await DisconnectOthersAsync(except: provider);
-
-        var connected = false;
-
-        try
-        {
-            connected = await provider.ConnectAsync(device.Id);
-
-            if (!connected)
-                Logger.LogWarning("{Provider} could not connect to '{Device}'", provider.Name, device.Name);
-        }
-        catch (Exception ex)
-        {
-            // A transport that throws must not take the menu down with it.
-            Logger.LogWarning(ex, "{Provider} failed connecting to '{Device}'", provider.Name, device.Name);
-        }
-
-        // Otherwise an unreachable receiver looks like a press that did nothing.
-        if (!connected)
-            Flash.Show($"Could not connect to {device.Name}. Check it is on and on the same network.", FlashType.Warning);
-
-        CloseMenu();
-    }
-
-    internal async Task TurnOffDisplayAsync()
-    {
-        await DisconnectOthersAsync();
-
-        CloseMenu();
-    }
-
-    /// <summary>Every connected provider besides <paramref name="except"/> lets go of the song —
-    /// one display at a time across the whole system, whether switching to another or turning off.</summary>
-    private async Task DisconnectOthersAsync(IDisplayProvider? except = null)
-    {
-        foreach (var display in Displays)
-        {
-            if (display == except) continue;
-            if (display.ConnectedDeviceId is not { Length: > 0 }) continue;
-
-            await SafelyAsync(() => display.DisconnectAsync(), $"Disconnecting {display.Name}");
-        }
-    }
-
-    /// <summary>One control for both halves, because the answer is one piece of state: a sweep is
-    /// either running or it is not. Stopping matters — a console runs all night on whatever wifi
-    /// the room has, and browsing is off until someone asks for it.</summary>
-    internal async Task ToggleSearchAsync()
-    {
-        var searching = IsSearching;
-        Exception? startFailure = null;
-
-        foreach (var provider in Displays)
-        {
-            // The screens are opened, not found: asking them to discover launches a screen, which
-            // is not what pressing "search" asked for.
-            if (!provider.SearchesForDevices) continue;
-
-            if (searching)
-                await SafelyAsync(() => provider.StopDiscoveryAsync(), $"Stopping {provider.Name} discovery");
-            else
-                startFailure ??= await SafelyAsync(() => provider.StartDiscoveryAsync(), $"Starting {provider.Name} discovery");
-        }
-
-        // One line however many transports failed; an empty list alone reads as an empty room.
-        if (startFailure is not null)
-            Flash.Show($"Could not search for devices: {startFailure.Message}", FlashType.Warning);
-
-        // Deliberately left open: a sweep fills the list underneath, and closing the menu would
-        // hide the very thing that was asked for.
-        StateHasChanged();
-    }
-
-    /// <summary>A transport that throws must not take the menu down with it.</summary>
-    /// <returns>What was thrown, or null.</returns>
-    private async Task<Exception?> SafelyAsync(Func<Task> action, string what)
-    {
-        try
-        {
-            await action();
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "{What} failed", what);
-            return ex;
-        }
-    }
-
-    private async Task EditVenueAsync()
-    {
-        if (_selectedVenue is null) return;
-
-        CloseMenu();
-
-        await DialogService.RequestEditAsync(_selectedVenue, async updated =>
-        {
-            if (updated is not null)
-                await VenuesService.UpdateAsync(updated);
-        });
-    }
 
     /// <summary>Headless only, for now: the native window still has a close button of its own.</summary>
     private bool CanExit => !Configuration.GetValue<bool>(Program.NativeShellKey);
@@ -399,10 +231,6 @@ public partial class SettingsButton : IDisposable
         _ = Task.Run(Lifetime.StopApplication);
     }
 
-    // A custom theme carries a name of its own; only a built-in is named by its filename.
-    private string ThemeName(string? theme)
-        => string.IsNullOrEmpty(theme) ? "" : ThemeService.DisplayNameFor(theme);
-
     // The menu keeps itself open so a section can expand in place, so anything that finishes a
     // choice has to close it by hand.
     private void CloseMenu()
@@ -413,16 +241,6 @@ public partial class SettingsButton : IDisposable
 
     private List<SettingsPage> VisiblePages()
         => [.. _allPages.Where(page => page.Applies?.Invoke(this) ?? true)];
-
-    private async Task SelectAsync(SettingsPage page)
-    {
-        CloseMenu();
-
-        if (page.Opens is { } open)
-            await open(this);
-        else
-            NavigationManager.NavigateTo(page.Route);
-    }
 
     private void NavigateTo(string route)
     {

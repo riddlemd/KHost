@@ -12,14 +12,14 @@ namespace KHost.UserInterface.Services;
 public class DialogService : IDialogService
 {
     private readonly ILogger<DialogService> _logger;
-    private readonly IReadOnlyList<IDisplayProvider> _displays;
+    private readonly IDisplaySwitcher _displays;
 
     public event EventHandler<BaseDialogRequest>? ShowRequested;
 
-    public DialogService(ILogger<DialogService> logger, IEnumerable<IDisplayProvider> displays)
+    public DialogService(ILogger<DialogService> logger, IDisplaySwitcher displays)
     {
         _logger = logger;
-        _displays = [.. displays];
+        _displays = displays;
     }
 
     public Task<bool> ShowConfirmationAsync(
@@ -164,32 +164,9 @@ public class DialogService : IDialogService
     public Task ShowNoScreensAsync()
         => ShowConfirmationAsync(
             "Playback needs a screen for audio and video output.",
-            onConfirm: OpenLocalScreenAsync,
+            onConfirm: _displays.OpenLocalScreenAsync,
             title: "No screens connected",
             confirmText: "Launch Screen");
-
-    /// <summary>Connects the transport the host opens itself rather than finds, which is the screens.</summary>
-    private async Task OpenLocalScreenAsync()
-    {
-        var screens = _displays.FirstOrDefault(display => !display.SearchesForDevices);
-        if (screens?.Devices.FirstOrDefault() is not { } device)
-        {
-            _logger.LogWarning("No local display is registered, so no screen can be opened");
-            return;
-        }
-
-        // One display at a time: whatever else holds the song lets go before the screen opens.
-        foreach (var other in _displays)
-        {
-            if (other == screens || other.ConnectedDeviceId is not { Length: > 0 }) continue;
-
-            try { await other.DisconnectAsync(); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Could not disconnect {Provider}", other.Name); }
-        }
-
-        try { await screens.ConnectAsync(device.Id); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Could not open a screen"); }
-    }
 
     private Task RequestEditAsync<TRequest, TInput>(TInput? item, Func<TInput?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         where TInput : class
