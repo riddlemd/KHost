@@ -68,9 +68,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private readonly IMessageBroker _broker;
 
-    // Serializes every path that hands the display a different stream mid-song or parks it: session
+    // Serializes every path that builds a stream for the display or parks it: load, ad, session
     // sync, display loss and stream reopen. Connect and disconnect both arrive as fire-and-forget
     // continuations, so without it a reconnect's resume races the disconnect's pause.
+    // Not re-entrant: nothing that holds it may reach LoadFromStartAsync.
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
 
     private readonly PlaybackClock _clock;
@@ -91,8 +92,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     // What the displays are playing for the current song, if anything. It carries the host-side
     // encode when the renderer started one, and nothing when the displays play the parts direct.
-    // Written under _reloadLock only on the reopen path; load, replay and close write it unguarded.
+    // Built under _reloadLock on every path; only close writes it unguarded.
     private MediaRendition? _rendition;
+
+    // Interlocked only. Moves on every reset, so a rebuild queued for the song before it can tell.
+    private long _songGeneration;
 
     // Interlocked only. Which stop's fade is the live one; see StopAsync.
     private int _stopGeneration;
@@ -297,7 +301,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         try
         {
             // A display that draws the words loads them itself, inside this call.
-            await LoadOntoDisplayAsync(await BuildLoadAsync(media, TimeSpan.Zero));
+            await LoadFromStartAsync(media);
         }
         catch
         {
@@ -400,7 +404,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         try
         {
             if (playsOnMainChannel)
-                await LoadOntoDisplayAsync(await BuildLoadAsync(ad.Visual!, TimeSpan.Zero));
+                await LoadFromStartAsync(ad.Visual!);
 
             if (ad.Audio is { } audio)
                 await _ads.PlayAudioAsync(audio, ad.AudioStart);
@@ -571,6 +575,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         State = PlaybackState.Paused;
         _clock.Stop();
+
+        // A report already past the Playing check would otherwise land after this and move the
+        // paused playhead, or undo a display loss's park at the start.
+        _clock.MarkTransportMoved();
 
         _analytics.RecordPlaybackStateTransition(PlaybackState.Paused);
 
@@ -755,6 +763,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private void ResetState()
     {
+        Interlocked.Increment(ref _songGeneration);
+
         _clock.Stop();
         _clock.Reset();
 
@@ -813,12 +823,34 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         return DescribeStream(media);
     }
 
-    /// <summary>Rebuilds since ffmpeg fixes its filter graph at start, which costs a short silence.</summary>
-    private async Task ReopenStreamAsync(TimeSpan? at = null)
+    /// <summary>Opens <paramref name="media"/> at its start and hands it to the display.</summary>
+    private async Task LoadFromStartAsync(Media media)
     {
+        // A rebuild past its settle may be mid-build: each retires what it replaces, and the one
+        // finishing last would otherwise leave the room on the other's song.
         await _reloadLock.WaitAsync();
         try
         {
+            await LoadOntoDisplayAsync(await BuildLoadAsync(media, TimeSpan.Zero));
+        }
+        finally
+        {
+            _reloadLock.Release();
+        }
+    }
+
+    /// <summary>Rebuilds since ffmpeg fixes its filter graph at start, which costs a short silence.</summary>
+    private async Task ReopenStreamAsync(TimeSpan? at = null)
+    {
+        var song = Interlocked.Read(ref _songGeneration);
+
+        await _reloadLock.WaitAsync();
+        try
+        {
+            // Queued behind a load: the change was for the song before, and the new one opens as it should.
+            if (Interlocked.Read(ref _songGeneration) != song)
+                return;
+
             // A still holds no stream to rebuild, and an ad is nobody's song to transpose.
             if (CurrentMedia is not { } media || IsPlayingAd || _rendition is null)
                 return;
