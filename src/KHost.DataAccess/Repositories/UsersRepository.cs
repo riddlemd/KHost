@@ -10,12 +10,12 @@ namespace KHost.DataAccess.Repositories;
 
 internal class UsersRepository : BaseSearchableRepository<KHostUser, UserSearchOptions>, IUsersRepository
 {
-    // Lowercased because SQLite orders with binary collation: without it every lowercase name
-    // sorts below every uppercase one, and a singer called "mike" lands under the Vs.
+    // The folded column, not lower(): SQLite orders with binary collation and its bundled lower()
+    // folds ASCII only, so "ábel" would land after "Zoe".
     private static readonly IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<KHostUser, object>>>
         {
-            ["name"] = u => u.Name.ToLower(),
+            ["name"] = u => EF.Property<string>(u, EntityFolding.NameFolded),
             ["createdDate"] = u => u.CreatedDate,
         };
 
@@ -95,6 +95,24 @@ internal class UsersRepository : BaseSearchableRepository<KHostUser, UserSearchO
             .Include(u => u.ForeignKeys)
             .AsSplitQuery()
             .FirstOrDefaultAsync(u => u.Id == id);
+    }
+
+    public async Task<List<KHostUser>> ReadManyAsync(IEnumerable<Guid> ids)
+    {
+        var order = ids.ToList();
+        var distinct = order.Distinct().ToList();
+        if (distinct.Count == 0)
+            return [];
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+        var found = await context.Set<KHostUser>()
+            .Include(u => u.Groups.OrderBy(g => g.Name))
+            .Include(u => u.ForeignKeys)
+            .AsSplitQuery()
+            .Where(u => distinct.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id);
+
+        return [.. order.Where(found.ContainsKey).Select(id => found[id])];
     }
 
     public async Task<KHostUser?> ReadByForeignKeyAsync(string source, string key)
@@ -179,7 +197,7 @@ internal class UsersRepository : BaseSearchableRepository<KHostUser, UserSearchO
                inner);
 
     protected override IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> SortColumns => _sortColumns;
-    protected override Expression<Func<KHostUser, object>> DefaultSortExpression => u => u.Name.ToLower();
+    protected override Expression<Func<KHostUser, object>> DefaultSortExpression => u => EF.Property<string>(u, EntityFolding.NameFolded);
 
     protected override IQueryable<KHostUser> ApplySearchFilters(IQueryable<KHostUser> queryable, string query, UserSearchOptions? options)
     {

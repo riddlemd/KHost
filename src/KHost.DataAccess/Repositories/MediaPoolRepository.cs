@@ -11,7 +11,7 @@ internal class MediaPoolRepository : BaseSearchableRepository<MediaPool, MediaPo
     private static readonly IReadOnlyDictionary<string, Expression<Func<MediaPool, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<MediaPool, object>>>
         {
-            ["name"] = p => p.Name.ToLower(),
+            ["name"] = p => EF.Property<string>(p, EntityFolding.NameFolded),
             ["purpose"] = p => p.Purpose,
         };
 
@@ -78,7 +78,7 @@ internal class MediaPoolRepository : BaseSearchableRepository<MediaPool, MediaPo
     }
 
     protected override IReadOnlyDictionary<string, Expression<Func<MediaPool, object>>> SortColumns => _sortColumns;
-    protected override Expression<Func<MediaPool, object>> DefaultSortExpression => p => p.Name.ToLower();
+    protected override Expression<Func<MediaPool, object>> DefaultSortExpression => p => EF.Property<string>(p, EntityFolding.NameFolded);
 
     protected override IQueryable<MediaPool> ApplySearchFilters(IQueryable<MediaPool> queryable, string query, MediaPoolSearchOptions? options)
     {
