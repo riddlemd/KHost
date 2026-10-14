@@ -385,6 +385,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - Never give the code-behind partial a base class — the generated partial supplies one; a second won't compile.
 - `_Imports.razor` does not reach `.razor.cs` — code-behind needs its own `using` directives.
 - `Dialog` renders its footer only when one is supplied. A viewer (actions commit on click) supplies none and closes from the header X; no close-only footer button.
+- The console is one circuit: the Photino window, or one headless tab. A second tab is a testing convenience, and `IDialogService` is a singleton that publishes to every circuit by design, so a second tab also showing a confirmation is expected, not a bug.
 - Keyboard shortcuts:
   - A list's arrow keys: Blazor `@onkeydown` on a focusable element *inside* the panel (`tabindex` + `data-kh-keylist`). A handler on the column around the panel never sees it.
   - Global chords: `shortcuts.js`, focusing `[data-kh-shortcut]`, matched in JS so typing never crosses the circuit. None of them act while a dialog is open (`.kh-scrim` in the DOM), and closing the last dialog hands focus back to what held it before (`scroll-utils.js`).
@@ -401,7 +402,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 ## CSS/SCSS
 
-- No inline styles or `<style>` elements. BEM with `kh-` prefix (`kh-button--danger`). SCSS nesting. Bootstrap Icons only — no Bootstrap CSS/JS; its utility classes (`d-flex`, `mb-3`, …) resolve to nothing.
+- No `<style>` elements and no literal inline properties. Inline `style` is allowed only to set CSS custom properties for values computed at runtime (`style="--kh-fill: @(pct)%"`), which the stylesheet consumes (`SongControlSlider.razor`). BEM with `kh-` prefix (`kh-button--danger`). SCSS nesting. Bootstrap Icons only — no Bootstrap CSS/JS; its utility classes (`d-flex`, `mb-3`, …) resolve to nothing.
 - Component styles beside the component (`Foo.razor.scss` → scoped `Foo.razor.css`; gitignored output — never edit or commit it). Shared blocks under `wwwroot/scss` via `app.scss`; a partial co-locates only once exactly one component uses its block.
 - Only `app.scss` and `themes/*` may lack a `_` prefix — any other `wwwroot/scss` file without one compiles to its own stylesheet.
 - Scoped CSS reaches only elements the component itself renders. A class handed to another component (`<Icon Class="..." />`, `<InputNumber class="..." />`, RenderFragment content) silently matches nothing. Use `::deep` under an ancestor this component renders, naming the child class in full: `.kh-foo__row { ::deep .kh-foo__field { ... } }`. Never `::deep &__x` (`&` expands to the parent and swallows it).

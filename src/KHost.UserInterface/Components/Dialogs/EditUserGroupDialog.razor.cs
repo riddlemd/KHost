@@ -43,7 +43,7 @@ public partial class EditUserGroupDialog
     protected override void OnParametersSet()
     {
         _permissionsTableAttrs = _model.IsAdmin
-            ? new Dictionary<string, object?> { { "style", "opacity: 0.6;" } }
+            ? new Dictionary<string, object?> { { "class", "kh-table kh-user-group-edit-dialog__table--locked" } }
             : [];
     }
 
