@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models.Plugins;
 
-namespace KHost.Abstractions.Services;
+namespace KHost.Domain.Services.Plugins;
 
 /// <summary>Reads the installable-plugins list, fetched only when the browse list opens.</summary>
 /// <remarks>Host-only: the Plugins page's Available tab. A plugin has no business with it. The

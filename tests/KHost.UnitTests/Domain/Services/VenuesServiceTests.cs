@@ -1,7 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.QueueRotation;
-using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.DataAccess.Repositories;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

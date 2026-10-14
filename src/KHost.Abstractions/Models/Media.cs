@@ -86,15 +86,11 @@ public class Media : RepositoryModel
     public string Format { get; set; } = string.Empty;
 
     /// <summary>Provider that produced this file, self-named on import; empty for a scan find.</summary>
-    /// <remarks>Unchecked claim: never gate on it; kept out of <see cref="SearchFolded"/>.</remarks>
+    /// <remarks>Unchecked claim: never gate on it; not searched.</remarks>
     public string Source { get; set; } = string.Empty;
 
     /// <summary>What the host has learned about this file, deliberately not searchable.</summary>
     public string Notes { get; set; } = "";
-
-    /// <summary>Combined, match-insensitive form of <see cref="Title"/> and <see cref="Artist"/> used
-    /// for search; the host keeps this in sync, so a plugin should treat it as read-only.</summary>
-    public string SearchFolded { get; set; } = string.Empty;
 
     /// <summary>The file's size, in bytes. Null until it has been measured.</summary>
     public long? FileSize { get; set; }

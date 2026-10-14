@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.QueueRotation;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
+using KHost.Domain.Services.QueueRotation;
 using KHost.UserInterface.Components;
 using Microsoft.Extensions.DependencyInjection;
 

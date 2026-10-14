@@ -2,9 +2,10 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models.QueueRotation;
-using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
+using KHost.DataAccess.Repositories;
+using KHost.Domain.Services.QueueRotation;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;

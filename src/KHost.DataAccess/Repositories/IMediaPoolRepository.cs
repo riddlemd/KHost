@@ -1,11 +1,11 @@
 using KHost.Abstractions.Models;
 
-namespace KHost.Abstractions.Repositories;
+namespace KHost.DataAccess.Repositories;
 
 /// <summary>Playlists for break music and ads, and their ordered entries.</summary>
 /// <remarks>
-/// <para>Host-implemented. A plugin goes through <see cref="Services.IMediaPoolService"/>, which
-/// announces <see cref="Messaging.Messages.MediaPoolsChanged"/>, refuses an entry list that would
+/// <para>Host-implemented. A plugin goes through <see cref="KHost.Abstractions.Services.IMediaPoolService"/>, which
+/// announces <see cref="KHost.Abstractions.Messaging.Messages.MediaPoolsChanged"/>, refuses an entry list that would
 /// let a pool reach itself through a child pool, and resets the pool's play cursor after an edit.
 /// <see cref="ReplaceEntriesAsync"/> here checks none of that.</para>
 /// <para>Search matches the pool name, case- and accent-insensitive, and honours

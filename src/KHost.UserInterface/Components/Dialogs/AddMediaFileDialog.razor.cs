@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.DataAccess.Repositories;
 using Microsoft.AspNetCore.Components;
 using KHost.Common.Media;
 

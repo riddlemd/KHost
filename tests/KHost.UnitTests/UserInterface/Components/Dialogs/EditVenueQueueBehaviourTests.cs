@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services.Messaging;
+using KHost.Domain.Services.QueueRotation;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
 using Microsoft.Extensions.DependencyInjection;

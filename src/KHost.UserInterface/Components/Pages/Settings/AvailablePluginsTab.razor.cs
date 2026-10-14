@@ -2,6 +2,7 @@ using System.Net;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
 using KHost.Common.Plugins;
+using KHost.Domain.Services.Plugins;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 

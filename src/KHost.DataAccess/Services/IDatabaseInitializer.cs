@@ -1,4 +1,4 @@
-namespace KHost.Abstractions.Services;
+namespace KHost.DataAccess.Services;
 
 /// <summary>Brings the library database up to date before anything reads it.</summary>
 /// <remarks>Host-only; a plugin has no business with it. The host runs it once, synchronously, at

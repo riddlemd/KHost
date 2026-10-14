@@ -14,6 +14,11 @@ internal static class EntityFolding
     // anything in the process could flip, changing what every stored folded value means.
     private const UnidecodeAlgorithm Algorithm = UnidecodeAlgorithm.Complete;
 
+    // Named, not nameof: most are shadow properties, kept off the models a plugin sees.
+    internal const string SearchFolded = "SearchFolded";
+    internal const string NameFolded = "NameFolded";
+    internal const string NotesFolded = "NotesFolded";
+
     /// <summary>Transliterates to ASCII and lowercases: "Björk" to "bjork".</summary>
     /// <remarks>Accents and non-Latin scripts both reduce to something a host can type.</remarks>
     internal static string Fold(string? value)
@@ -33,45 +38,46 @@ internal static class EntityFolding
             switch (entry.Entity)
             {
                 case Media media:
-                    Set(entry, nameof(Media.SearchFolded), media.SearchFolded,
-                        FoldMedia($"{media.Title} {media.Artist}"));
+                    Set(entry, SearchFolded, FoldMedia($"{media.Title} {media.Artist}"));
                     break;
 
                 case KHostUser user:
-                    Set(entry, nameof(KHostUser.NameFolded), user.NameFolded, Fold(user.Name));
+                    Set(entry, NameFolded, Fold(user.Name));
                     break;
 
                 case Venue venue:
-                    Set(entry, nameof(Venue.NameFolded), venue.NameFolded, Fold(venue.Name));
+                    Set(entry, NameFolded, Fold(venue.Name));
                     break;
 
                 case KHostUserGroup group:
-                    Set(entry, nameof(KHostUserGroup.NameFolded), group.NameFolded, Fold(group.Name));
+                    Set(entry, NameFolded, Fold(group.Name));
                     break;
 
                 case Tip tip:
-                    Set(entry, nameof(Tip.NotesFolded), tip.NotesFolded, Fold(tip.Notes));
+                    Set(entry, NotesFolded, Fold(tip.Notes));
                     break;
 
                 case MediaPool pool:
-                    Set(entry, nameof(MediaPool.NameFolded), pool.NameFolded, Fold(pool.Name));
+                    Set(entry, NameFolded, Fold(pool.Name));
                     break;
 
                 case VisualisationPlaylist playlist:
-                    Set(entry, nameof(VisualisationPlaylist.NameFolded), playlist.NameFolded, Fold(playlist.Name));
+                    Set(entry, NameFolded, Fold(playlist.Name));
                     break;
             }
         }
     }
 
-    // Marking the property modified explicitly: an entry attached for a partial update writes only
-    // the properties it was told to, and the folded column has to travel with the text it mirrors.
-    private static void Set(EntityEntry entry, string property, string current, string folded)
+    // Marked modified explicitly: a partial update writes only the properties it was told to. Null is
+    // not the empty fold: a shadow column attached from a detached entity starts null and must be written.
+    private static void Set(EntityEntry entry, string property, string folded)
     {
-        if (current == folded)
+        var column = entry.Property(property);
+
+        if (column.CurrentValue is string current && current == folded)
             return;
 
-        entry.Property(property).CurrentValue = folded;
-        entry.Property(property).IsModified = true;
+        column.CurrentValue = folded;
+        column.IsModified = true;
     }
 }
