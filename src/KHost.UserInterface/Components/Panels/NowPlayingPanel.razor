@@ -136,45 +136,13 @@
                          title="Click to skip to a point in the song">
                         @if (hasLanes)
                         {
-                            @* Percentages rather than a viewBox: a stretched viewBox scales the corner
-                               radius with the song's length, so short spans would lose their pills. *@
-                            <svg class="kh-now-playing__lanes kh-now-playing__lanes--by-voice" aria-hidden="true">
-                                @for (var i = 0; i < _lanes.Count; i++)
-                                {
-                                    var lane = _lanes[i];
-                                    var (y, height) = LaneBand(i, _lanes.Count);
-                                    var fill = FillOf(lane);
+                            <LyricLaneTrack Lanes="_lanes" OneLane="_oneLane" MediaId="_lanesMediaId" DurationSeconds="durationSeconds" />
 
-                                    foreach (var span in lane.Spans)
-                                    {
-                                        <rect class="kh-now-playing__lane-span @(fill is null ? "kh-now-playing__lane-span--themed" : "")"
-                                              x="@PercentOf(span.StartSeconds, durationSeconds)"
-                                              width="@PercentOf(span.EndSeconds - span.StartSeconds, durationSeconds)"
-                                              y="@y" height="@height" rx="3" fill="@fill" />
-                                    }
-                                }
+                            @* A layer of its own over both lane drawings, so a position tick redraws one rect. *@
+                            <svg class="kh-now-playing__lanes" aria-hidden="true">
                                 <rect class="kh-now-playing__played" x="0" y="0" height="100%"
-                                      width="@PercentOf(PlaybackService.Position.TotalSeconds, durationSeconds)" />
+                                      width="@LyricLaneTrack.PercentOf(PlaybackService.Position.TotalSeconds, durationSeconds)" />
                             </svg>
-
-                            @* Drawn beside the lanes and swapped in by the container query: a panel too
-                               narrow to tell the singers apart still shows where the singing is. *@
-                            @if (_oneLane is { } one)
-                            {
-                                var (oneY, oneHeight) = LaneBand(0, 1);
-
-                                <svg class="kh-now-playing__lanes kh-now-playing__lanes--one" aria-hidden="true">
-                                    @foreach (var span in one.Spans)
-                                    {
-                                        <rect class="kh-now-playing__lane-span kh-now-playing__lane-span--themed"
-                                              x="@PercentOf(span.StartSeconds, durationSeconds)"
-                                              width="@PercentOf(span.EndSeconds - span.StartSeconds, durationSeconds)"
-                                              y="@oneY" height="@oneHeight" rx="3" />
-                                    }
-                                    <rect class="kh-now-playing__played" x="0" y="0" height="100%"
-                                          width="@PercentOf(PlaybackService.Position.TotalSeconds, durationSeconds)" />
-                                </svg>
-                            }
                         }
                         <div class="kh-now-playing__progress-fill @(isPlaying ? "kh-now-playing__progress-fill--playing" : "") @(isStopping ? "kh-now-playing__progress-fill--stopping" : "") @(hasLanes ? "kh-now-playing__progress-fill--over-lanes" : "")"
                              style="--kh-fill: @(pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%">

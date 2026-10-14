@@ -26,6 +26,7 @@ public partial class NowPlayingPanel : IDisposable
     [Inject] private ITimedLyricsService LyricsService { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
+    private readonly CoalescedRefresh<Stale> _playNextRefresh;
 
     /// <summary>Whether there is anybody to name. Read off the queue rather than asked of the
     /// card service on every render, which would reach the database to paint a button.</summary>
@@ -64,6 +65,8 @@ public partial class NowPlayingPanel : IDisposable
                             : $"Play {_topSinger.Name}'s next song")
         + " (Ctrl+Enter)";
 
+    public NowPlayingPanel() => _playNextRefresh = new CoalescedRefresh<Stale>(_ => RefreshPlayNextAsync());
+
     protected override void OnInitialized()
     {
         _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(changed =>
@@ -76,16 +79,16 @@ public partial class NowPlayingPanel : IDisposable
         _subscriptions.Add(Broker.Subscribe<TimedLyricsSettingsChanged>(_ => InvokeAsync(() => RefreshLanesAsync(reread: true))));
 
         // Any of these can change who is up next or what their top song looks like.
-        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => InvokeAsync(RefreshPlayNextAsync)));
-        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => InvokeAsync(RefreshPlayNextAsync)));
-        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => InvokeAsync(RefreshPlayNextAsync)));
+        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => RequestPlayNext()));
+        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => RequestPlayNext()));
+        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => RequestPlayNext()));
 
         // The only panel that takes the position clock: it draws the playhead, and a redraw is all
         // it does with either event.
         PlaybackService.PositionChanged += OnStateChanged;
 
         _ = InvokeAsync(RefreshLanesAsync);
-        _ = InvokeAsync(RefreshPlayNextAsync);
+        RequestPlayNext();
     }
 
     /// <summary>Same load-then-play path the queue's own ▶ button uses
@@ -116,6 +119,8 @@ public partial class NowPlayingPanel : IDisposable
                 onRetry: () => _ = PlayNextAsync());
         }
     }
+
+    private void RequestPlayNext() => _ = InvokeAsync(() => _playNextRefresh.RequestAsync(Stale.PlayNext));
 
     private async Task RefreshPlayNextAsync()
     {
@@ -199,28 +204,6 @@ public partial class NowPlayingPanel : IDisposable
         StateHasChanged();
     }
 
-    /// <summary>A position as a percentage of the song, for an SVG coordinate.</summary>
-    private static string PercentOf(double seconds, double durationSeconds)
-        => Percent(Math.Clamp(seconds / durationSeconds * 100, 0, 100));
-
-    /// <summary>Where lane <paramref name="index"/> of <paramref name="count"/> sits in the track,
-    /// as SVG percentages. A lone lane is half the track's height; stacked
-    /// lanes take more of their band so each stays thick enough to see.</summary>
-    private static (string Y, string Height) LaneBand(int index, int count)
-    {
-        var band = 100.0 / count;
-        var height = band * (count == 1 ? 0.5 : 0.7);
-        var y = band * index + (band - height) / 2;
-
-        return (Percent(y), Percent(height));
-    }
-
-    private static string Percent(double value)
-        => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + "%";
-
-    private static string? FillOf(LyricLane lane)
-        => lane.Color is { } c ? $"#{c.R:X2}{c.G:X2}{c.B:X2}" : null;
-
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
 
     private static string FormatTime(TimeSpan ts) =>
@@ -231,5 +214,12 @@ public partial class NowPlayingPanel : IDisposable
         _subscriptions.Dispose();
 
         PlaybackService.PositionChanged -= OnStateChanged;
+    }
+
+    [Flags]
+    private enum Stale
+    {
+        None = 0,
+        PlayNext = 1,
     }
 }

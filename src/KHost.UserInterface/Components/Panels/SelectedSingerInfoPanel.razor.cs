@@ -28,6 +28,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
+    private readonly CoalescedRefresh<Stale> _refresh;
 
     private List<Performance> _performances = [];
     private Dictionary<Guid, Media?> _mediaCache = [];
@@ -36,6 +37,9 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     private int _tonightTotalInCents;
     private int _lifetimeTotalInCents;
     private bool _tippingEnabled = true;
+
+    /// <summary>Whose rows and totals are on screen, so a different singer is read in full.</summary>
+    private Guid? _loadedUserId;
 
     /// <summary>Off for a venue never asked, so an alias stays out of sight until one is wanted.</summary>
     private bool _allowAliases;
@@ -47,6 +51,8 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     private int _performanceCount => _performances.Count;
 
+    public SelectedSingerInfoPanel() => _refresh = new CoalescedRefresh<Stale>(RefreshAsync);
+
     protected override async Task OnInitializedAsync()
     {
         // The row itself drags. Its buttons are filtered out, or a press on play or remove would
@@ -54,14 +60,16 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         _sortable = new SortableBinding(
             JS, "songs", ".kh-selected-singer-info-panel__rows", "button", "performanceId", nameof(OnSortEndAsync));
 
-        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
-        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
-        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
-        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => OnStateChanged()));
-        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => Request(Stale.Queue)));
+        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => Request(Stale.Queue)));
+        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => Request(Stale.Media)));
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => Request(Stale.Venue)));
+        _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => Request(Stale.Venue)));
+        _subscriptions.Add(Broker.Subscribe<TipsChanged>(_ => Request(Stale.Tips)));
+        // Rows read the playing state off the service as they draw; nothing loaded here goes stale.
+        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => InvokeAsync(StateHasChanged)));
 
-        await RefreshVenueSettingsAsync();
-        await RefreshPerformancesAsync();
+        await _refresh.RequestAsync(Stale.All);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -179,8 +187,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         {
             if (savedTip is null) return;
             await TipsService.CreateAsync(savedTip);
-            await RefreshPerformancesAsync();
-            StateHasChanged();
+            await _refresh.RequestAsync(Stale.Tips);
         });
     }
 
@@ -266,12 +273,59 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         StateHasChanged();
     }
 
-    private void OnStateChanged() => InvokeAsync(async () =>
+    private void Request(Stale parts) => InvokeAsync(() => _refresh.RequestAsync(parts));
+
+    /// <summary>Re-reads only what <paramref name="parts"/> names; the coalescer guarantees no
+    /// second call overlaps this one.</summary>
+    private async Task RefreshAsync(Stale parts)
     {
-        await RefreshVenueSettingsAsync();
-        await RefreshPerformancesAsync();
+        if (parts.HasFlag(Stale.Venue))
+        {
+            var wasTipping = _tippingEnabled;
+            await RefreshVenueSettingsAsync();
+            if (wasTipping != _tippingEnabled) parts |= Stale.Tips;
+        }
+
+        if (SingerQueueService.SelectedUser is not { } user)
+        {
+            _performances = [];
+            _selectedPerformanceId = null;
+            _mediaCache = [];
+            _loadedUserId = null;
+            _tonightTotalInCents = 0;
+            _lifetimeTotalInCents = 0;
+            StateHasChanged();
+            return;
+        }
+
+        if (_loadedUserId != user.Id)
+            parts |= Stale.Queue | Stale.Tips;
+
+        var performances = _performances;
+        if (parts.HasFlag(Stale.Queue))
+        {
+            performances = (await PerformanceService.ReadQueuedAsync()).Where(p => p.SingerId == user.Id).ToList();
+            parts |= Stale.Media;
+        }
+
+        if (parts.HasFlag(Stale.Media))
+        {
+            // Assigned with the rows they describe, so a render in between never pairs a row with no media.
+            _mediaCache = performances.Count > 0
+                ? await MediaCacheLoader.ReadByIdAsync(MediaService, performances.Select(p => p.MediaId))
+                : [];
+            _performances = performances;
+            if (!_performances.Any(p => p.Id == _selectedPerformanceId))
+                _selectedPerformanceId = null;
+        }
+
+        if (parts.HasFlag(Stale.Tips))
+            await RefreshTipsAsync(user.Id);
+
+        _loadedUserId = user.Id;
+
         StateHasChanged();
-    });
+    }
 
     // Rendering needs this synchronously, and the venue read is async, so cache it and refresh
     // on venue state changes so toggling tipping takes effect without a reload.
@@ -284,39 +338,19 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         _promptBeforeRemovingPerformance = venue?.Settings.PromptBeforeRemovingPerformance ?? false;
     }
 
-    private async Task RefreshPerformancesAsync()
+    private async Task RefreshTipsAsync(Guid userId)
     {
-        if (SingerQueueService.SelectedUser is { } user)
+        if (!_tippingEnabled)
         {
-            _performances = (await PerformanceService.ReadQueuedAsync()).Where(p => p.SingerId == user.Id).ToList();
-            if (!_performances.Any(p => p.Id == _selectedPerformanceId))
-                _selectedPerformanceId = null;
-
-            _mediaCache = _performances.Count > 0
-                ? await MediaCacheLoader.ReadByIdAsync(MediaService, _performances.Select(p => p.MediaId))
-                : [];
-
-            if (_tippingEnabled)
-            {
-                var tips = await TipsService.GetByUserIdAsync(user.Id);
-                _lifetimeTotalInCents = tips.Sum(t => t.AmountInCents);
-                _tonightTotalInCents = tips.Where(t => t.CreatedDate.ToLocalTime().Date == DateTime.Now.Date)
-                                           .Sum(t => t.AmountInCents);
-            }
-            else
-            {
-                _tonightTotalInCents = 0;
-                _lifetimeTotalInCents = 0;
-            }
-        }
-        else
-        {
-            _performances = [];
-            _selectedPerformanceId = null;
-            _mediaCache = [];
             _tonightTotalInCents = 0;
             _lifetimeTotalInCents = 0;
+            return;
         }
+
+        var tips = await TipsService.GetByUserIdAsync(userId);
+        _lifetimeTotalInCents = tips.Sum(t => t.AmountInCents);
+        _tonightTotalInCents = tips.Where(t => t.CreatedDate.ToLocalTime().Date == DateTime.Now.Date)
+                                   .Sum(t => t.AmountInCents);
     }
 
     /// <summary>Whether this turn was queued under a name other than the singer's own.</summary>
@@ -333,5 +367,16 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     {
         _subscriptions.Dispose();
         await _sortable.DisposeAsync();
+    }
+
+    [Flags]
+    private enum Stale
+    {
+        None = 0,
+        Venue = 1,
+        Queue = 2,
+        Media = 4,
+        Tips = 8,
+        All = Venue | Queue | Media | Tips,
     }
 }

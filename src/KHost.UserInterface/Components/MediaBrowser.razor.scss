@@ -150,6 +150,28 @@
         vertical-align: middle;
     }
 
+    // Fixed so the virtualised list can place rows it has not drawn; RowHeightPx says the same.
+    // Striped by list position: the spacer row ahead of them would flip a DOM-order stripe on scroll.
+    &__row {
+        height: 40px;
+    }
+
+    &__table tbody &__row {
+        background: transparent;
+    }
+
+    &__table tbody &__row--striped {
+        background: var(--kh-table-stripe);
+    }
+
+    &__table tbody &__row:hover {
+        background: var(--kh-primary-subtle);
+    }
+
+    &__loading {
+        height: 100%;
+    }
+
     &__row--dir {
         cursor: pointer;
 
