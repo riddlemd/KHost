@@ -24,11 +24,10 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
     public async Task<int> ReadNextQueuePositionForSingerAsync(Guid singerId)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
-        var positions = await context.Set<Performance>()
-            .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
-            .Select(p => p.QueuePosition!.Value)
-            .ToListAsync();
-        return (positions.DefaultIfEmpty(0).Max()) + 1;
+        var max = await context.Set<Performance>()
+            .Where(p => p.SingerId == singerId)
+            .MaxAsync(p => p.QueuePosition);
+        return (max ?? 0) + 1;
     }
 
     public async Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId)
