@@ -80,7 +80,7 @@ public class SingerQueueServiceQueryCountTests : IDisposable
         Assert.Equal(Evening.AddHours(1), queue[alice.Id].LastSangOn);
         Assert.Null(queue[bob.Id].LastSangOn);
         Assert.Equal(Evening.AddMinutes(30), queue[carol.Id].LastSangOn);
-        Assert.Equal([regular.Id, vip.Id], queue[alice.Id].GroupIds.Order());
+        Assert.Equal(new[] { regular.Id, vip.Id }.Order(), queue[alice.Id].GroupIds.Order());
         Assert.Empty(queue[bob.Id].GroupIds);
         Assert.Equal([regular.Id], queue[carol.Id].GroupIds);
     }
