@@ -3,15 +3,18 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Messaging;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using KHost.Common.Media;
-using KHost.Domain.Services.Displays;
-using KHost.Domain.Services.Displays.LocalScreen;
-using System.Runtime.CompilerServices;
+using KHost.Domain.Services.Playback;
 
 namespace KHost.Domain.Services;
 
+/// <summary>The transport: what is loaded, playing, paused or stopped, and what follows a turn.</summary>
+/// <remarks>The playhead is <see cref="PlaybackClock"/>'s, key/tempo/mix is
+/// <see cref="LiveSoundController"/>'s, an ad's extras are <see cref="AdChannels"/>', and the way
+/// out to the display is <see cref="DisplayLink"/>'s; this decides when each is used.</remarks>
 public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 {
     public sealed class ServiceOptions
@@ -21,8 +24,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         /// <summary>How long screens fade audio and video out for on stop. Zero stops instantly.</summary>
         public TimeSpan StopFadeDuration { get; set; } = TimeSpan.FromSeconds(5);
 
-        /// <summary>Collapses a burst of presses into one restart, each a hole in the song.</summary>
-        public TimeSpan PitchSettleDelay { get; set; } = TimeSpan.FromMilliseconds(600);
+        /// <summary>Collapses a burst of key, tempo, mix or lyric-setting changes into one stream
+        /// rebuild, each a hole in the song.</summary>
+        /// <remarks>Bound from <c>Playback:PitchSettleDelay</c>, the key it was first saved under.</remarks>
+        [ConfigurationKeyName("PitchSettleDelay")]
+        public TimeSpan RebuildSettleDelay { get; set; } = TimeSpan.FromMilliseconds(600);
 
         /// <summary>Where backing sits on an unmixed song; the lead has none, a singer replaces it.</summary>
         public int DefaultBackingVolume { get; set; } = AudioMix.DefaultBackingVolume;
@@ -60,75 +66,39 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         public TimeSpan DisplayStartTimeout { get; set; } = TimeSpan.FromSeconds(15);
     }
 
-    private static readonly TimeSpan ClockInterval = TimeSpan.FromMilliseconds(500);
-
-    /// <summary>How long after a load, seek or play an end the display reports is still taken to
-    /// belong to what came before it.</summary>
-    private static readonly TimeSpan EndedSettle = TimeSpan.FromSeconds(1);
-
-    // _timer's swap is read-then-assign, reached from the UI dispatcher and Task.Run continuations at once;
-    // unguarded, the loser's Timer becomes unreachable but keeps ticking, driving a second clock forever.
-    private readonly Lock _clockLock = new();
     private readonly IMessageBroker _broker;
-    private ITimer? _timer;
 
-    // A tick that outruns the interval must not overlap the next: two in flight both see the song
-    // ended and rotate the singer away twice.
-    private int _ticking;
+    // Serializes every path that hands the display a different stream mid-song or parks it: session
+    // sync, display loss and stream reopen. Connect and disconnect both arrive as fire-and-forget
+    // continuations, so without it a reconnect's resume races the disconnect's pause.
+    private readonly SemaphoreSlim _reloadLock = new(1, 1);
 
-    private DateTime _lastTick;
-
-    // Moves on every reset and every conclusion, under _clockLock. A conclusion claims the value it
-    // was raised under, so the clock and the display's own end cannot both retire one song.
-    private long _generation;
-
-    // Claimed but not yet reset: the song still reads as Playing while the display stops, so an end
-    // or tick landing then captures the claimed generation as live and would conclude it again.
-    private bool _concluding;
-
-    // The screen is holding the song before its start: the playhead sits at zero, not running on.
-    private bool _holding;
-
-    private DateTime _transportMovedAtUtc = DateTime.MinValue;
-
-    // Set when a play goes out, cleared by the display's first playing report after it. A display
-    // still fetching the song plays nothing, and a clock running meanwhile jumps back when it starts.
-    private DateTime? _awaitingDisplaySince;
+    private readonly PlaybackClock _clock;
+    private readonly DisplayLink _link;
+    private readonly AdChannels _ads;
+    private readonly LiveSoundController _sound;
 
     /// <summary>Where the display's end is concluded: off the hub thread that reported it.</summary>
     /// <remarks>A seam so a test can hold that work back until the clock has concluded, which is the
     /// one interleaving the single-fire claim exists for and the thread pool will not reproduce.</remarks>
     internal Action<Func<Task>> DeferConclusion { get; set; } = work => _ = Task.Run(work);
 
-    // Connect and disconnect both arrive as fire-and-forget continuations, so without this they
-    // can interleave and a reconnect's resume races the disconnect's pause.
-    private readonly SemaphoreSlim _screenSyncLock = new(1, 1);
-
-    // The receiver app session the current song was loaded into. Compared rather than the device
-    // id: a receiver that restarts is the same device having forgotten everything.
-    private Guid? _displaySessionId;
-
     private IDisposable? _displaySubscription;
     private IDisposable? _lyricSettingsSubscription;
 
+    // Unguarded, like the transport state.
     private IAnalyticsActivity? _sessionActivity;
 
     // What the displays are playing for the current song, if anything. It carries the host-side
     // encode when the renderer started one, and nothing when the displays play the parts direct.
+    // Written under _reloadLock only on the reopen path; load, replay and close write it unguarded.
     private MediaRendition? _rendition;
 
-    private CancellationTokenSource? _reopenSettle;
-
-    // Which stop's fade is the live one; see StopAsync.
+    // Interlocked only. Which stop's fade is the live one; see StopAsync.
     private int _stopGeneration;
 
-    // The ad on the main channel. Its Duration, not any one file's, is what the clock runs out.
-    private AdPlayback? _ad;
-
+    // Unguarded, like the transport state.
     private PlaybackProgram _program = new PlaybackProgram.Idle();
-
-    // An ad's own audio track, which borrows the background channel from break music.
-    private MediaStreamSession? _adAudioStream;
 
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
@@ -136,7 +106,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IAnalyticsService _analytics;
     private readonly IMediaStreamService _mediaStreams;
     private readonly IMediaRendererService _renderers;
-    private readonly IReadOnlyList<IDisplayProvider> _displays;
     private readonly IBreakMusicService _breakMusic;
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
     private readonly IAudioTrackService _audioTracks;
@@ -152,35 +121,39 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     public event EventHandler? PositionChanged;
     public event EventHandler<PerformanceEndedEventArgs>? PerformanceEnded;
 
+    // The transport state below is unguarded: written from host calls, display events and conclusion
+    // continuations alike, relying on their rarely overlapping.
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
     public string? CurrentSingerName { get; private set; }
 
     /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
-    public bool IsPlayingAd => _ad is not null;
+    public bool IsPlayingAd => _ads.IsPlaying;
 
     public PlaybackProgram CurrentProgram => _program;
     public PlaybackState State { get; private set; } = PlaybackState.Stopped;
-    public TimeSpan Position { get; private set; }
+
+    public TimeSpan Position
+    {
+        get => _clock.Position;
+        private set => _clock.Position = value;
+    }
+
     public Guid? CurrentlyPerformingUserId { get; private set; }
     public TimeSpan? StopFadeDuration { get; private set; }
-    public int Pitch { get; private set; }
-    public int Tempo { get; private set; }
+    public int Pitch => _sound.Pitch;
+    public int Tempo => _sound.Tempo;
 
     /// <summary>The named voices in the loaded file, empty for the ordinary single-track song.</summary>
-    public IReadOnlyList<AudioTrack> AudioTracks { get; private set; } = [];
+    public IReadOnlyList<AudioTrack> AudioTracks => _sound.AudioTracks;
 
-    public int LeadVolume { get; private set; }
-    public int BackingVolume { get; private set; } = AudioMix.DefaultBackingVolume;
-
-    // Replaced whole on every change, never edited: a mix handed to a renderer holds the old one.
-    public IReadOnlyDictionary<string, int> VoiceVolumes { get; private set; } = new Dictionary<string, int>();
+    public int LeadVolume => _sound.LeadVolume;
+    public int BackingVolume => _sound.BackingVolume;
+    public IReadOnlyDictionary<string, int> VoiceVolumes => _sound.VoiceVolumes;
 
     /// <summary>Song seconds per wall-clock second, from the open stream not the wanted tempo.</summary>
     /// <remarks>The room is still on the old rate until the stream reopens.</remarks>
     private double Rate => _rendition is { } rendition ? StreamRate.FromTempo(rendition.Tempo) : 1.0;
-
-    private DateTime UtcNow => _time.GetUtcNow().UtcDateTime;
 
     public PlaybackService(
         ILogger<PlaybackService> logger,
@@ -209,9 +182,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _analytics = analytics;
         _mediaStreams = mediaStreams;
         _renderers = renderers;
-        // Every display the host can reach, screens included — the screens are a provider too.
-        // One is connected at a time, which the providers enforce; this is simply all of them.
-        _displays = [.. displayProviders];
         _breakMusic = breakMusic;
         _optionsMonitor = options;
         _audioTracks = audioTracks;
@@ -219,11 +189,21 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _flash = flash;
         _timedLyrics = timedLyrics;
 
-        foreach (var display in _displays)
+        _link = new DisplayLink(displayProviders, logger);
+        _clock = new PlaybackClock(time, logger, () => Options.DisplayStartTimeout, () => Rate, TickAsync);
+        _ads = new AdChannels(mediaStreams, _link, logger, CloseSessionAsync);
+        _sound = new LiveSoundController(
+            performanceService, broker, _link, logger,
+            () => Options.RebuildSettleDelay,
+            () => CurrentPerformance,
+            () => _rendition,
+            () => ReopenStreamAsync());
+
+        foreach (var display in _link.All)
             display.PlaybackStatusChanged += OnDisplayStatusReceived;
 
         // The contract has no way to say either, so only the screens report them.
-        foreach (var screen in _displays.OfType<LocalScreenDisplayProvider>())
+        foreach (var screen in _link.Screens)
         {
             screen.SongEnded += OnDisplaySongEnded;
             screen.HoldingBeforeSong += OnDisplayHolding;
@@ -257,19 +237,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <summary>Whether the song has anywhere to come out — a screen, a television, anything.</summary>
     /// <remarks>Any connected display counts, not only a local screen: refusing to play with only a
     /// television attached would refuse the setup casting exists for.</remarks>
-    public Task<bool> HasConnectedScreenAsync()
-    {
-        try
-        {
-            return Task.FromResult(ConnectedDisplay.Find(_displays) is not null);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to read the connected displays");
-        }
-
-        return Task.FromResult(false);
-    }
+    public Task<bool> HasConnectedScreenAsync() => Task.FromResult(_link.IsConnected());
 
     public async Task LoadAsync(Performance performance, Media media)
     {
@@ -297,7 +265,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // A song takes the room back from an ad still running. The still comes down with the card
         // below, but an ad's own audio is on the background channel, which nothing else clears.
         if (IsPlayingAd)
-            await CancelAdAsync();
+            await _ads.CancelAsync();
 
         // Before the load goes out, so a display takes the card down ahead of the song.
         _program = new PlaybackProgram.Playing(media, performance);
@@ -312,24 +280,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         Position = TimeSpan.Zero;
 
         // After ResetState, which cleared them: a performance carries how it was sung.
-        Pitch = performance.Pitch;
-        Tempo = performance.Tempo;
-        LeadVolume = AudioLevels.ClampVolume(performance.LeadVolume);
-
-        // Null means nobody has mixed this one, so the machine setting answers, and goes on
-        // answering if that setting later changes.
-        BackingVolume = AudioLevels.ClampVolume(performance.BackingVolume ?? Options.DefaultBackingVolume);
+        _sound.TakeFrom(performance, Options.DefaultBackingVolume);
 
         // Probed rather than stored: the answer costs one ffprobe, and a file replaced on disk
         // would otherwise keep whatever its tracks were called at import.
-        //
-        AudioTracks = await _audioTracks.ReadTracksAsync(media.FilePath);
-
-        // An entry for every voice, so the unnamed lead's level never reaches a named singer's stem.
-        VoiceVolumes = VoicesIn(AudioTracks).ToDictionary(
-            voice => voice,
-            voice => AudioLevels.ClampVolume(
-                performance.VoiceVolumes?.GetValueOrDefault(voice, AudioMix.DefaultLeadVolume) ?? AudioMix.DefaultLeadVolume));
+        _sound.TakeTracks(performance, await _audioTracks.ReadTracksAsync(media.FilePath));
 
         _sessionActivity = _analytics.StartActivity(AnalyticActivities.Session);
         _sessionActivity.SetTag("media_id", media.Id);
@@ -361,7 +316,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private async Task AbandonAdAsync()
     {
         // An ad this one replaced is still on the display; the card cannot come back over it.
-        await ToDisplayAsync(display => display.StopAsync(TimeSpan.Zero));
+        await _link.SendAsync(display => display.StopAsync(TimeSpan.Zero));
 
         await EndedAsync();
 
@@ -408,38 +363,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <remarks>Never dequeues or rotates: retiring a singer for an ad would cost their song.</remarks>
     public async Task<bool> PlayAdAsync(AdPlayback ad)
     {
-        if (ad.IsEmpty)
-        {
-            Logger.LogWarning("Ad refused: nothing to show and nothing to play");
+        if (!_ads.Accepts(ad, performanceLoaded: CurrentPerformance is not null))
             return false;
-        }
-
-        // Nothing here is watching an ad the way a host watches a song, and the clock ends one by
-        // its duration: without one this would hold the main channel all night.
-        if (ad.Duration <= TimeSpan.Zero)
-        {
-            Logger.LogWarning("Ad refused: no duration");
-            return false;
-        }
-
-        if (ad.Visual is { Status: not MediaStatus.Ready } visualStatus)
-        {
-            Logger.LogWarning("Ad refused: visual {MediaId} is {Status}, not Ready", visualStatus.Id, visualStatus.Status);
-            return false;
-        }
-
-        if (ad.Audio is { Status: not MediaStatus.Ready } audioStatus)
-        {
-            Logger.LogWarning("Ad refused: audio {MediaId} is {Status}, not Ready", audioStatus.Id, audioStatus.Status);
-            return false;
-        }
-
-        // Never over a singer. An ad waits for the gap rather than cutting a performance short.
-        if (CurrentPerformance is not null)
-        {
-            Logger.LogWarning("Ad refused: a performance is loaded");
-            return false;
-        }
 
         ResetState();
 
@@ -449,7 +374,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             await _breakMusic.SuspendAsync();
 
         CurrentMedia = ad.Visual;
-        _ad = ad;
+        _ads.Current = ad;
         Position = TimeSpan.Zero;
 
         if (!await HasConnectedScreenAsync())
@@ -477,15 +402,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             if (playsOnMainChannel)
                 await LoadOntoDisplayAsync(await BuildLoadAsync(ad.Visual!, TimeSpan.Zero));
 
-            // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
-            // and the host clock stops it at the ad's duration.
             if (ad.Audio is { } audio)
-            {
-                _adAudioStream = await _mediaStreams.OpenAsync(audio.FilePath, ad.AudioStart);
-
-                var bed = new BackgroundLoad { StreamUrl = _adAudioStream.PlaylistUrl, AutoPlay = true };
-                await ToDisplayAsync(display => display.LoadBackgroundAsync(bed));
-            }
+                await _ads.PlayAudioAsync(audio, ad.AudioStart);
         }
         catch
         {
@@ -500,7 +418,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // A still or an audio-only spot drives no media element on the main channel, so there
             // is nothing for the play path to start: the clock alone runs it out.
             State = PlaybackState.Playing;
-            StartClock();
+            _clock.Start();
 
             _broker.Announce(new PlaybackChanged());
             return true;
@@ -538,13 +456,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
 
         CurrentlyPerformingUserId = CurrentPerformance?.SingerId;
-        MarkTransportMoved();
+        _clock.MarkTransportMoved();
 
         // Leaving Stopping here is what tells an in-flight StopAsync to abandon its completion.
         State = PlaybackState.Playing;
         StopFadeDuration = null;
-        AwaitDisplayStart();
-        StartClock();
+        _clock.AwaitDisplayStart();
+        _clock.Start();
 
         _analytics.RecordPlaybackStateTransition(PlaybackState.Playing);
 
@@ -558,7 +476,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
         else
         {
-            await ToDisplayAsync(display => display.PlayAsync());
+            await _link.SendAsync(display => display.PlayAsync());
         }
 
         _broker.Announce(new PlaybackChanged());
@@ -586,128 +504,31 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         var wasPlaying = State == PlaybackState.Playing;
 
         // Stopped first: the tick would otherwise carry the old position over the new one.
-        StopClock();
+        _clock.Stop();
         Position = target;
 
-        // The screen drops the rest of a hold on a seek and starts the song there.
-        lock (_clockLock) _holding = false;
-        MarkTransportMoved();
+        _clock.ReleaseHold();
+        _clock.MarkTransportMoved();
 
         Logger.LogInformation("Seeking to {Position}", target);
 
-        await ToDisplayAsync(display => display.SeekAsync(target));
+        await _link.SendAsync(display => display.SeekAsync(target));
 
         if (wasPlaying)
-            StartClock();
+            _clock.Start();
 
         _broker.Announce(new PlaybackChanged());
     }
 
-    public async Task SetPitchAsync(int semitones)
-    {
-        var target = Math.Clamp(semitones, IPlaybackService.MinPitch, IPlaybackService.MaxPitch);
+    public Task SetPitchAsync(int semitones) => _sound.SetPitchAsync(semitones);
 
-        if (target == Pitch) return;
+    public Task SetTempoAsync(int tempo) => _sound.SetTempoAsync(tempo);
 
-        Pitch = target;
-        Logger.LogInformation("Pitch set to {Semitones:+#;-#;0}", target);
+    public Task SetLeadVolumeAsync(int volume) => _sound.SetLeadVolumeAsync(volume);
 
-        await AfterRateChangeAsync();
-    }
+    public Task SetBackingVolumeAsync(int volume) => _sound.SetBackingVolumeAsync(volume);
 
-    /// <summary>What the open stream is mixed to, or null when the file has nothing to balance.</summary>
-    private AudioMix? CurrentMix =>
-        AudioTracks.Count == 0 ? null : new AudioMix(AudioTracks, LeadVolume, BackingVolume) { VoiceVolumes = VoiceVolumes };
-
-    private static IEnumerable<string> VoicesIn(IEnumerable<AudioTrack> tracks) => tracks
-        .Where(t => t.Role == AudioTrackRole.Lead && t.Voice is not null)
-        .Select(t => t.Voice!)
-        .Distinct(StringComparer.Ordinal);
-
-    public async Task SetLeadVolumeAsync(int volume)
-    {
-        var target = AudioLevels.ClampVolume(volume);
-
-        if (target == LeadVolume) return;
-
-        LeadVolume = target;
-        Logger.LogInformation("Lead vocal set to {Volume}%", target);
-
-        await AfterMixChangeAsync(AudioTrackRole.Lead, target);
-    }
-
-    public async Task SetBackingVolumeAsync(int volume)
-    {
-        var target = AudioLevels.ClampVolume(volume);
-
-        if (target == BackingVolume) return;
-
-        BackingVolume = target;
-        Logger.LogInformation("Backing vocals set to {Volume}%", target);
-
-        await AfterMixChangeAsync(AudioTrackRole.Backing, target);
-    }
-
-    public async Task SetVoiceVolumeAsync(string voice, int volume)
-    {
-        var target = AudioLevels.ClampVolume(volume);
-
-        if (!VoiceVolumes.TryGetValue(voice, out var current))
-        {
-            Logger.LogWarning("No lead in this song is sung by {Voice}; level left alone", voice);
-            return;
-        }
-
-        if (target == current) return;
-
-        VoiceVolumes = new Dictionary<string, int>(VoiceVolumes) { [voice] = target };
-        Logger.LogInformation("Lead vocal for {Voice} set to {Volume}%", voice, target);
-
-        await AfterMixChangeAsync(AudioTrackRole.Lead, target, voice);
-    }
-
-    public async Task SetTempoAsync(int tempo)
-    {
-        var target = Math.Clamp(tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo);
-
-        if (target == Tempo) return;
-
-        Tempo = target;
-        Logger.LogInformation("Tempo set to {Tempo:+#;-#;0}%", target);
-
-        await AfterRateChangeAsync();
-    }
-
-    /// <summary>A moved voice, which a mixing display takes as a gain rather than a new encode.</summary>
-    /// <remarks>Falls through to the rebuild whenever the displays cannot do it themselves, so this
-    /// is a shortcut past <see cref="AfterRateChangeAsync"/> and never a second way of doing it.</remarks>
-    private async Task AfterMixChangeAsync(AudioTrackRole role, int volume, string? voice = null)
-    {
-        if (await TryMoveStemAsync(role, volume, voice))
-        {
-            // The rebuild path announces and persists on its way through; this one still must.
-            _broker.Announce(new PlaybackChanged());
-            await PersistRateAsync();
-            return;
-        }
-
-        await AfterRateChangeAsync();
-    }
-
-    /// <summary>Shared by key and speed, so changing both costs the song one break rather than two.</summary>
-    private async Task AfterRateChangeAsync()
-    {
-        // Before the encode is touched, so the readout answers the button rather than ffmpeg.
-        _broker.Announce(new PlaybackChanged());
-
-        // Not on the settle below: a song ending inside that window would lose the change.
-        await PersistRateAsync();
-
-        // Nothing open to rebuild; the row is written and the next load reads it back.
-        if (_rendition is null) return;
-
-        ScheduleReopen();
-    }
+    public Task SetVoiceVolumeAsync(string voice, int volume) => _sound.SetVoiceVolumeAsync(voice, volume);
 
     /// <summary>Rebuilds the song at the playhead when the words burned into it would now read
     /// differently, the same way a key change does.</summary>
@@ -718,7 +539,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // An ad, or a song with nothing open, is left to ReopenStreamAsync to refuse, as a key change is.
         if (CurrentMedia is not { } media) return;
 
-        if (!DescribeTarget().BurnLyrics) return;
+        if (!_link.DescribeTarget().BurnLyrics) return;
 
         TimedLyrics? words;
         try { words = await _timedLyrics.GetTimedLyricsAsync(media.FilePath); }
@@ -733,66 +554,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         Logger.LogInformation("Lyric adjustments changed; rebuilding '{Title}' with its words redrawn", media.Title);
 
-        ScheduleReopen();
-    }
-
-    /// <summary>Reopens the stream once the settle runs out, a later call restarting it.</summary>
-    private void ScheduleReopen()
-    {
-        var settle = new CancellationTokenSource();
-        var superseded = Interlocked.Exchange(ref _reopenSettle, settle);
-        superseded?.Cancel();
-        superseded?.Dispose();
-
-        var token = settle.Token;
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(Options.PitchSettleDelay, token);
-                await ReopenStreamAsync();
-            }
-            catch (OperationCanceledException)
-            {
-                // Another press landed inside the delay, or the song ended.
-            }
-            finally
-            {
-                Interlocked.CompareExchange(ref _reopenSettle, null, settle);
-                settle.Dispose();
-            }
-        }, CancellationToken.None);
-    }
-
-    /// <summary>Writes key and speed onto the row the history is read from. An ad has neither.</summary>
-    private async Task PersistRateAsync()
-    {
-        if (CurrentPerformance is not { } performance) return;
-
-        performance.Pitch = Pitch;
-        performance.Tempo = Tempo;
-        performance.LeadVolume = LeadVolume;
-        performance.BackingVolume = BackingVolume;
-
-        // Merged, not replaced: a song whose probe came back empty must not wipe how it was sung.
-        if (VoiceVolumes.Count > 0)
-        {
-            var voices = performance.VoiceVolumes is null ? [] : new Dictionary<string, int>(performance.VoiceVolumes);
-            foreach (var (voice, level) in VoiceVolumes) voices[voice] = level;
-            performance.VoiceVolumes = voices;
-        }
-
-        try
-        {
-            await _performanceService.UpdateAsync(performance);
-        }
-        catch (Exception ex)
-        {
-            // Never fatal: the room already has the new key, and losing the record must not
-            // take the song off the screens.
-            Logger.LogWarning(ex, "Could not record the rate on performance {PerformanceId}", performance.Id);
-        }
+        _sound.ScheduleRebuild();
     }
 
     private static TimeSpan Clamp(TimeSpan position, TimeSpan? duration)
@@ -808,13 +570,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             return;
 
         State = PlaybackState.Paused;
-        StopClock();
+        _clock.Stop();
 
         _analytics.RecordPlaybackStateTransition(PlaybackState.Paused);
 
         Logger.LogInformation("Playback paused at {Position}", Position);
 
-        await ToDisplayAsync(display => display.PauseAsync());
+        await _link.SendAsync(display => display.PauseAsync());
 
         _broker.Announce(new PlaybackChanged());
     }
@@ -830,12 +592,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         // Same reasoning, asked of the device rather than the state: a receiver stops dead, and
         // the wait below would then be that many seconds of silence before the queue moves on.
-        if (fade > TimeSpan.Zero && !DisplayCanFade())
+        if (fade > TimeSpan.Zero && !_link.CanFade())
             fade = TimeSpan.Zero;
 
         // Hold CurrentPerformance/CurrentMedia until the screens have finished fading, so the
         // UI can show the song winding down instead of blanking while it is still audible.
-        StopClock();
+        _clock.Stop();
         State = PlaybackState.Stopping;
         StopFadeDuration = fade > TimeSpan.Zero ? fade : null;
 
@@ -847,7 +609,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         _broker.Announce(new PlaybackChanged());
 
-        await ToDisplayAsync(display => display.StopAsync(fade));
+        await _link.SendAsync(display => display.StopAsync(fade));
 
         if (fade > TimeSpan.Zero)
             await Task.Delay(fade, _time);
@@ -877,9 +639,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         if (disposing)
         {
-            foreach (var display in _displays)
+            foreach (var display in _link.All)
                 display.PlaybackStatusChanged -= OnDisplayStatusReceived;
-            foreach (var screen in _displays.OfType<LocalScreenDisplayProvider>())
+            foreach (var screen in _link.Screens)
             {
                 screen.SongEnded -= OnDisplaySongEnded;
                 screen.HoldingBeforeSong -= OnDisplayHolding;
@@ -889,9 +651,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             _lyricSettingsSubscription?.Dispose();
             _lyricSettingsSubscription = null;
 
-            // _screenSyncLock is deliberately not disposed: a detached sync may still be holding
+            // _reloadLock is deliberately not disposed: a detached sync may still be holding
             // it at shutdown, and its Release would then throw.
-            StopClock();
+            _clock.Stop();
         }
     }
 
@@ -901,27 +663,23 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// at all is the other half of the same news, and may mean the song has lost its way out.</remarks>
     private async Task SyncDisplaySessionAsync()
     {
-        var joined = _displays.FirstOrDefault(display => display.SessionId is not null);
+        var joined = _link.Joined;
 
         if (joined?.SessionId is null)
         {
-            lock (_clockLock) _displaySessionId = null;
+            _link.ForgetSession();
             await HandleDisplayLossAsync();
             return;
         }
 
-        await _screenSyncLock.WaitAsync();
+        await _reloadLock.WaitAsync();
         try
         {
             // Read inside the lock: DisplaysChanged is announced for discovery as well, so several
             // land close together and only one of them may claim the session.
             if (joined.SessionId is not { } session) return;
 
-            lock (_clockLock)
-            {
-                if (session == _displaySessionId) return;
-                _displaySessionId = session;
-            }
+            if (!_link.TryClaimSession(session)) return;
 
             var media = CurrentMedia;
 
@@ -931,11 +689,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             if (_rendition is not { } rendition || media is null || MediaFormats.IsImage(media.Format)) return;
 
             // Stems alone reach only a display that mixes; anything else needs the encoded stream.
-            var mixes = DescribeTarget(joined).MixesStems;
+            var mixes = _link.DescribeTarget(joined).MixesStems;
             if (rendition.Url is not { Length: > 0 } && !(mixes && rendition.Stems.Count > 0)) return;
 
             // Reloading costs a spin-up; a running clock resumes the display behind the UI.
-            StopClock();
+            _clock.Stop();
 
             Logger.LogInformation(
                 "Display session is new; loading '{Title}' at {Position}", media.Title, Position);
@@ -950,15 +708,15 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             // Also covers the throwing path: a stopped clock under Playing freezes the UI.
             if (State == PlaybackState.Playing)
-                StartClock(restart: false);
+                _clock.Start(restart: false);
 
-            _screenSyncLock.Release();
+            _reloadLock.Release();
         }
     }
 
     private async Task HandleDisplayLossAsync()
     {
-        await _screenSyncLock.WaitAsync();
+        await _reloadLock.WaitAsync();
         try
         {
             if (State != PlaybackState.Playing)
@@ -968,10 +726,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 return;
 
             // A deliberate Turn Off, a switch or a host shutdown all leave no display joined too,
-            // and read identically from here for any display. Only the screen — core, not a
-            // plugin, per LocalScreenDisplayProvider's own remarks — tracks which; a plugin
-            // display's own disconnect has no such signal and keeps logging as unexpected.
-            if (_displays.OfType<LocalScreenDisplayProvider>().Any(screen => screen.DisconnectWasRequested))
+            // and read identically from here for any display; only the screen tracks which, so a
+            // plugin display's own disconnect keeps logging as unexpected.
+            if (_link.DisconnectWasRequested)
                 Logger.LogInformation("The display carrying the song was disconnected; parking it at the start");
             else
                 Logger.LogWarning("The display carrying the song went away mid-performance; parking it at the start");
@@ -992,65 +749,27 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
         finally
         {
-            _screenSyncLock.Release();
-        }
-    }
-
-    /// <param name="restart">False leaves a running clock alone, checked and started as one step.</param>
-    private void StartClock(bool restart = true)
-    {
-        lock (_clockLock)
-        {
-            if (!restart && _timer is not null) return;
-
-            _lastTick = UtcNow;
-            _timer?.Dispose();
-            _timer = _time.CreateTimer(OnTick, null, ClockInterval, ClockInterval);
-        }
-    }
-
-    private void StopClock()
-    {
-        lock (_clockLock)
-        {
-            _timer?.Dispose();
-            _timer = null;
+            _reloadLock.Release();
         }
     }
 
     private void ResetState()
     {
-        StopClock();
-
-        lock (_clockLock)
-        {
-            _generation++;
-            _concluding = false;
-            _holding = false;
-            _awaitingDisplaySince = null;
-        }
+        _clock.Stop();
+        _clock.Reset();
 
         _sessionActivity?.Dispose();
         _sessionActivity = null;
 
         CurrentlyPerformingUserId = null;
 
-        // Cancelled rather than left to fire: it would otherwise reopen an encode for the song
-        // that has just been torn down.
-        Interlocked.Exchange(ref _reopenSettle, null)?.Cancel();
+        _sound.CancelPendingRebuild();
 
         State = PlaybackState.Stopped;
         StopFadeDuration = null;
         Position = TimeSpan.Zero;
 
-        // Cleared, not carried: the next thing loaded brings its own, and an ad has neither.
-        Pitch = 0;
-        Tempo = 0;
-
-        AudioTracks = [];
-        LeadVolume = AudioMix.DefaultLeadVolume;
-        BackingVolume = Options.DefaultBackingVolume;
-        VoiceVolumes = new Dictionary<string, int>();
+        _sound.Clear(Options.DefaultBackingVolume);
     }
 
     /// <summary>Throws when the encode will not start: there is no playback without it.</summary>
@@ -1071,14 +790,14 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 StartOffset = startOffset,
                 Pitch = Pitch,
                 Tempo = Tempo,
-                Mix = CurrentMix,
-                Target = DescribeTarget(),
+                Mix = _sound.CurrentMix,
+                Target = _link.DescribeTarget(),
             });
         }
         catch (Exception ex) when (ex is not KHostException)
         {
             throw new KHostException(
-                $"KHost couldn't prepare \u201c{media.Title}\u201d for the screens, so nothing was sent to them.",
+                $"KHost couldn't prepare “{media.Title}” for the screens, so nothing was sent to them.",
                 "Check the file is still on the drive, then try again.",
                 "KH-STREAM-OPEN",
                 ex);
@@ -1097,7 +816,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <summary>Rebuilds since ffmpeg fixes its filter graph at start, which costs a short silence.</summary>
     private async Task ReopenStreamAsync(TimeSpan? at = null)
     {
-        await _screenSyncLock.WaitAsync();
+        await _reloadLock.WaitAsync();
         try
         {
             // A still holds no stream to rebuild, and an ad is nobody's song to transpose.
@@ -1108,7 +827,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Stopped first, as in SeekAsync: a tick mid-reload carries the old position past
             // the point the new stream is opening at.
-            StopClock();
+            _clock.Stop();
 
             // Moves the playhead as well when a seek asked for this, so the bar answers the click
             // rather than waiting for the first report off the new stream.
@@ -1124,7 +843,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // A rendition of the whole song (stems) opens at the song's zero, not the playhead.
             if (_rendition is { } opened && position > opened.StartOffset)
-                await ToDisplayAsync(display => display.SeekAsync(position));
+                await _link.SendAsync(display => display.SeekAsync(position));
 
             // Re-read rather than captured before the rebuild: a host pause landing during it must
             // not be overridden by a Play the host never asked for.
@@ -1136,9 +855,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // ffmpeg has not written, and the element starves. Covering the gap is the transport's
             // business — a screen keeps its old element playing until the new one has sound.
             Position = position;
-            AwaitDisplayStart();
+            _clock.AwaitDisplayStart();
 
-            await ToDisplayAsync(display => display.PlayAsync());
+            await _link.SendAsync(display => display.PlayAsync());
         }
         catch (Exception ex)
         {
@@ -1149,9 +868,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             // Also covers the throwing path: a stopped clock under Playing freezes the UI.
             if (State == PlaybackState.Playing)
-                StartClock(restart: false);
+                _clock.Start(restart: false);
 
-            _screenSyncLock.Release();
+            _reloadLock.Release();
 
             _broker.Announce(new PlaybackChanged());
         }
@@ -1179,14 +898,14 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         var position = Position;
 
         if (position > seekPast)
-            await ToDisplayAsync(display => display.SeekAsync(position));
+            await _link.SendAsync(display => display.SeekAsync(position));
 
         // Re-read rather than captured before the awaits: a host pause or stop landing mid-replay
         // must win over a stale "was playing".
         if (State == PlaybackState.Playing)
         {
-            AwaitDisplayStart();
-            await ToDisplayAsync(display => display.PlayAsync());
+            _clock.AwaitDisplayStart();
+            await _link.SendAsync(display => display.PlayAsync());
         }
     }
 
@@ -1199,72 +918,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         Tempo = _rendition?.Tempo ?? 0,
         Stems = _rendition?.Stems ?? [],
     };
-
-    /// <summary>What the display that is up can take, in its own words, which decides what is
-    /// worth producing.</summary>
-    /// <remarks>Nothing connected asks for nothing special — whatever connects later triggers a
-    /// reload. A plugin's answer is guarded: a provider that cannot describe itself still plays.</remarks>
-    private RenderTarget DescribeTarget()
-        => ConnectedDisplay.Find(_displays) is { Provider: var provider }
-            ? DescribeTarget(provider)
-            : RenderTarget.None;
-
-    private RenderTarget DescribeTarget(IDisplayProvider provider)
-    {
-        try
-        {
-            return provider.DescribeTarget() ?? RenderTarget.None;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "{Display} could not describe what it takes; rendering for nothing special", provider.Name);
-            return RenderTarget.None;
-        }
-    }
-
-    /// <summary>Moves a voice on the displays instead of rebuilding the stream, where that works.</summary>
-    /// <returns>False when the display is hearing the host's own mix, which only a new encode can
-    /// change.</returns>
-    private async Task<bool> TryMoveStemAsync(AudioTrackRole role, int volume, string? voice)
-    {
-        if (_rendition is not { Stems.Count: > 0 }) return false;
-        if (ConnectedDisplay.Find(_displays) is not { Provider: var display }) return false;
-
-        // A throw counts as a refusal: a change that silently never lands is worse than a rebuild.
-        try
-        {
-            return await display.SetStemVolumeAsync(new StemLevel { Role = role, Voice = voice, Volume = volume });
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "{Display} could not move the {Role} stem; rebuilding the stream", display.Name, role);
-            return false;
-        }
-    }
-
-    /// <summary>Ends an ad before its clock ran out.</summary>
-    /// <remarks>None of what follows a finished one (the bed, the venue card) happens here.</remarks>
-    private async Task CancelAdAsync()
-    {
-        Logger.LogInformation("Ad cut short");
-
-        _ad = null;
-
-        await ReleaseAdAudioAsync();
-    }
-
-    /// <summary>Gives the background channel back, so the bed or a song can take it.</summary>
-    private async Task ReleaseAdAudioAsync()
-    {
-        if (_adAudioStream is null) return;
-
-        await ToDisplayAsync(display => display.StopBackgroundAsync());
-
-        var stream = _adAudioStream;
-        _adAudioStream = null;
-
-        await CloseSessionAsync(stream);
-    }
 
     private async Task CloseStreamAsync()
     {
@@ -1315,7 +968,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         CurrentPerformance = null;
         CurrentMedia = null;
         CurrentSingerName = null;
-        _ad = null;
+        _ads.Current = null;
 
         // A gap ad started below replaces this with its own.
         _program = new PlaybackProgram.Idle();
@@ -1326,7 +979,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Handed back before the bed is restored, or break music would reclaim the channel
             // while the ad's own voiceover was still playing on it.
-            await ReleaseAdAudioAsync();
+            await _ads.ReleaseAudioAsync();
 
             // No dequeue and no rotation: an ad is nobody's turn, and there is no slot to unlock
             // because none was ever locked for it.
@@ -1351,8 +1004,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         PerformanceEnded?.Invoke(this, gap);
         await gap.WhenFilledAsync();
 
-        // The ad the gap started, not the one that ended: _ad was cleared above.
-        if (_ad is { } next)
+        // The ad the gap started, not the one that ended: it was cleared above.
+        if (_ads.Current is { } next)
         {
             // A silent ad (a still with no voiceover) runs over the bed, not over nothing. Starting one
             // only suspends the bed when it has its own sound, so only the ended song put it down.
@@ -1367,43 +1020,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private Task LoadOntoDisplayAsync(DisplayLoad load)
     {
-        MarkTransportMoved();
+        _clock.MarkTransportMoved();
+        _link.NoteLoading();
 
-        // This session now has the song: a DisplaysChanged for it arriving late (announced off the
-        // hub thread) must not replay it on top, a second load and a second play.
-        if (ConnectedDisplay.Find(_displays)?.Provider.SessionId is { } session)
-            lock (_clockLock) _displaySessionId = session;
-
-        return ToDisplayAsync(display => display.LoadAsync(load));
+        return _link.SendAsync(display => display.LoadAsync(load));
     }
-
-    private void MarkTransportMoved()
-    {
-        lock (_clockLock) _transportMovedAtUtc = UtcNow;
-    }
-
-    /// <summary>Makes one call on whatever the song is coming out of.</summary>
-    /// <remarks>A provider that throws is logged, never rethrown: the caller is moving the show on
-    /// and a display that has gone must not stop it.</remarks>
-    private async Task ToDisplayAsync(
-        Func<IDisplayProvider, Task> call,
-        [CallerArgumentExpression(nameof(call))] string what = "")
-    {
-        if (ConnectedDisplay.Find(_displays) is not { } connected) return;
-
-        try { await call(connected.Provider); }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to send {Call} to {Provider}", what, connected.Provider.Name);
-        }
-    }
-
-    /// <summary>Whether the display carrying the song can ride it down rather than cut it.</summary>
-    /// <remarks>A device that has not listed itself yet is taken to fade: over-waiting is a pause
-    /// nobody hears, while under-waiting cuts a song off mid-word.</remarks>
-    private bool DisplayCanFade()
-        => ConnectedDisplay.Find(_displays) is { } connected
-            && (connected.Device is null || connected.Device.SupportsFade);
 
     /// <summary>Follows the position the display reached, not one the host asserts.</summary>
     /// <remarks>An HLS stream starts on a segment boundary, so an asserted clock is off from the
@@ -1415,27 +1036,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         if (State != PlaybackState.Playing || !status.IsPlaying) return;
 
         // The display carrying the song defines its clock; a report from any other is stale.
-        if (ConnectedDisplay.Find(_displays)?.Provider is not { } carrying || !ReferenceEquals(sender, carrying)) return;
+        if (!_link.IsCarrying(sender)) return;
 
-        var now = UtcNow;
-
-        lock (_clockLock)
-        {
-            // Sampled before the play went out: the old stream still sounding, not this start.
-            if (status.SampledAtUtc < _awaitingDisplaySince) return;
-
-            _awaitingDisplaySince = null;
-            _holding = false;
-            Position = status.Position + ((now - status.SampledAtUtc) * Rate);
-            _lastTick = now;
-        }
-    }
-
-    private void AwaitDisplayStart()
-    {
-        if (Options.DisplayStartTimeout <= TimeSpan.Zero) return;
-
-        lock (_clockLock) _awaitingDisplaySince = UtcNow;
+        _clock.FollowReport(status);
     }
 
     /// <summary>The screen is holding the song back before its start: the playhead stays at the
@@ -1444,14 +1047,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private void OnDisplayHolding(object? sender, DisplayPlaybackStatus status)
     {
         if (State != PlaybackState.Playing) return;
-        if (ConnectedDisplay.Find(_displays)?.Provider is not { } carrying || !ReferenceEquals(sender, carrying)) return;
+        if (!_link.IsCarrying(sender)) return;
 
-        lock (_clockLock)
-        {
-            _holding = true;
-            Position = status.Position;
-            _lastTick = UtcNow;
-        }
+        _clock.Hold(status);
     }
 
     /// <summary>The display played the song out: concluded here as well as on the clock, whichever
@@ -1460,23 +1058,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private void OnDisplaySongEnded(object? sender, DisplayPlaybackStatus status)
     {
         if (State != PlaybackState.Playing) return;
-        if (ConnectedDisplay.Find(_displays)?.Provider is not { } carrying || !ReferenceEquals(sender, carrying)) return;
+        if (!_link.IsCarrying(sender)) return;
 
-        long generation;
-        lock (_clockLock)
-        {
-            if (_holding) return;
-
-            // Sampled before the last load, seek or play landed, or so soon after it that the
-            // display cannot have reached an end since: the old stream's end, not this one's.
-            if (status.SampledAtUtc < _transportMovedAtUtc + EndedSettle)
-            {
-                Logger.LogInformation("Ignored an end the display reported at {Position}, from before the last seek or load", status.Position);
-                return;
-            }
-
-            generation = _generation;
-        }
+        if (!_clock.TryTakeEnd(status, out var generation)) return;
 
         DeferConclusion(async () =>
         {
@@ -1494,17 +1078,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <summary>Retires the song that was playing under <paramref name="generation"/>, once.</summary>
     private async Task ConcludeAsync(long generation, string why)
     {
-        lock (_clockLock)
-        {
-            // Claimed by moving the generation on, so the other path finds it spent.
-            if (generation != _generation || _concluding) return;
-            _generation++;
-            _concluding = true;
-        }
+        if (!_clock.TryClaim(generation)) return;
 
         // As a stop does, so the song's last frame comes down; unfaded, the song being over.
         // Before EndedAsync, which may start a gap ad this would otherwise stop.
-        await ToDisplayAsync(display => display.StopAsync(TimeSpan.Zero));
+        await _link.SendAsync(display => display.StopAsync(TimeSpan.Zero));
 
         ResetState();
 
@@ -1515,48 +1093,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _broker.Announce(new PlaybackChanged());
     }
 
-    private async void OnTick(object? state)
-    {
-        // Dropped, not queued: a tick only interpolates the playhead, and the one already running
-        // has the newer reading anyway.
-        if (Interlocked.Exchange(ref _ticking, 1) == 1) return;
-
-        try
-        {
-            await TickAsync();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Unhandled error in playback tick");
-        }
-        finally
-        {
-            Interlocked.Exchange(ref _ticking, 0);
-        }
-    }
-
     internal async Task TickAsync()
     {
-        long generation;
-        lock (_clockLock)
-        {
-            // Timer.Dispose does not wait out a callback already running, so a tick can land after
-            // a pause or stop, and would otherwise run a parked song to its end.
-            if (_timer is null) return;
-
-            var now = UtcNow;
-
-            // Position is song time and the clock is wall time, so a retimed song covers more or
-            // less of itself per tick. A hold is the song not yet started, so it covers none.
-            // Timed out: a display that never reports must still run the song out, from here.
-            if (_awaitingDisplaySince is { } since && now - since >= Options.DisplayStartTimeout)
-                _awaitingDisplaySince = null;
-
-            if (!_holding && _awaitingDisplaySince is null)
-                Position += (now - _lastTick) * Rate;
-            _lastTick = now;
-            generation = _generation;
-        }
+        if (!_clock.TryAdvance(out var generation)) return;
 
         if (HasPlaybackEnded())
         {
@@ -1573,7 +1112,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         // An ad runs for the length its playlist entry gave it, which is not any one file's: a
         // still has a default, and a voiceover may be a clip out of something far longer.
-        var duration = _ad is { } ad ? ad.Duration : CurrentMedia?.Duration;
+        var duration = _ads.Current is { } ad ? ad.Duration : CurrentMedia?.Duration;
 
         return duration is { } d && Position >= d;
     }
