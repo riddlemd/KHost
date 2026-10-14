@@ -1,4 +1,5 @@
 using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -55,6 +56,83 @@ public class NowPlayingPanelAnnounceShortcutTests : BunitContext
         panel.Find(AnnounceSelector).Click();
 
         _nextSingerCard.Received(1).AnnounceAsync();
+    }
+
+    [Fact]
+    public void CardUp_TheButtonOffersToHideIt()
+    {
+        _queue.Users.Returns([new KHostUser { Id = Guid.NewGuid(), Name = "Ann" }]);
+        _nextSingerCard.IsAnnounced.Returns(true);
+
+        var button = Render<NowPlayingPanel>().Find(AnnounceSelector);
+
+        Assert.Contains("Hide Next Singer", button.TextContent);
+        Assert.Equal("true", button.GetAttribute("aria-pressed"));
+        Assert.Equal("Take who is up off the screens (Ctrl+Shift+Enter)", button.GetAttribute("title"));
+        Assert.NotNull(button.QuerySelector(".bi-eye-slash"));
+    }
+
+    [Fact]
+    public void CardDown_TheButtonOffersToAnnounce()
+    {
+        _queue.Users.Returns([new KHostUser { Id = Guid.NewGuid(), Name = "Ann" }]);
+
+        var button = Render<NowPlayingPanel>().Find(AnnounceSelector);
+
+        Assert.Contains("Announce Next Singer", button.TextContent);
+        Assert.Equal("false", button.GetAttribute("aria-pressed"));
+    }
+
+    /// <summary>The queue can empty while the card is up; it must still come down.</summary>
+    [Fact]
+    public void CardUpWithNobodyQueued_TheButtonIsEnabled()
+    {
+        _queue.Users.Returns([]);
+        _nextSingerCard.IsAnnounced.Returns(true);
+
+        var panel = Render<NowPlayingPanel>();
+
+        Assert.False(panel.Find(AnnounceSelector).HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void CardUp_ClickingWithdrawsIt_RatherThanAnnouncingAgain()
+    {
+        _queue.Users.Returns([]);
+        _nextSingerCard.IsAnnounced.Returns(true);
+
+        var panel = Render<NowPlayingPanel>();
+        panel.Find(AnnounceSelector).Click();
+
+        _nextSingerCard.Received(1).WithdrawAsync(Arg.Any<CancellationToken>());
+        _nextSingerCard.DidNotReceive().AnnounceAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The card can come down without this console's button: the screen drew over it, or
+    /// another circuit pressed it.</summary>
+    [Fact]
+    public async Task NextSingerWithdrawn_RedrawsTheButton()
+    {
+        _queue.Users.Returns([new KHostUser { Id = Guid.NewGuid(), Name = "Ann" }]);
+        _nextSingerCard.IsAnnounced.Returns(true);
+        var panel = Render<NowPlayingPanel>();
+
+        _nextSingerCard.IsAnnounced.Returns(false);
+        await Services.GetRequiredService<IMessageBroker>().PublishAsync(new NextSingerWithdrawn());
+
+        panel.WaitForAssertion(() => Assert.Equal("false", panel.Find(AnnounceSelector).GetAttribute("aria-pressed")));
+    }
+
+    [Fact]
+    public async Task NextSingerAnnounced_RedrawsTheButton()
+    {
+        _queue.Users.Returns([new KHostUser { Id = Guid.NewGuid(), Name = "Ann" }]);
+        var panel = Render<NowPlayingPanel>();
+
+        _nextSingerCard.IsAnnounced.Returns(true);
+        await Services.GetRequiredService<IMessageBroker>().PublishAsync(new NextSingerAnnounced(new NextSingerCard { Singer = "Ann" }));
+
+        panel.WaitForAssertion(() => Assert.Equal("true", panel.Find(AnnounceSelector).GetAttribute("aria-pressed")));
     }
 
     /// <summary>Mirrors the button exactly: nobody queued means nobody to announce, and the

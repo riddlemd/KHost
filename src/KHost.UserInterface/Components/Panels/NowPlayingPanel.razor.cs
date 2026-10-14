@@ -32,6 +32,14 @@ public partial class NowPlayingPanel : IDisposable
     /// card service on every render, which would reach the database to paint a button.</summary>
     private bool _canAnnounce => SingerQueueService.Users.Count > 0;
 
+    private bool _isAnnounced => NextSingerCard.IsAnnounced;
+
+    private string AnnounceTitle => _isAnnounced
+        ? "Take who is up off the screens (Ctrl+Shift+Enter)"
+        : _canAnnounce
+            ? "Put who is up on the screens (Ctrl+Shift+Enter)"
+            : "Nobody is queued to announce (Ctrl+Shift+Enter)";
+
     private ElementReference _trackRef;
     private IJSObjectReference? _seekBar;
 
@@ -82,6 +90,11 @@ public partial class NowPlayingPanel : IDisposable
         _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => RequestPlayNext()));
         _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => RequestPlayNext()));
         _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => RequestPlayNext()));
+
+        // The card can come down without this panel's button: another circuit, or the screen
+        // drawing over it.
+        _subscriptions.Add(Broker.Subscribe<NextSingerAnnounced>(_ => OnStateChanged(null, EventArgs.Empty)));
+        _subscriptions.Add(Broker.Subscribe<NextSingerWithdrawn>(_ => OnStateChanged(null, EventArgs.Empty)));
 
         // The only panel that takes the position clock: it draws the playhead, and a redraw is all
         // it does with either event.
@@ -142,10 +155,15 @@ public partial class NowPlayingPanel : IDisposable
         await PlaybackService.PlayAsync();
     }
 
-    /// <summary>Puts who is up on the screens. The card replaces the venue's picture and stands
-    /// until the next thing is drawn, so nothing here has to take it down again.</summary>
-    private async Task AnnounceNextSingerAsync()
+    /// <summary>Puts who is up on the screens, or takes them off while the card is up.</summary>
+    private async Task ToggleNextSingerAsync()
     {
+        if (NextSingerCard.IsAnnounced)
+        {
+            await NextSingerCard.WithdrawAsync();
+            return;
+        }
+
         if (!await NextSingerCard.AnnounceAsync())
             Flash.Show("Nobody is queued to announce.", FlashType.Warning);
     }

@@ -38,14 +38,21 @@
                 <div class="kh-now-playing__empty-actions">
                     @* Only between songs: the card replaces the picture, so announcing over somebody's
                        performance would take their words off the screen. *@
+                    @* A toggle: once the card is up, the same button and chord take it down. *@
                     <button class="kh-button kh-button--secondary kh-now-playing__announce"
-                            disabled="@(!_canAnnounce)"
-                            title="@(_canAnnounce
-                                ? "Put who is up on the screens (Ctrl+Shift+Enter)"
-                                : "Nobody is queued to announce (Ctrl+Shift+Enter)")"
+                            disabled="@(!_canAnnounce && !_isAnnounced)"
+                            aria-pressed="@(_isAnnounced ? "true" : "false")"
+                            title="@AnnounceTitle"
                             data-kh-shortcut="announce-next-singer"
-                            @onclick="AnnounceNextSingerAsync">
-                        <Icon Name="megaphone" /> Announce Next Singer
+                            @onclick="ToggleNextSingerAsync">
+                        @if (_isAnnounced)
+                        {
+                            <Icon Name="eye-slash" /> @("Hide Next Singer")
+                        }
+                        else
+                        {
+                            <Icon Name="megaphone" /> @("Announce Next Singer")
+                        }
                     </button>
 
                     @* The rotation's own head, not whoever the console has selected — same target

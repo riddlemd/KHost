@@ -30,7 +30,7 @@ public static class KeyboardShortcuts
         new("Now playing",
         [
             new([Accel, "enter"], "Play the top singer's next song"),
-            new([Accel, "shift", "enter"], "Announce the next singer"),
+            new([Accel, "shift", "enter"], "Announce the next singer, or hide the card while it is up"),
             new([Accel, "alt", "enter"], "Pause or resume the song"),
             new([Accel, "backspace"], "Stop the song"),
         ],
