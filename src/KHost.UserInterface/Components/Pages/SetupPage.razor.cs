@@ -7,18 +7,15 @@ namespace KHost.UserInterface.Components.Pages;
 
 public partial class SetupPage
 {
-    [Inject] private IUsersService UsersService { get; set; } = default!;
-    [Inject] private IUserGroupsService UserGroupsService { get; set; } = default!;
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
-    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    internal enum SetupStep { Admin, Backgrounds, Placeholder, Venue, FFmpeg, Media }
+    internal enum SetupStep { Backgrounds, Placeholder, Venue, FFmpeg, Media }
 
-    // The list, not a count: whether Admin appears at all depends on Auth:RequireLogin, so every
+    // The list, not a count: whether the venue steps appear depends on an earlier run, so every
     // other step finds its place by membership rather than by a hardcoded number.
-    private List<SetupStep> _steps = [SetupStep.Admin, SetupStep.Backgrounds, SetupStep.Placeholder, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
+    private List<SetupStep> _steps = [SetupStep.Backgrounds, SetupStep.Placeholder, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
 
     private int _currentStep;
     private int _renderedStep = -1;
@@ -28,22 +25,9 @@ public partial class SetupPage
 
     protected override async Task OnInitializedAsync()
     {
-        // Sign-in is a config flag now, not a wizard choice: BuildSteps reads what the host
-        // already set in appsettings.json rather than asking.
-        var requireLogin = AppSettings.Current.RequireLogin;
-
-        // Resume where a half-finished setup left off. HasAdminWithPasswordAsync, not
-        // HasAdminUserAsync: an admin row with no password has not actually cleared this step,
-        // and must not be read as having done so.
-        var adminExists = await UsersService.HasAdminWithPasswordAsync();
         _venueExists = await VenuesService.HasAnyAsync();
 
-        BuildSteps(requireLogin);
-
-        // FFmpeg rather than Media: it proves nothing on disk, so a resumed setup checks again,
-        // and a machine that has it just moves on.
-        if (!requireLogin || adminExists)
-            _currentStep = _steps.IndexOf(_venueExists ? SetupStep.FFmpeg : SetupStep.Backgrounds);
+        BuildSteps();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -55,13 +39,12 @@ public partial class SetupPage
         }
     }
 
-    // A venue left by an earlier run drops its step: setup restarts at Admin whenever no admin
-    // has a password, and re-running the venue step would create a second venue of the same name.
-    // Backgrounds and Placeholder go with it: those choices exist to start that first venue.
-    private void BuildSteps(bool requireLogin)
+    // A venue left by an earlier run drops its step: re-running it would create a second venue of
+    // the same name. Backgrounds and Placeholder go with it: those choices exist to start that
+    // first venue. FFmpeg stays: it proves nothing on disk, so a resumed setup checks again.
+    private void BuildSteps()
     {
         _steps = [];
-        if (requireLogin) _steps.Add(SetupStep.Admin);
         if (!_venueExists)
         {
             _steps.Add(SetupStep.Backgrounds);
@@ -83,9 +66,8 @@ public partial class SetupPage
 
     private void OnSetupCompleteAsync()
     {
-        // A full load, not a circuit navigation: whether a request is signed in as the console
-        // admin is decided per HTTP request, and this circuit still carries the pre-setup
-        // anonymous identity.
+        // A full load, not a circuit navigation: the setup redirect is decided per HTTP request,
+        // so only a fresh request lands on the console.
         NavigationManager.NavigateTo("/", forceLoad: true);
     }
 }

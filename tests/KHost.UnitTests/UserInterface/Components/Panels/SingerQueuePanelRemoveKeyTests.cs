@@ -20,7 +20,6 @@ public class SingerQueuePanelRemoveKeyTests : BunitContext
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     // The real service: a substitute never runs ConfirmIfAsync's ask-or-act branch.
     private readonly DialogService _dialogs = new(NullLogger<DialogService>.Instance, []);
     private readonly KHostUser _first = new() { Id = Guid.NewGuid(), Name = "Ann" };
@@ -33,7 +32,6 @@ public class SingerQueuePanelRemoveKeyTests : BunitContext
         _queue.Users.Returns(_ => _users);
         _queue.SelectedUserId.Returns(_ => _first.Id);
         _venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
         PromptBeforeRemoving(false);
 
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -43,7 +41,6 @@ public class SingerQueuePanelRemoveKeyTests : BunitContext
 
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(_venues);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IMediaService>());
@@ -116,16 +113,6 @@ public class SingerQueuePanelRemoveKeyTests : BunitContext
     public void Delete_RefusesTheSingerAtTheMic()
     {
         _playback.CurrentlyPerformingUserId.Returns(_first.Id);
-
-        Render<SingerQueuePanel>().Find(QueueSelector).KeyDown(new KeyboardEventArgs { Key = "Delete" });
-
-        _queue.DidNotReceive().RemoveUserAsync(Arg.Any<Guid>());
-    }
-
-    [Fact]
-    public void Delete_RefusesWithoutTheRemovePermission()
-    {
-        _permissions.HasAsync(KHostPermission.RemoveFromQueue).Returns(false);
 
         Render<SingerQueuePanel>().Find(QueueSelector).KeyDown(new KeyboardEventArgs { Key = "Delete" });
 

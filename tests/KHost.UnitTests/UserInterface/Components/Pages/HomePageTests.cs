@@ -58,7 +58,6 @@ public class HomePageTests : BunitContext
         performances.ReadQueuedAsync().Returns([]);
         Services.AddSingleton(performances);
         Services.AddSingleton(venues);
-        Services.AddSingleton(Substitute.For<IPermissionService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
     }
 

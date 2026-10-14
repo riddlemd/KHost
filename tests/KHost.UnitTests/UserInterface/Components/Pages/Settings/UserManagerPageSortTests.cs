@@ -5,7 +5,6 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -33,16 +32,12 @@ public class UserManagerPageSortTests : BunitContext
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
-
-        var auth = AddAuthorization();
-        auth.SetAuthorized("tester");
-        auth.SetPolicies("EditUser", "DeleteUser");
     }
 
     [Fact]
     public void SortColumnClicked_SearchesByThatColumn_AscendingFirst()
     {
-        var cut = Render<CascadingAuthenticationState>(ps => ps.AddChildContent<UserManagerPage>());
+        var cut = Render<UserManagerPage>();
 
         // The Name column is the only sortable header in UserManagerPage.razor.
         cut.Find("th.kh-table__col--sortable").Click();
@@ -55,7 +50,7 @@ public class UserManagerPageSortTests : BunitContext
     [Fact]
     public void SortColumnClicked_Twice_ReversesTheDirection()
     {
-        var cut = Render<CascadingAuthenticationState>(ps => ps.AddChildContent<UserManagerPage>());
+        var cut = Render<UserManagerPage>();
 
         var header = cut.Find("th.kh-table__col--sortable");
         header.Click();

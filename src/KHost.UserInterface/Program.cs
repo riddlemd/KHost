@@ -23,30 +23,23 @@ internal static class Program
     internal const bool IsDebugBuild = false;
 #endif
 
-    internal const string LastLoginCacheKey = "last-login";
-
     // Top-level statements cannot carry [STAThread], which Photino needs on Windows, and the
     // attribute only holds on a synchronous Main: an async one resumes off the STA thread.
     [STAThread]
     private static int Main(string[] args)
     {
-        // First: the already-running and reset paths below write to a console that, on Windows,
-        // exists only once attached.
+        // First: the already-running path below writes to a console that, on Windows, exists only
+        // once attached.
         ParentConsole.TryAttach();
 
         var headless = args.Contains(HeadlessFlag);
-        var resetIndex = Array.IndexOf(args, PasswordResetCommand.Flag);
 
         using var instanceLock = InstanceLock.TryAcquire();
         if (instanceLock is null)
         {
-            // A reset run is a terminal operation, since a native dialog would block a script forever.
-            InstanceLock.ReportAlreadyRunning(headless || resetIndex >= 0);
+            InstanceLock.ReportAlreadyRunning(headless);
             return InstanceLock.AlreadyRunningExitCode;
         }
-
-        if (resetIndex >= 0)
-            return PasswordResetCommand.Run(resetIndex + 1 < args.Length ? args[resetIndex + 1] : null);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -72,7 +65,6 @@ internal static class Program
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
-        builder.Services.AddKHostAuthentication();
         builder.Services.AddUserInterfaceServices();
         builder.Services.AddInteractionHandlers();
 
@@ -82,7 +74,6 @@ internal static class Program
 
         app.MapDefaultEndpoints();
         app.MapIPCServer();
-        app.MapAuthEndpoints();
         app.MapMediaStream();
         app.MapMediaImages();
         app.MapSongLevels();

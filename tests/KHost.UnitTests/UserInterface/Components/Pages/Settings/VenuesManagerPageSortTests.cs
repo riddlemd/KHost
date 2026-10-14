@@ -5,7 +5,6 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -42,16 +41,12 @@ public class VenuesManagerPageSortTests : BunitContext
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(_broker);
-
-        var auth = AddAuthorization();
-        auth.SetAuthorized("tester");
-        auth.SetPolicies("EditVenue", "DeleteVenue");
     }
 
     [Fact]
     public async Task SortColumnClicked_OnceTheQueryReturns_ShowsTheSortedRowsWithNoFurtherEvent()
     {
-        var cut = Render<CascadingAuthenticationState>(ps => ps.AddChildContent<VenuesManagerPage>());
+        var cut = Render<VenuesManagerPage>();
         Assert.Contains("Alpha", cut.Markup);
 
         // The Name column is the first sortable header in VenuesManagerPage.razor.

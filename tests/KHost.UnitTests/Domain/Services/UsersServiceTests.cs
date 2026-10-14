@@ -22,28 +22,6 @@ public class UsersServiceTests
         _service = new UsersService(_logger, _repository, _userGroupsRepository, _broker);
     }
 
-    [Fact]
-    public async Task HasAdminUserAsync_ReturnsTrueWhenAdminExists()
-    {
-        _repository.HasAdminUserAsync().Returns(Task.FromResult(true));
-
-        var result = await _service.HasAdminUserAsync();
-
-        Assert.True(result);
-        await _repository.Received(1).HasAdminUserAsync();
-    }
-
-    [Fact]
-    public async Task HasAdminUserAsync_ReturnsFalseWhenNoAdminExists()
-    {
-        _repository.HasAdminUserAsync().Returns(Task.FromResult(false));
-
-        var result = await _service.HasAdminUserAsync();
-
-        Assert.False(result);
-        await _repository.Received(1).HasAdminUserAsync();
-    }
-
     [Theory]
     [InlineData("00000000-0000-0000-0000-000000000001")]
     [InlineData("00000000-0000-0000-0000-00000000009f")]

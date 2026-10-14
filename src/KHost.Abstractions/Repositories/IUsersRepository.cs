@@ -21,12 +21,6 @@ public interface IUsersRepository : IRepository<KHostUser>
     /// in case or accents.</summary>
     Task<KHostUser?> FindByNameAsync(string name);
 
-    /// <summary>Whether any user is in an admin group, password or not.</summary>
-    Task<bool> HasAdminUserAsync();
-
-    /// <summary>An admin who can actually sign in; the guard against locking everyone out.</summary>
-    Task<bool> HasAdminWithPasswordAsync();
-
     /// <summary>The singer a provider's id names, or null if unclaimed; the pair is unique.</summary>
     /// <remarks>Matched exactly, case included: an external id is not a name.</remarks>
     Task<KHostUser?> ReadByForeignKeyAsync(string source, string key);

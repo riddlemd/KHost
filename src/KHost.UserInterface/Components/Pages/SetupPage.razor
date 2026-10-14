@@ -1,5 +1,4 @@
 @page "/setup"
-@attribute [AllowAnonymous]
 @layout SetupLayout
 @using KHost.UserInterface.Components.Setup
 @using KHost.Abstractions.Models
@@ -19,9 +18,6 @@
     <div class="kh-setup-wizard__content">
         @switch (_steps[_currentStep])
         {
-            case SetupStep.Admin:
-                <WizardStep1AdminUser OnComplete="@(async () => await MoveToNextStepAsync())" />
-                break;
             case SetupStep.Backgrounds:
                 <WizardStepBackgrounds OnComplete="@(async () => await MoveToNextStepAsync())" />
                 break;

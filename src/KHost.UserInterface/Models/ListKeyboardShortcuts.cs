@@ -63,9 +63,9 @@ public static class ListKeyboardShortcuts
     }
 
     /// <summary>Runs what <see cref="Resolve"/> decided: <paramref name="select"/> is given the row
-    /// to select, <paramref name="move"/> is told which way to move the current row. Reordering is
-    /// a permission of its own, so a Move action is dropped rather than handed to the caller when
-    /// <paramref name="canReorder"/> is false — the arrows that do it are hidden without it.
+    /// to select, <paramref name="move"/> is told which way to move the current row. A Move action
+    /// is dropped rather than handed to the caller when <paramref name="canReorder"/> is false, for
+    /// a list whose rows have no order to change.
     /// <paramref name="remove"/> must go through the same confirm and refusals as the row's own
     /// remove button; a null one means the list has none, and the key does nothing.</summary>
     public static async Task DispatchAsync(

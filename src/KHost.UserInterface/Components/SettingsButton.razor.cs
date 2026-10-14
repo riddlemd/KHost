@@ -23,8 +23,6 @@ public partial class SettingsButton : IDisposable
     // nullable annotation says, so a plain `is not null` guard below it can never be false: it was
     // dead code, not an optional-service check.
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
-    [Inject] private IPermissionService Permissions { get; set; } = default!;
-    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
     [Inject] private IThemeService ThemeService { get; set; } = default!;
 
@@ -49,11 +47,6 @@ public partial class SettingsButton : IDisposable
         public string Route { get; set; } = "";
         public string Group { get; set; } = ManageGroup;
 
-        /// <summary>Null means any signed-in user; the page itself enforces the same rule.</summary>
-        public KHostPermission? Requires { get; set; }
-
-        public bool AdminOnly { get; set; }
-
         /// <summary>Set for a page that only means anything under some other setting.</summary>
         public Func<SettingsButton, bool>? Applies { get; set; }
 
@@ -65,22 +58,21 @@ public partial class SettingsButton : IDisposable
     [
         // Manage is listed alphabetically by title; Application below is not, so keep new entries
         // in place rather than appending.
-        new SettingsPage { Title = "Ads Manager", Icon = "megaphone", Route = "/settings/ads-manager", Requires = KHostPermission.ManageMedia },
-        new SettingsPage { Title = "Break Music Manager", Icon = "music-note-beamed", Route = "/settings/break-music-manager", Requires = KHostPermission.ManageMedia, Applies = menu => menu.VenuePlaysLocalBreakMusic },
-        new SettingsPage { Title = "Downloads Manager", Icon = "cloud-download", Route = "/settings/downloads-manager", Requires = KHostPermission.ManageMedia },
-        new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
-        new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true },
-        new SettingsPage { Title = "Theme Manager", Icon = "palette-fill", Route = "/settings/theme-manager", AdminOnly = true },
+        new SettingsPage { Title = "Ads Manager", Icon = "megaphone", Route = "/settings/ads-manager" },
+        new SettingsPage { Title = "Break Music Manager", Icon = "music-note-beamed", Route = "/settings/break-music-manager", Applies = menu => menu.VenuePlaysLocalBreakMusic },
+        new SettingsPage { Title = "Downloads Manager", Icon = "cloud-download", Route = "/settings/downloads-manager" },
+        new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager" },
+        new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager" },
+        new SettingsPage { Title = "Theme Manager", Icon = "palette-fill", Route = "/settings/theme-manager" },
         new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager", Applies = menu => menu.VenueTakesTips },
-        new SettingsPage { Title = "User Groups Manager", Icon = "people-fill", Route = "/settings/user-groups-manager", Requires = KHostPermission.EditGroup },
-        new SettingsPage { Title = "Users Manager", Icon = "person-fill", Route = "/settings/users-manager", Requires = KHostPermission.EditUser },
-        new SettingsPage { Title = "Venues Manager", Icon = "geo-alt-fill", Route = "/settings/venues-manager", Requires = KHostPermission.EditVenue },
-        new SettingsPage { Title = "Visualisations Manager", Icon = "stars", Route = "/settings/visualisations-manager", Requires = KHostPermission.ManageMedia },
-        new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", Group = ApplicationGroup, AdminOnly = true },
+        new SettingsPage { Title = "User Groups Manager", Icon = "people-fill", Route = "/settings/user-groups-manager" },
+        new SettingsPage { Title = "Users Manager", Icon = "person-fill", Route = "/settings/users-manager" },
+        new SettingsPage { Title = "Venues Manager", Icon = "geo-alt-fill", Route = "/settings/venues-manager" },
+        new SettingsPage { Title = "Visualisations Manager", Icon = "stars", Route = "/settings/visualisations-manager" },
+        new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", Group = ApplicationGroup },
         new SettingsPage { Title = "About", Icon = "info-circle", Route = "/settings/about", Group = ApplicationGroup }
     ];
 
-    private bool _canLock;
     private string? _openSection;
 
     private DropdownMenu? _menu;
@@ -102,9 +94,6 @@ public partial class SettingsButton : IDisposable
         // allocation a fresh `[.. DisplayProviders]` on each access would cost.
         _displays = [.. DisplayProviders];
 
-        // Locking a console that signs everyone in automatically would be a button to nowhere.
-        _canLock = AppSettings.Current.RequireLogin != false;
-
         _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => QueueRebuild()));
 
         // Not VenuesChanged: that one fires for any venue's edit, and which pages apply is a
@@ -123,12 +112,12 @@ public partial class SettingsButton : IDisposable
     }
 
     // Handlers run in subscription order and a slow one holds up the rest, so the rebuild is
-    // started rather than awaited here. Dispatched through InvokeAsync so the venue/permission
+    // started rather than awaited here. Dispatched through InvokeAsync so the venue
     // reads inside RebuildAsync land on the renderer thread, not the broker's.
     private void QueueRebuild() => _ = InvokeAsync(RebuildAsync);
 
     // Announced off the render thread. Themes and displays change no page's visibility, so they
-    // need only a redraw, not a re-read of venues and permissions.
+    // need only a redraw, not a re-read of venues.
     private void QueueRedraw() => _ = InvokeAsync(StateHasChanged);
 
     /// <summary>Reads the venue before filtering, or a venue-dependent page is judged too soon.</summary>
@@ -136,7 +125,7 @@ public partial class SettingsButton : IDisposable
     {
         await RefreshVenuesAsync();
 
-        _groups = [.. (await VisiblePagesAsync()).GroupBy(page => page.Group)];
+        _groups = [.. VisiblePages().GroupBy(page => page.Group)];
 
         await InvokeAsync(StateHasChanged);
     }
@@ -422,25 +411,8 @@ public partial class SettingsButton : IDisposable
         _menu?.Close();
     }
 
-    private async Task<List<SettingsPage>> VisiblePagesAsync()
-    {
-        var visible = new List<SettingsPage>();
-        var isAdmin = await Permissions.IsAdminAsync();
-
-        foreach (var page in _allPages)
-        {
-            var allowed = page switch
-            {
-                { AdminOnly: true } => isAdmin,
-                { Requires: { } permission } => await Permissions.HasAsync(permission),
-                _ => true,
-            };
-
-            if (allowed && (page.Applies?.Invoke(this) ?? true)) visible.Add(page);
-        }
-
-        return visible;
-    }
+    private List<SettingsPage> VisiblePages()
+        => [.. _allPages.Where(page => page.Applies?.Invoke(this) ?? true)];
 
     private async Task SelectAsync(SettingsPage page)
     {

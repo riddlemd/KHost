@@ -161,8 +161,8 @@ input[type='number'] {
         box-shadow: 0 0 0 3px var(--kh-primary-glow);
     }
 
-    // Rows that cannot be toggled (the theme in use, a plugin that failed to load, every permission
-    // under an admin group) need a disabled box that looks different from a merely unchecked one.
+    // Rows that cannot be toggled (the theme in use, a plugin that failed to load) need a
+    // disabled box that looks different from a merely unchecked one.
     &:disabled {
         opacity: 0.35;
         cursor: default;

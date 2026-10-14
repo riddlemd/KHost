@@ -18,13 +18,6 @@ namespace KHost.Abstractions.Services;
 /// change announces <see cref="KHost.Abstractions.Messaging.Messages.UsersChanged"/>.</para></remarks>
 public interface IUsersService : IRepositoryService<KHostUser>
 {
-    /// <summary>Whether any user belongs to an admin group.</summary>
-    Task<bool> HasAdminUserAsync();
-
-    /// <summary>Whether any admin user has a password set, which is what signing in to the console
-    /// needs.</summary>
-    Task<bool> HasAdminWithPasswordAsync();
-
     /// <summary>The user with this name, or null; one user, not a paged, contains-matching search.
     /// </summary>
     /// <remarks>The exact spelling wins; failing that, a name equal once case and accents are

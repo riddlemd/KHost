@@ -18,7 +18,6 @@ public class SingerQueuePanelKeyboardTests : BunitContext
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     private readonly KHostUser _first = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly KHostUser _second = new() { Id = Guid.NewGuid(), Name = "Bob" };
 
@@ -26,7 +25,6 @@ public class SingerQueuePanelKeyboardTests : BunitContext
     {
         _queue.Users.Returns(_ => [_first, _second]);
         _queue.SelectedUserId.Returns(_ => _second.Id);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
 
         // The panel and its combo box both call into JS on first render; none of it matters here.
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -36,7 +34,6 @@ public class SingerQueuePanelKeyboardTests : BunitContext
 
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(_broker);
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
@@ -86,16 +83,5 @@ public class SingerQueuePanelKeyboardTests : BunitContext
             .KeyDown(new KeyboardEventArgs { Key = "ArrowDown", ShiftKey = true });
 
         _queue.Received(1).MoveUserDownAsync(_first.Id);
-    }
-
-    [Fact]
-    public void ShiftArrow_DoesNotReorder_WithoutTheReorderPermission()
-    {
-        _permissions.HasAsync(KHostPermission.ReorderQueue).Returns(false);
-
-        Render<SingerQueuePanel>().Find(QueueSelector)
-            .KeyDown(new KeyboardEventArgs { Key = "ArrowUp", ShiftKey = true });
-
-        _queue.DidNotReceive().MoveUserUpAsync(Arg.Any<Guid>());
     }
 }
