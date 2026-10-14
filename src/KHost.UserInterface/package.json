@@ -2,6 +2,9 @@
   "name": "khost-ui",
   "version": "1.0.0",
   "description": "KHost Karaoke Queue UI",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "dotnet watch",
     "copy:vendors": "node -e \"const fs=require('fs');fs.copyFileSync('node_modules/sortablejs/Sortable.min.js','wwwroot/js/Sortable.min.js');fs.mkdirSync('wwwroot/js/visualiser',{recursive:true});for(const f of ['butterchurn.min.js','visualiser-presets.js','eq-visualisers.js','visualiser.js','lyrics-overlay.js','VISUALISER-NOTICE.md'])fs.copyFileSync('../KHost.LocalScreen/screen-ui/'+f,'wwwroot/js/visualiser/'+f)\""
