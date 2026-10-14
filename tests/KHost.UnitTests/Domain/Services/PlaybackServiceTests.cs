@@ -176,7 +176,7 @@ public class PlaybackServiceTests : IDisposable
         {
             StopFadeDuration = stopFadeDuration,
             // The delay exists to collapse a burst of presses; the collapsing has its own test.
-            PitchSettleDelay = pitchSettleDelay ?? TimeSpan.Zero,
+            RebuildSettleDelay = pitchSettleDelay ?? TimeSpan.Zero,
             DefaultBackingVolume = defaultBackingVolume,
             // The grace exists so a consumer can finish reading the old session; the tests assert
             // on what was closed, not on when.

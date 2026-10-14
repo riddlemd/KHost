@@ -192,7 +192,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         options.CurrentValue.Returns(new PlaybackService.ServiceOptions
         {
             StopFadeDuration = Fade,
-            PitchSettleDelay = TimeSpan.Zero,
+            RebuildSettleDelay = TimeSpan.Zero,
             StreamRetireGrace = TimeSpan.Zero,
         });
 
