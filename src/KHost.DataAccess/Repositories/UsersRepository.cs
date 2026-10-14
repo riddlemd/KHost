@@ -77,27 +77,13 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         using var context = await ContextFactory.CreateDbContextAsync();
 
         // Exact spelling first: a pre-upgrade database may hold two names the fold now considers
-        // equal, of which only one could be refolded. That one must still sign in by exact spelling.
+        // equal, of which only one could be refolded. That one must still be found by exact spelling.
         var id = await context.Set<KHostUser>().Where(u => u.Name == name).Select(u => (Guid?)u.Id).FirstOrDefaultAsync()
             ?? await context.Set<KHostUser>().Where(u => u.NameFolded == folded).Select(u => (Guid?)u.Id).FirstOrDefaultAsync();
 
         // Loaded whole, as ReadAsync does: a caller that saves what this returns would otherwise
         // replace the singer's group memberships with none.
         return id is { } found ? await ReadAsync(found) : null;
-    }
-
-    public async Task<bool> HasAdminUserAsync()
-    {
-        using var context = await ContextFactory.CreateDbContextAsync();
-        return await context.Set<KHostUser>()
-            .AnyAsync(u => u.Groups.Any(g => g.IsAdmin));
-    }
-
-    public async Task<bool> HasAdminWithPasswordAsync()
-    {
-        using var context = await ContextFactory.CreateDbContextAsync();
-        return await context.Set<KHostUser>()
-            .AnyAsync(u => u.PasswordHash != null && u.PasswordHash != "" && u.Groups.Any(g => g.IsAdmin));
     }
 
     public override async Task<KHostUser?> ReadAsync(Guid id)
@@ -174,7 +160,6 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         // the check against them is the whole safety.
         return await context.Set<KHostUser>()
             .Where(u => !keep.Contains(u.Id)
-                && (u.PasswordHash == null || u.PasswordHash == "")
                 && !u.Tips.Any()
                 && !u.Groups.Any()
                 && !u.ForeignKeys.Any()

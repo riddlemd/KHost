@@ -44,7 +44,6 @@ public class SettingsButtonExitTests : BunitContext
         Services.AddSingleton(_lifetime);
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IMessageBroker>(_broker);
-        Services.AddSingleton(Substitute.For<IPermissionService>());
         Services.AddSingleton(venues);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IThemeService>());

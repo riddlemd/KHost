@@ -52,9 +52,6 @@ public class SelectedSingerInfoPanelEditPerformanceTests : BunitContext
 
         JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         // Tipping off: an unstubbed tips read is a null list the panel would sum.
         var venues = Substitute.For<IVenuesService>();
         venues.ReadSelectedVenueAsync().Returns(_ => _venue);
@@ -63,7 +60,6 @@ public class SelectedSingerInfoPanelEditPerformanceTests : BunitContext
         Services.AddSingleton(_performances);
         Services.AddSingleton(_mediaService);
         Services.AddSingleton(_playback);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
         Services.AddSingleton(Substitute.For<IUsersService>());

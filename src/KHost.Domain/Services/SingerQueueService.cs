@@ -146,7 +146,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         {
             var (a, b) = (cached[i], fresh[i]);
 
-            if (a.Id != b.Id || a.Name != b.Name || a.Notes != b.Notes || a.PasswordHash != b.PasswordHash)
+            if (a.Id != b.Id || a.Name != b.Name || a.Notes != b.Notes)
                 return false;
 
             if (!a.Groups.Select(g => g.Id).ToHashSet().SetEquals(b.Groups.Select(g => g.Id)))

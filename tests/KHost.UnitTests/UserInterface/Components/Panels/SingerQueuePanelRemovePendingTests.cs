@@ -36,9 +36,6 @@ public class SingerQueuePanelRemovePendingTests : BunitContext
         venues.ReadSelectedVenueAsync().Returns(new Venue
         { Id = Guid.NewGuid(), Name = "Bar", Settings = new Venue.VenueSettings { PromptBeforeRemovingSinger = true } });
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
 
@@ -46,7 +43,6 @@ public class SingerQueuePanelRemovePendingTests : BunitContext
 
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
-        Services.AddSingleton(permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IMediaService>());

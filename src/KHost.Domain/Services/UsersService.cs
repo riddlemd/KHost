@@ -87,13 +87,6 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         return await base.DeleteAsync(id);
     }
 
-    public async Task<bool> HasAdminWithPasswordAsync()
-        => await Repository.HasAdminWithPasswordAsync();
-
-    public async Task<bool> HasAdminUserAsync()
-    {
-        return await Repository.HasAdminUserAsync();
-    }
 
     public async Task<KHostUser?> FindByNameAsync(string name)
         => await Repository.FindByNameAsync(name);

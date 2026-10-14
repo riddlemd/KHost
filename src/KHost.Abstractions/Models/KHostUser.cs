@@ -1,6 +1,6 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>A person known to KHost: a singer, a login account, or both.</summary>
+/// <summary>A person known to KHost, usually a singer.</summary>
 public class KHostUser : RepositoryModel
 {
     /// <summary>The name shown throughout the app.</summary>
@@ -16,10 +16,7 @@ public class KHostUser : RepositoryModel
     /// <summary>When the account was created, UTC.</summary>
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
-    /// <summary>The account's hashed password. Null for a singer with no login of their own.</summary>
-    public string? PasswordHash { get; set; }
-
-    /// <summary>The groups this user belongs to; permissions are the union of every group's own.</summary>
+    /// <summary>The groups this user belongs to.</summary>
     public ICollection<KHostUserGroup> Groups { get; set; } = [];
 
     /// <summary>Tips recorded for this person.</summary>

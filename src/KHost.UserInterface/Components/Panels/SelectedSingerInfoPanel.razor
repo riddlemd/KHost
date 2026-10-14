@@ -39,13 +39,10 @@
                 </button>
                 
                 </span>
-                @if (_canViewHistory)
-                {
-                    <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to view Singer's Performance history"
-                            @onclick="OpenPerformanceHistoryDialogAsync" @onclick:stopPropagation>
-                        <Icon Name="music-note-list" />
-                    </button>
-                }
+                <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to view Singer's Performance history"
+                        @onclick="OpenPerformanceHistoryDialogAsync" @onclick:stopPropagation>
+                    <Icon Name="music-note-list" />
+                </button>
                 @if (_tippingEnabled)
                 {
                     <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Add a tip for this singer"
@@ -210,8 +207,6 @@
                                         </button>
                                     </Buttons>
                                 </SplitButton>
-                                @if (_canReorderQueue)
-                                {
                                 <button class="kh-selected-singer-info-panel__move-up-btn kh-button--icon-minimal" title="Move up (Shift+Up)"
                                         disabled="@disableMoveUp"
                                         @onclick="() => PerformanceService?.MoveUpInQueueAsync(selected.Id, performance.Id) ?? Task.CompletedTask">
@@ -222,15 +217,11 @@
                                         @onclick="() => PerformanceService?.MoveDownInQueueAsync(selected.Id, performance.Id) ?? Task.CompletedTask">
                                     <Icon Name="chevron-down" />
                                 </button>
-                                }
-                                @if (_canRemoveFromQueue)
-                                {
                                 <button class="kh-selected-singer-info-panel__remove-btn kh-button--icon-danger" title="Remove from Queue"
                                         disabled="@disableRemove"
                                         @onclick="() => RemoveWithConfirmAsync(performance)">
                                     <Icon Name="x" />
                                 </button>
-                                }
                             </td>
                         </tr>
                     }

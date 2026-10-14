@@ -37,15 +37,11 @@ public class SelectedSingerInfoPanelRemoveConfirmTests : BunitContext
 
         JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         var mediaService = Substitute.For<IMediaService>();
         mediaService.ReadAsync(_media.Id).Returns(_media);
 
         Services.AddSingleton(_queue);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(_venues);
         Services.AddSingleton(mediaService);
         Services.AddSingleton(Substitute.For<IPlaybackService>());

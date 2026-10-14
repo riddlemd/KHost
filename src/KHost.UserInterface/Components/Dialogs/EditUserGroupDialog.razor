@@ -1,5 +1,4 @@
 @using System.ComponentModel.DataAnnotations
-@using System.Reflection
 @using KHost.Abstractions.Models
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
@@ -26,53 +25,9 @@
 
             <div >
                 <label class="kh-form-check">
-                    <span class="kh-form-check-label">Admin (all permissions)</span>
-                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.IsAdmin" />
-                </label>
-            </div>
-
-            <div >
-                <label class="kh-form-check">
                     <span class="kh-form-check-label">Not A Singer (leave out of the singer queue)</span>
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ExcludeFromSingerQueue" />
                 </label>
-            </div>
-
-            <div class="kh-card">
-                <div class="kh-card__header">
-                    <span class="kh-card__title">Permissions</span>
-                </div>
-                <div class="kh-card__body" @ref="_permissionsTableElement">
-                    <table class="kh-table" @attributes="_permissionsTableAttrs">
-                        <thead>
-                            <tr>
-                                <th class="@(_rootClassName)__checkbox-col"></th>
-                                <th>Permission</th>
-                                <th>Description</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var group in GetGroupedPermissions())
-                            {
-                                <tr class="kh-table__group-header">
-                                    <td colspan="3">@group.Key</td>
-                                </tr>
-                                @foreach (var permission in group)
-                                {
-                                    var isChecked = _model.Permissions.Contains(permission);
-                                    <tr>
-                                        <td>
-                                            <input type="checkbox" class="kh-form-check-input" checked="@isChecked" disabled="@_model.IsAdmin"
-                                                @onchange="e => TogglePermission(permission, (bool)(e.Value ?? false))" />
-                                        </td>
-                                        <td>@permission.ToString()</td>
-                                        <td>@GetPermissionDescription(permission)</td>
-                                    </tr>
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
             </div>
 
             <button type="submit" class="kh-hidden"></button>

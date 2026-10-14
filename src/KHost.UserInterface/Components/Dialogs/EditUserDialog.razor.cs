@@ -17,8 +17,6 @@ public partial class EditUserDialog
     [Inject] private IMediaService MediaService { get; set; } = default!;
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
     [Inject] private ITipsService TipsService { get; set; } = default!;
-    [Inject] private IPasswordHasher PasswordHasher { get; set; } = default!;
-    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public KHostUser? User { get; set; }
@@ -30,18 +28,12 @@ public partial class EditUserDialog
     private EditContext _editContext = default!;
     private List<KHostUserGroup> _availableGroups = [];
     private bool _isExistingUser;
-    private string _newPassword = "";
-    private bool _hasPassword;
     private int _totalTips;
     private List<RecentVenue> _recentVenues = [];
     private List<RecentSong> _recentSongs = [];
 
     private sealed record RecentVenue(string Name, DateTime LastSungOn);
     private sealed record RecentSong(string Title, string Artist, DateTime SungOn);
-
-    // A password nobody can sign in with is nothing to collect; saving leaves PasswordHash
-    // untouched because _newPassword never gets typed into when the field is not rendered.
-    private bool RequireLogin => AppSettings.Current.RequireLogin;
 
     // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
     // runs exactly once with User already bound.
@@ -58,8 +50,6 @@ public partial class EditUserDialog
                 };
 
         _editContext = new EditContext(_model);
-        _newPassword = "";
-        _hasPassword = !string.IsNullOrEmpty(User?.PasswordHash);
 
         await LoadGroupsAsync();
         await LoadStatsAsync();
@@ -144,9 +134,6 @@ public partial class EditUserDialog
         user.Name = _model.Name;
         user.Notes = _model.Notes;
         user.Groups = [.. _availableGroups.Where(g => _model.SelectedGroupIds.Contains(g.Id))];
-
-        if (!string.IsNullOrWhiteSpace(_newPassword))
-            user.PasswordHash = await PasswordHasher.HashAsync(_newPassword);
 
         // DialogHost closes after awaiting this itself; closing again here would also fire
         // OnClose's onCancel, marking a successful save as a cancel.

@@ -3,8 +3,7 @@ using Microsoft.JSInterop;
 namespace KHost.UserInterface.Components.Panels;
 
 /// <summary>Wires one draggable list to SortableJS. Both queue panels attach and detach the same
-/// way as their permission and row count come and go, so the dance lives here once rather than
-/// twice.</summary>
+/// way as their rows come and go, so the dance lives here once rather than twice.</summary>
 /// <remarks>A plain class, not a base class: each panel already has its own render lifecycle, and
 /// this only needs to be told when the target state changes.</remarks>
 public sealed class SortableBinding(

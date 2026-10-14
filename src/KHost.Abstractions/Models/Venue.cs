@@ -90,7 +90,7 @@ public class Venue : RepositoryModel
 
         /// <summary>Whether singers who never sang are deleted when the venue's show is closed.</summary>
         /// <remarks>Off unless set. Runs after any queued songs are cleared, and keeps a singer
-        /// still in the queue, or with a performance, a tip, a group, a linked account or a login.</remarks>
+        /// still in the queue, or with a performance, a tip, a group or a linked account.</remarks>
         public bool RemoveUnsungSingersOnClose { get; set; }
 
         // Nullable: EF reads venue rows saved before this key existed as null (initializers

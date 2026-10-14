@@ -25,7 +25,6 @@ public class MediaSearchPanelKeyboardTests : BunitContext
 
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     private readonly ControlState _controlState = new();
     private readonly List<string> _performed = [];
     private readonly Guid _singerId = Guid.NewGuid();
@@ -43,7 +42,6 @@ public class MediaSearchPanelKeyboardTests : BunitContext
 
         _queue.Users.Returns(_ => []);
         _queue.SelectedUserId.Returns(_ => _singerId);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
 
         var performances = Substitute.For<IPerformanceService>();
         performances.ReadQueuedAsync().Returns([]);
@@ -54,7 +52,6 @@ public class MediaSearchPanelKeyboardTests : BunitContext
         Services.AddSingleton(_search);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(_queue);
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
@@ -174,18 +171,6 @@ public class MediaSearchPanelKeyboardTests : BunitContext
     public void Enter_WithNoSingerSelected_QueuesNothing()
     {
         _queue.SelectedUserId.Returns(_ => (Guid?)null);
-        var panel = SearchedPanel();
-        panel.Find(InputSelector).KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
-
-        panel.Find(ResultsSelector).KeyDown(Key.Enter);
-
-        Assert.Empty(_performed);
-    }
-
-    [Fact]
-    public void Enter_WithoutTheAddPermission_QueuesNothing()
-    {
-        _permissions.HasAsync(KHostPermission.AddToQueue).Returns(false);
         var panel = SearchedPanel();
         panel.Find(InputSelector).KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
 

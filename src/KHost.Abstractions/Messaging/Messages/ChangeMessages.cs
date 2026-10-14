@@ -45,7 +45,7 @@ public sealed record SelectedVenueChanged;
 /// <summary>A user account was added, edited or removed.</summary>
 public sealed record UsersChanged;
 
-/// <summary>A user group or its permissions changed.</summary>
+/// <summary>A user group was created, edited or deleted.</summary>
 public sealed record UserGroupsChanged;
 
 /// <summary>A tip was recorded or edited.</summary>

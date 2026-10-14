@@ -72,8 +72,7 @@ public class AppSettingsPageLayoutTests : BunitContext
 
         // Screens, Playback, Lyrics, Break music, New venues, Ads, Hosting Dashboard, Pagination, Media, FFmpeg, Video: one panel each, not folded
         // two-to-a-card, and every one is a direct child of the grid so the CSS grid actually
-        // lays them out rather than a wrapper it never sees. No Security panel: sign-in is a
-        // config-only flag now, not something this page saves.
+        // lays them out rather than a wrapper it never sees.
         Assert.Equal(11, panels.Length);
         Assert.All(panels, panel => Assert.Contains("kh-card", panel.ClassList));
 

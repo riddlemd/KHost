@@ -44,9 +44,6 @@ public class SelectedSingerInfoPanelRemovePendingTests : BunitContext
         _venues.ReadSelectedVenueAsync().Returns(new Venue
         { Id = Guid.NewGuid(), Name = "Bar", Settings = new Venue.VenueSettings { PromptBeforeRemovingPerformance = true } });
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         var media = Substitute.For<IMediaService>();
         media.ReadAsync(_first.MediaId).Returns(new Media { Id = _first.MediaId, FilePath = "/music/africa.mp4", Title = "Africa", Status = MediaStatus.Ready });
         media.ReadAsync(_second.MediaId).Returns(new Media { Id = _second.MediaId, FilePath = "/music/rosanna.mp4", Title = "Rosanna", Status = MediaStatus.Ready });
@@ -56,7 +53,6 @@ public class SelectedSingerInfoPanelRemovePendingTests : BunitContext
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(_performances);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(_venues);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());

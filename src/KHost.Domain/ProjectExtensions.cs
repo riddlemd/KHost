@@ -5,7 +5,6 @@ using KHost.Domain.Services;
 using KHost.Domain.Services.MediaLifetime;
 using KHost.Domain.Services.BurnIn;
 using KHost.Domain.Services.Messaging;
-using KHost.Domain.Services.AuthProviders;
 using KHost.Domain.Services.Ads;
 using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.Displays;
@@ -184,8 +183,6 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IVisualiserPresetService, VisualiserPresetService>();
             serviceCollection.AddSingleton<ILyricsService, LyricsService>();
             serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
-            serviceCollection.AddSingleton<IAuthService, AuthService>();
-            serviceCollection.AddSingleton<IAuthProvider, LocalAuthProvider>();
             serviceCollection.AddSingleton<IUserGroupsService, UserGroupsService>();
             serviceCollection.AddSingleton<ITipsService, TipsService>();
 

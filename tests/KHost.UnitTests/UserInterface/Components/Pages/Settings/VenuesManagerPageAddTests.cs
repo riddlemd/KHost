@@ -5,7 +5,6 @@ using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -33,16 +32,12 @@ public class VenuesManagerPageAddTests : BunitContext
         Services.AddSingleton(_dialogService);
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(_broker);
-
-        var auth = AddAuthorization();
-        auth.SetAuthorized("tester");
-        auth.SetPolicies("EditVenue", "DeleteVenue");
     }
 
     [Fact]
     public void AddVenueButton_OpensTheDialogWithNoVenue()
     {
-        var cut = Render<CascadingAuthenticationState>(ps => ps.AddChildContent<VenuesManagerPage>());
+        var cut = Render<VenuesManagerPage>();
 
         cut.Find(".kh-button--primary").Click();
 

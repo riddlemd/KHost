@@ -28,8 +28,6 @@ public class AppSettingsServiceTests : IDisposable
         Assert.True(result.Saved);
         using var overlay = JsonDocument.Parse(
             await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
-        // RequireLogin is config-only now: SaveAsync never writes an Auth section.
-        Assert.False(overlay.RootElement.TryGetProperty("Auth", out _));
         Assert.Equal(4, overlay.RootElement.GetProperty("MediaStream").GetProperty("SegmentSeconds").GetInt32());
         Assert.Equal("00:00:05", overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString());
     }
@@ -582,16 +580,6 @@ public class AppSettingsServiceTests : IDisposable
     public void DefaultSearchMode_BlankOverlay_FallsBackToLocal(string stored)
         => Assert.Equal(AppSettings.LocalSearchMode,
             Service(new KeyValuePair<string, string?>("Search:DefaultMode", stored)).Current.DefaultSearchMode);
-
-    /// <summary>Off on install unless a host opts in through appsettings.json: nothing in the App
-    /// Settings page writes this key any more.</summary>
-    [Fact]
-    public void RequireLogin_DefaultsToFalse_WhenUnset()
-        => Assert.False(Service().Current.RequireLogin);
-
-    [Fact]
-    public void RequireLogin_ReadsWhatConfigurationHolds()
-        => Assert.True(Service(new KeyValuePair<string, string?>("Auth:RequireLogin", "true")).Current.RequireLogin);
 
     /// <summary>The folder applies live: the next song and probe look there, so no restart.</summary>
     [Fact]

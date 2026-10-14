@@ -21,7 +21,6 @@ public class SelectedSingerInfoPanelRemoveKeyTests : BunitContext
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     // The real service: a substitute never runs ConfirmIfAsync's ask-or-act branch.
@@ -42,7 +41,6 @@ public class SelectedSingerInfoPanelRemoveKeyTests : BunitContext
         _performances.ReadQueuedAsync().Returns(_ => _queued.ToList());
         _performances.When(p => p.DeleteAsync(Arg.Any<Guid>()))
             .Do(call => _queued.RemoveAll(p => p.Id == call.Arg<Guid>()));
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
         PromptBeforeRemoving(false);
 
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -50,7 +48,6 @@ public class SelectedSingerInfoPanelRemoveKeyTests : BunitContext
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(_performances);
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(_venues);
         Services.AddSingleton(_playback);
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
@@ -128,16 +125,6 @@ public class SelectedSingerInfoPanelRemoveKeyTests : BunitContext
     public void Delete_RefusesTheLoadedSong()
     {
         _playback.CurrentPerformance.Returns(_first);
-
-        RenderAndSelectFirstSong().Body.KeyDown(new KeyboardEventArgs { Key = "Delete" });
-
-        _performances.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-    }
-
-    [Fact]
-    public void Delete_RefusesWithoutTheRemovePermission()
-    {
-        _permissions.HasAsync(KHostPermission.RemoveFromQueue).Returns(false);
 
         RenderAndSelectFirstSong().Body.KeyDown(new KeyboardEventArgs { Key = "Delete" });
 

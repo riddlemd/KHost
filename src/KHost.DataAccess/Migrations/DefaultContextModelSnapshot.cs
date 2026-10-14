@@ -41,10 +41,6 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("PasswordHash")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedDate");
@@ -105,11 +101,6 @@ namespace KHost.DataAccess.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(false);
 
-                    b.Property<bool>("IsAdmin")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(false);
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -119,10 +110,6 @@ namespace KHost.DataAccess.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
-
-                    b.PrimitiveCollection<string>("Permissions")
-                        .IsRequired()
-                        .HasColumnType("JSON");
 
                     b.HasKey("Id");
 
@@ -137,20 +124,16 @@ namespace KHost.DataAccess.Migrations
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
                             Description = "Full access to all management features",
                             ExcludeFromSingerQueue = true,
-                            IsAdmin = true,
                             Name = "Admin",
-                            NameFolded = "admin",
-                            Permissions = "[]"
+                            NameFolded = "admin"
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000002"),
                             Description = "Frequent singer",
                             ExcludeFromSingerQueue = false,
-                            IsAdmin = false,
                             Name = "Regular",
-                            NameFolded = "regular",
-                            Permissions = "[]"
+                            NameFolded = "regular"
                         });
                 });
 

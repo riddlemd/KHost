@@ -69,7 +69,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - Exempt (language requires `static`): `Main`, operators and conversions, static constructors, `[ModuleInitializer]`, extension methods.
 - Static *fields* and *properties* are untouched — `ScreenCapabilities.None`, `MediaSearchOptions.Default`, `PluginRid.Current` stay.
 - Escape hatch: `#pragma warning disable KH0001`. Wanting it usually means the member belongs in `Common`.
-- Precedents: `Common/Media/`, `Common/Plugins/`, `Common/Authentication/`, `Common/Repositories/`.
+- Precedents: `Common/Media/`, `Common/Plugins/`, `Common/Repositories/`.
 
 ## Finding things on the network
 
@@ -397,7 +397,6 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - A boolean is a checkbox: `<input type="checkbox" class="kh-form-check-input">` inside a `label.kh-form-check`, wording in `span.kh-form-check-label`. No slider, no `.kh-checkbox`.
 - `ComboBox<TItem>` replaces a native select with type-to-search. Binds the chosen item (not a key), takes rows from a `Search` delegate, labels runs via `GroupName` without reordering (caller groups by sorting). Bind `Text` when the field must accept a value not in the list.
 - The console says **song**; the media manager and importer say **media**. `Media` stays the row's name in code.
-- Sign-in is off by default, switched on only by `Auth:RequireLogin` in `appsettings.json` (or an env/overlay override). No wizard step or App Settings checkbox.
 
 ## CSS/SCSS
 

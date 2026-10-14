@@ -92,7 +92,7 @@ public class ListKeyboardShortcutsTests
     [Theory]
     [InlineData(ListKeyAction.MovePrevious)]
     [InlineData(ListKeyAction.MoveNext)]
-    public async Task DispatchAsync_Move_DoesNothing_WithoutReorderPermission(ListKeyAction action)
+    public async Task DispatchAsync_Move_DoesNothing_WhenTheListCannotReorder(ListKeyAction action)
     {
         var moved = false;
 

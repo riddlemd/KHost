@@ -17,7 +17,6 @@ public class SingerQueuePanelRemoteSingerTests : BunitContext
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
-    private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
 
     private readonly KHostUser _typedIn = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly KHostUser _fromAPhone = new() { Id = Guid.NewGuid(), Name = "Bob" };
@@ -34,7 +33,6 @@ public class SingerQueuePanelRemoteSingerTests : BunitContext
 
         _queue.Users.Returns(_ => [_typedIn, _fromAPhone]);
         _queue.SelectedUserId.Returns(_ => _typedIn.Id);
-        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
 
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -46,7 +44,6 @@ public class SingerQueuePanelRemoteSingerTests : BunitContext
 
         Services.AddSingleton(_queue);
         Services.AddSingleton<IMessageBroker>(_broker);
-        Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IMediaService>());

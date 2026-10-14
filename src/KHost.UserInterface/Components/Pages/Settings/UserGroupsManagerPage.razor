@@ -1,5 +1,4 @@
 @page "/settings/user-groups-manager"
-@attribute [Authorize(Policy = nameof(KHostPermission.EditGroup))]
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 @using KHost.Common.Repositories
@@ -46,7 +45,6 @@
                                     Name @if (_search.SortColumn == "name") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Description</th>
-                                <th>Permissions</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -56,34 +54,15 @@
                                 <tr>
                                     <td class="kh-table__cell--fill">@group.Name</td>
                                     <td class="kh-table__cell--fill">@group.Description</td>
-                                    <td>
-                                        @if (group.IsAdmin)
-                                        {
-                                            <span class="kh-badge kh-badge--secondary">Admin</span>
-                                        }
-                                        else
-                                        {
-                                            @foreach (var permission in group.Permissions)
-                                            {
-                                                <span class="kh-badge kh-badge--secondary">@permission</span>
-                                            }
-                                            @if (group.Permissions.Count == 0)
-                                            {
-                                                <span class="kh-text--muted">None</span>
-                                            }
-                                        }
-                                    </td>
                                     <td class="kh-table__cell--actions">
                                         <button class="kh-user-groups-manager__edit-btn kh-button--icon-minimal" title="Edit Group" @onclick="() => OpenEditDialogAsync(group)">
                                             <Icon Name="pencil" />
                                         </button>
                                         @if (!RepositoryModels.IsBuiltIn(group.Id))
                                         {
-                                            <AuthorizeView Policy="@nameof(KHostPermission.DeleteGroup)" Context="_auth">
                                             <button class="kh-user-groups-manager__delete-btn kh-button--icon-minimal" title="Delete Group" @onclick="@(async () => await StartDeleteAsync(group))">
                                                 <Icon Name="trash" />
                                             </button>
-                                            </AuthorizeView>
                                         }
                                     </td>
                                 </tr>

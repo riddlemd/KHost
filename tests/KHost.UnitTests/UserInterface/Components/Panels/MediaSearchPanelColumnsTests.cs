@@ -37,13 +37,9 @@ public class MediaSearchPanelColumnsTests : BunitContext
         _queue.Users.Returns(_ => []);
         _performances.ReadQueuedAsync().Returns([]);
 
-        var permissions = Substitute.For<IPermissionService>();
-        permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
-
         Services.AddSingleton(_search);
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_queue);
-        Services.AddSingleton(permissions);
         Services.AddSingleton(_performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
