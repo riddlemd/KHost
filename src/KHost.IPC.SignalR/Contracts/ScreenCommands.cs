@@ -12,7 +12,6 @@ namespace KHost.IPC.SignalR.Contracts;
 [JsonDerivedType(typeof(SeekCommand), "seek")]
 [JsonDerivedType(typeof(SetVolumeCommand), "setVolume")]
 [JsonDerivedType(typeof(SetStemVolumeCommand), "setStemVolume")]
-[JsonDerivedType(typeof(SetVideoCommand), "setVideo")]
 [JsonDerivedType(typeof(LoadBackgroundCommand), "loadBackground")]
 [JsonDerivedType(typeof(PlayBackgroundCommand), "playBackground")]
 [JsonDerivedType(typeof(PauseBackgroundCommand), "pauseBackground")]
@@ -99,13 +98,6 @@ public sealed class SetVolumeCommand : ScreenCommandBase
 {
     /// <summary>Linear gain, 0.0-1.0.</summary>
     public required float Volume { get; init; }
-}
-
-/// <summary>Blanks the picture without stopping playback, so the song carries on underneath.</summary>
-public sealed class SetVideoCommand : ScreenCommandBase
-{
-    /// <summary>False blanks the picture; true restores it. The song keeps playing either way.</summary>
-    public required bool Enabled { get; init; }
 }
 
 /// <summary>Second audio channel for break music and an ad's bed; it has no song position.</summary>

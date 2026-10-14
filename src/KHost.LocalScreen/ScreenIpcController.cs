@@ -151,9 +151,6 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetVolumeCommand cmd:
                 _player.Volume = cmd.Volume;
                 break;
-            case SetVideoCommand cmd:
-                _player.SetVideoEnabled(cmd.Enabled);
-                break;
             case LoadBackgroundCommand cmd:
                 _player.LoadBackground(cmd.StreamUrl, cmd.AutoPlay);
                 break;
@@ -205,7 +202,8 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         // the song had moved because a background command arrived.
         if (IsBackgroundCommand(command))
             await SendBackgroundStateAsync(hasEnded: false);
-        else
+        // Overlay commands change nothing the host tracks, so a report would only be noise.
+        else if (IsTransportCommand(command))
             await SendCurrentStateAsync();
     }
 
@@ -215,6 +213,15 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         or PauseBackgroundCommand
         or StopBackgroundCommand
         or SetBackgroundVolumeCommand;
+
+    private static bool IsTransportCommand(IScreenCommand command) => command
+        is LoadMediaCommand
+        or PlayCommand
+        or PauseCommand
+        or StopCommand
+        or SeekCommand
+        or SetVolumeCommand
+        or SetStemVolumeCommand;
 
     private void OnPlaybackEnded(object? sender, EventArgs e) => _ = SendCurrentStateAsync(hasEnded: true);
 
