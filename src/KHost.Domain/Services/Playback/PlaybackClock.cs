@@ -136,6 +136,10 @@ internal sealed class PlaybackClock
             // Sampled before the play went out: the old stream still sounding, not this start.
             if (status.SampledAtUtc < _awaitingDisplaySince) return;
 
+            // Sampled before the last seek, load or play: a report still in flight would drag the
+            // playhead back to where the song was.
+            if (status.SampledAtUtc < _transportMovedAtUtc) return;
+
             _awaitingDisplaySince = null;
             _holding = false;
             Position = status.Position + ((now - status.SampledAtUtc) * _rate());
