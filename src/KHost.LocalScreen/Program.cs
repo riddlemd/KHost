@@ -280,6 +280,7 @@ internal static class Program
         html = Inline(html, "visualiser-presets.js");
         html = Inline(html, "eq-visualisers.js");
         html = Inline(html, "visualiser.js");
+        html = Inline(html, "screen-chrome.js");
         html = Inline(html, "player.js");
 
         return html;
