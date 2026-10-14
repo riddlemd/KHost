@@ -98,7 +98,9 @@ internal static class Program
                     _chrome!.SendToPage = json => window!.SendWebMessage(json);
                     _chrome.PublishState();
 
-                    _ = ConnectAsync(logger, serverUri, screenId, authKey);
+                    _ = ConnectUntilUpAsync(
+                        cancellationToken => _ipc!.ConnectAsync(serverUri, screenId, authKey, cancellationToken),
+                        () => _ipc!.LastRefusalReason, logger, serverUri, Task.Delay, _closing.Token);
                     // Position keeps the host's playhead live between commands, which only report
                     // on completion; the resync keeps those reports' stamps honest as clocks drift.
                     _ = RepeatAsync(TimeSpan.FromSeconds(1), () => _ipc!.SendCurrentStateAsync(), logger, _closing.Token);
@@ -420,17 +422,23 @@ internal static class Program
     /// <summary>Keeps trying until the host answers or the window closes.</summary>
     /// <remarks>Only the first connection: once one is up, the client wins back a closed link
     /// itself, so returning here leaves one reconnect path rather than two.</remarks>
-    private static async Task ConnectAsync(Microsoft.Extensions.Logging.ILogger logger, string serverUri, string screenId, byte[] authKey)
+    internal static async Task ConnectUntilUpAsync(
+        Func<CancellationToken, Task> connectAsync,
+        Func<string?> lastRefusalReason,
+        Microsoft.Extensions.Logging.ILogger logger,
+        string serverUri,
+        Func<TimeSpan, CancellationToken, Task> delayAsync,
+        CancellationToken cancellationToken)
     {
-        for (var attempt = 0; !_closing.IsCancellationRequested; attempt++)
+        for (var attempt = 0; !cancellationToken.IsCancellationRequested; attempt++)
         {
             try
             {
-                await _ipc!.ConnectAsync(serverUri, screenId, authKey, _closing.Token);
+                await connectAsync(cancellationToken);
                 logger.LogInformation("Connected to IPC server");
                 return;
             }
-            catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
@@ -440,7 +448,7 @@ internal static class Program
 
                 // A refusal reached the host and was told no — not a network problem, and the
                 // stack trace below is one that never gets fixed by retrying.
-                if (_ipc!.LastRefusalReason is { } reason)
+                if (lastRefusalReason() is { } reason)
                 {
                     if (attempt == 0)
                         logger.LogWarning("Registration refused by the host: {Reason}", reason);
@@ -456,7 +464,7 @@ internal static class Program
 
                 try
                 {
-                    await Task.Delay(wait, _closing.Token);
+                    await delayAsync(wait, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
