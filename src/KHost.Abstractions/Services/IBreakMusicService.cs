@@ -7,17 +7,17 @@ namespace KHost.Abstractions.Services;
 public enum BreakMusicState
 {
     /// <summary>Nothing is playing, and nothing will come back on its own.</summary>
-    Stopped,
+    Stopped = 0,
 
     /// <summary>Break music is reaching the room.</summary>
-    Playing,
+    Playing = 1,
 
     /// <summary>The host paused it; it stays paused until the host resumes it.</summary>
-    Paused,
+    Paused = 2,
 
     /// <summary>Taken off while a song or an ad has the room; returns by itself when the room is
     /// free. Reached only from <see cref="Playing"/>.</summary>
-    Suspended
+    Suspended = 3
 }
 
 /// <summary>Owns when break music plays; the provider owns what, hence a service, not a button.</summary>
