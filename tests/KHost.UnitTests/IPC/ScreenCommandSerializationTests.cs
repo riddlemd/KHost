@@ -27,7 +27,6 @@ public class ScreenCommandSerializationTests
             Role = AudioTrackRole.Lead,
             Volume = 40,
         },
-        [nameof(SetVideoCommand)] = new SetVideoCommand { Enabled = false },
         [nameof(LoadBackgroundCommand)] = new LoadBackgroundCommand { StreamUrl = "/music/bed.m3u8", AutoPlay = true },
         [nameof(PlayBackgroundCommand)] = new PlayBackgroundCommand(),
         [nameof(PauseBackgroundCommand)] = new PauseBackgroundCommand(),

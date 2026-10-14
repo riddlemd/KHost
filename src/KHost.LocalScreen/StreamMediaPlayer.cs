@@ -359,13 +359,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
-    /// <summary>Blanks the picture. Playback continues, so the picture is still on the song when it returns.</summary>
-    public void SetVideoEnabled(bool enabled)
-    {
-        _logger.LogInformation("Video {State}", enabled ? "on" : "blanked");
-        Send(new { type = "video", enabled });
-    }
-
     /// <summary>The host is the clock and the only way to stop this screen.</summary>
     /// <remarks>Losing it pauses rather than running unattended, and says so instead of frozen.</remarks>
     public void SetHostLost(bool lost)

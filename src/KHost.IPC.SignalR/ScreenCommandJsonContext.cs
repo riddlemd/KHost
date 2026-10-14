@@ -1,28 +1,9 @@
-using KHost.IPC.SignalR.Contracts;
 using System.Text.Json.Serialization;
 
 namespace KHost.IPC.SignalR;
 
-[JsonSerializable(typeof(ScreenCommandBase))]
-[JsonSerializable(typeof(LoadMediaCommand))]
-[JsonSerializable(typeof(PlayCommand))]
-[JsonSerializable(typeof(PauseCommand))]
-[JsonSerializable(typeof(StopCommand))]
-[JsonSerializable(typeof(SeekCommand))]
-[JsonSerializable(typeof(SetVolumeCommand))]
-[JsonSerializable(typeof(SetVideoCommand))]
-[JsonSerializable(typeof(LoadBackgroundCommand))]
-[JsonSerializable(typeof(PlayBackgroundCommand))]
-[JsonSerializable(typeof(PauseBackgroundCommand))]
-[JsonSerializable(typeof(StopBackgroundCommand))]
-[JsonSerializable(typeof(SetBackgroundVolumeCommand))]
-[JsonSerializable(typeof(ShowImageCommand))]
-[JsonSerializable(typeof(ShowNextSingerCommand))]
-[JsonSerializable(typeof(HideImageCommand))]
-[JsonSerializable(typeof(ScreenStateBase))]
-[JsonSerializable(typeof(ScreenPlaybackState))]
-[JsonSerializable(typeof(ScreenBackgroundState))]
-// The only resolver in SignalR's chain, so a hub method's own argument and return types need
-// entries too. ScreenHub.EchoClock returns this one.
+// The only resolver in SignalR's chain, so every type a hub method takes or returns needs an entry.
+// Commands and states cross as string envelopes (see ScreenIpcSerializer), never as payload types.
+[JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(long))]
 internal sealed partial class ScreenCommandJsonContext : JsonSerializerContext { }
