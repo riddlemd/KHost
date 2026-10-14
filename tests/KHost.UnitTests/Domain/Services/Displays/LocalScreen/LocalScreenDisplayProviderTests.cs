@@ -630,7 +630,7 @@ public class LocalScreenDisplayProviderTests
     {
         _settings.MarqueeHideDuringSong = true;
 
-        var marquee = await LocalScreenDisplayProvider.BuildMarqueeAsync(_settings, _upNext, performanceUnderWay: false);
+        var marquee = await ScreenOverlayBuilders.BuildMarqueeAsync(_settings, _upNext, performanceUnderWay: false);
 
         Assert.True(marquee.Enabled);
     }
