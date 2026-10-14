@@ -29,6 +29,11 @@ jobs:
           cache: npm
           cache-dependency-path: src/KHost.UserInterface/package-lock.json
 
+      # The lyric shaping tests shape Arabic and Hebrew in the face the painter picks; a bare
+      # runner may have no font covering either script.
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-dejavu-core fonts-noto-core
+
       # The UI build runs `npm run copy:vendors` and fails without node_modules.
       - run: npm ci
         working-directory: src/KHost.UserInterface

@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
-using KHost.Domain.Services.Messaging;
 using AngleSharp.Dom;
 using Bunit;
 using KHost.Abstractions.Models;
@@ -18,7 +16,6 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
     private const string BodySelector = ".kh-selected-singer-info-panel__body";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly KHostUser _singer = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly Performance _first;
@@ -26,6 +23,8 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
 
     public SelectedSingerInfoPanelKeyboardTests()
     {
+        this.AddKHostTestDefaults();
+
         _first = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
         _second = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
 
@@ -33,21 +32,15 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
         _queue.SelectedUserId.Returns(_singer.Id);
         _performances.ReadQueuedAsync().Returns(_ => [_first, _second]);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         var venues = Substitute.For<IVenuesService>();
         venues.ReadSelectedVenueAsync().Returns(new Venue { Id = Guid.NewGuid(), Name = "Bar" });
 
         Services.AddSingleton(_queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_performances);
         Services.AddSingleton(venues);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
-        Services.AddSingleton(Substitute.For<IMediaService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<ITipsService>());
     }
 

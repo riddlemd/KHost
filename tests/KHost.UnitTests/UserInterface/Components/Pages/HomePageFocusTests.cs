@@ -30,9 +30,7 @@ public class HomePageFocusTests : BunitContext
 
     public HomePageFocusTests()
     {
-        // The page, the queue panel's combo box, and the search panel all reach for JS on render;
-        // none of that matters to whether the right element was asked to focus.
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker, users: _users);
 
         _queue.Users.Returns(_ => _queuedUsers.AsReadOnly());
         _queue.SelectedUser.Returns(_ => _selectedUser);
@@ -81,20 +79,15 @@ public class HomePageFocusTests : BunitContext
         search.Providers.Returns([]);
 
         Services.AddSingleton(_queue);
-        Services.AddSingleton(_users);
         Services.AddSingleton(_performances);
         Services.AddSingleton(venues);
         Services.AddSingleton(media);
         Services.AddSingleton(search);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<INextSingerCardService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
         // The Now Playing panel reads a song's timing to draw who sings where.
         Services.AddSingleton(Substitute.For<ITimedLyricsService>());
         Services.AddSingleton(Substitute.For<IAdService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IBreakMusicService>());
 
         var appSettings = Substitute.For<IAppSettingsService>();

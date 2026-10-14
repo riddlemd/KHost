@@ -2,12 +2,10 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
@@ -23,7 +21,8 @@ public class EditVenueDialogSectionsTests : BunitContext
 
     public EditVenueDialogSectionsTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddAppSettings();
 
         var mediaPools = Substitute.For<IMediaPoolService>();
@@ -42,12 +41,9 @@ public class EditVenueDialogSectionsTests : BunitContext
         Services.AddSingleton(breakMusic);
         Services.AddSingleton(mediaPools);
         Services.AddSingleton(visualisations);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(plugins);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

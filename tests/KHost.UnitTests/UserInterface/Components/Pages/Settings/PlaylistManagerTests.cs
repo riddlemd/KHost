@@ -23,23 +23,18 @@ public class PlaylistManagerTests : BunitContext
     private readonly IMediaPoolService _pools = Substitute.For<IMediaPoolService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
-    private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     private readonly Guid _venueId = Guid.NewGuid();
 
     public PlaylistManagerTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker, dialogs: _dialogs);
 
         Services.AddSingleton(_pools);
         Services.AddSingleton(_venues);
-        Services.AddSingleton(_dialogs);
-        Services.AddSingleton(_flash);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
-        // The page always renders its EditPlaylistDialog, closed or not, which resolves these too.
-        Services.AddSingleton(Substitute.For<IMediaService>());
+        // The page always renders its EditPlaylistDialog, closed or not, which resolves app settings too.
         Services.AddSingleton(Substitute.For<IAppSettingsService>());
     }
 

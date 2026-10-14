@@ -15,16 +15,13 @@ public class AppSettingsPageNewVenueBackgroundsTests : BunitContext
 
     public AppSettingsPageNewVenueBackgroundsTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         _settings.Current.Returns(_ => _stored with { });
         _settings.DefaultMediaDirectory.Returns("/karaoke");
         _settings.SaveAsync(Arg.Any<AppSettings>()).Returns(new AppSettingsSaveResult(true));
 
         Services.AddSingleton(_settings);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
         Services.AddBreakMusicSection();
         Services.AddSearchSection();

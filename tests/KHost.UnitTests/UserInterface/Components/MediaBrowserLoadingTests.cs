@@ -30,6 +30,8 @@ public class MediaBrowserLoadingTests : BunitContext
 
     public MediaBrowserLoadingTests()
     {
+        this.AddKHostTestDefaults(broker: _broker);
+
         // No default music folder, so the browser opens on the drive list and waits to be pointed somewhere.
         _reader.ExistsAsync(Arg.Any<string>()).Returns(false);
         _reader.ExistsAsync(_folder).Returns(true);
@@ -45,9 +47,6 @@ public class MediaBrowserLoadingTests : BunitContext
         Services.AddSingleton(_importService);
         Services.AddSingleton(_mediaRepository);
         Services.AddSingleton(Substitute.For<IMediaFileParsingService>());
-        Services.AddSingleton<IMessageBroker>(_broker);
-
-        JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
     [Fact]

@@ -3,12 +3,10 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.MediaProviders;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -31,7 +29,7 @@ public class MediaSearchPanelKeyboardTests : BunitContext
 
     public MediaSearchPanelKeyboardTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         // Built first: configuring a substitute inside another's Returns confuses NSubstitute.
         IReadOnlyList<IMediaProvider> providers =
@@ -50,11 +48,8 @@ public class MediaSearchPanelKeyboardTests : BunitContext
         appSettings.Current.Returns(new AppSettings());
 
         Services.AddSingleton(_search);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(_queue);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IControlState>(_controlState);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<ICacheService>());

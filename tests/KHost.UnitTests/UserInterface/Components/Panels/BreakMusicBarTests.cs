@@ -25,7 +25,7 @@ public class BreakMusicBarTests : BunitContext
 
     public BreakMusicBarTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker, flash: _flash, dialogs: _dialogs);
 
         _breakMusic.ActiveProvider.Returns(_provider);
         // Stands in for the host's own library provider by default, which is what every existing
@@ -40,9 +40,6 @@ public class BreakMusicBarTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_ads);
         Services.AddSingleton(_playback);
-        Services.AddSingleton(_flash);
-        Services.AddSingleton(_dialogs);
-        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     private IRenderedComponent<BreakMusicBar> Render() => Render<BreakMusicBar>();

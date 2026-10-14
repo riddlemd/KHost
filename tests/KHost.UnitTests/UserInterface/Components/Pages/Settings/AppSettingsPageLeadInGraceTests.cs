@@ -13,7 +13,8 @@ public class AppSettingsPageLeadInGraceTests : BunitContext
 
     public AppSettingsPageLeadInGraceTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
@@ -21,9 +22,6 @@ public class AppSettingsPageLeadInGraceTests : BunitContext
         _settings.SaveAsync(Arg.Any<AppSettings>()).Returns(new AppSettingsSaveResult(true));
 
         Services.AddSingleton(_settings);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
         Services.AddSearchSection();
         Services.AddBreakMusicSection();

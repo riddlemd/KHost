@@ -6,6 +6,7 @@ using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
@@ -370,14 +371,17 @@ public class TimedLyricsServiceTests
         }
     }
 
+    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(20);
+
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly FakeTimeProvider _time = new();
 
     /// <summary>Builds the service over a reloadable monitor and counts what it announces.</summary>
     private (ReloadingMonitor Monitor, Func<int> Announced, IDisposable Lifetime) Watched()
     {
         var monitor = new ReloadingMonitor(new PlaybackService.ServiceOptions());
         var service = new TimedLyricsService(
-            NullLogger<TimedLyricsService>.Instance, [], monitor, _broker, TimeSpan.FromMilliseconds(20));
+            NullLogger<TimedLyricsService>.Instance, [], monitor, _broker, Settle, time: _time);
 
         var raised = 0;
         var subscription = _broker.Subscribe<TimedLyricsSettingsChanged>(_ => Interlocked.Increment(ref raised));
@@ -390,18 +394,14 @@ public class TimedLyricsServiceTests
         public void Dispose() { foreach (var part in parts) part.Dispose(); }
     }
 
-    /// <summary>Waits out the settle and the broker's own hand-off, long past either.</summary>
-    private static async Task SettledAsync(Func<int> announced, int atLeast)
-    {
-        for (var i = 0; i < 100 && announced() < atLeast; i++) await Task.Delay(20);
-        await Task.Delay(150);
-    }
+    /// <summary>Steps past the settle, and past a second one a stray re-arm would need.</summary>
+    private void Settled() => _time.Advance(Settle, steps: 3);
 
     public static TheoryData<string> Adjustments => ["ColorBlind", "LeadIns", "Pause", "Offset"];
 
     [Theory]
     [MemberData(nameof(Adjustments))]
-    public async Task OptionsReloaded_AnAdjustmentMoved_AnnouncesOnce(string which)
+    public void OptionsReloaded_AnAdjustmentMoved_AnnouncesOnce(string which)
     {
         var (monitor, announced, lifetime) = Watched();
         using var _ = lifetime;
@@ -410,7 +410,7 @@ public class TimedLyricsServiceTests
         if (which == "Pause")
         {
             monitor.Reload(new PlaybackService.ServiceOptions { DynamicLeadIns = true });
-            await SettledAsync(announced, 1);
+            Settled();
         }
 
         var before = announced();
@@ -425,13 +425,13 @@ public class TimedLyricsServiceTests
         // A file watcher raises a save more than once.
         monitor.Reload(next);
         monitor.Reload(next);
-        await SettledAsync(announced, before + 1);
+        Settled();
 
         Assert.Equal(before + 1, announced());
     }
 
     [Fact]
-    public async Task OptionsReloaded_SeveralMovedInOneSave_AnnouncesOnce()
+    public void OptionsReloaded_SeveralMovedInOneSave_AnnouncesOnce()
     {
         var (monitor, announced, lifetime) = Watched();
         using var _ = lifetime;
@@ -444,32 +444,32 @@ public class TimedLyricsServiceTests
             DynamicLeadIns = true,
             DynamicLeadInPauseSeconds = 2,
         });
-        await SettledAsync(announced, 1);
+        Settled();
 
         Assert.Equal(1, announced());
     }
 
     [Fact]
-    public async Task OptionsReloaded_OnlyAnUnrelatedSettingMoved_AnnouncesNothing()
+    public void OptionsReloaded_OnlyAnUnrelatedSettingMoved_AnnouncesNothing()
     {
         var (monitor, announced, lifetime) = Watched();
         using var _ = lifetime;
 
         monitor.Reload(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.FromSeconds(1), LeadInGraceSeconds = 5 });
-        await SettledAsync(announced, 1);
+        Settled();
 
         Assert.Equal(0, announced());
     }
 
     [Fact]
-    public async Task OptionsReloaded_ThePauseMovedWithLeadInsOff_AnnouncesNothing()
+    public void OptionsReloaded_ThePauseMovedWithLeadInsOff_AnnouncesNothing()
     {
         var (monitor, announced, lifetime) = Watched();
         using var _ = lifetime;
 
         // No word changes: with lead-ins off, the pause is never read.
         monitor.Reload(new PlaybackService.ServiceOptions { DynamicLeadInPauseSeconds = 5 });
-        await SettledAsync(announced, 1);
+        Settled();
 
         Assert.Equal(0, announced());
     }

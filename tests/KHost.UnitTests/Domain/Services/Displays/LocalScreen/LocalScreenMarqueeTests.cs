@@ -24,7 +24,7 @@ public class LocalScreenMarqueeTests
             (await _venues.ReadSelectedVenueAsync())?.Settings,
             new UpNextService(
                 NullLogger<UpNextService>.Instance, Substitute.For<IMessageBroker>(), _venues, _queue, _performances, _media,
-                new ServiceCollection().AddSingleton(_playback).BuildServiceProvider()));
+                new ServiceCollection().AddSingleton(_playback).BuildServiceProvider(), TimeProvider.System));
 
     public LocalScreenMarqueeTests()
         // NSubstitute hands back a task wrapping null otherwise, and the composition .Where()s it.

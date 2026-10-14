@@ -19,7 +19,8 @@ public class AppSettingsPageGuardTests : BunitContext
 
     public AppSettingsPageGuardTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(dialogs: _dialog);
+
         Services.AddNewVenuesSection();
 
         _settings.Current.Returns(_ => _stored with { });
@@ -27,9 +28,6 @@ public class AppSettingsPageGuardTests : BunitContext
         _settings.SaveAsync(Arg.Any<AppSettings>()).Returns(new AppSettingsSaveResult(true));
 
         Services.AddSingleton(_settings);
-        Services.AddSingleton(_dialog);
-        Services.AddSingleton(Substitute.For<IFlashService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
         Services.AddSearchSection();
         Services.AddBreakMusicSection();

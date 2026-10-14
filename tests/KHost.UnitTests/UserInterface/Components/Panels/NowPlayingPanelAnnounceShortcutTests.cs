@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
-using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -19,13 +17,11 @@ public class NowPlayingPanelAnnounceShortcutTests : BunitContext
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly INextSingerCardService _nextSingerCard = Substitute.For<INextSingerCardService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
-    private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
 
     public NowPlayingPanelAnnounceShortcutTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         // No song loaded: only then does the console offer the announce button at all.
         _playback.CurrentPerformance.Returns((Performance?)null);
@@ -41,13 +37,9 @@ public class NowPlayingPanelAnnounceShortcutTests : BunitContext
         Services.AddSingleton(venues);
         Services.AddSingleton(_playback);
         Services.AddSingleton(_nextSingerCard);
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(appSettings);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_queue);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(_mediaService);
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<ITimedLyricsService>());
         Services.AddSingleton(Substitute.For<IBreakMusicService>());
         Services.AddSingleton(Substitute.For<IAdService>());

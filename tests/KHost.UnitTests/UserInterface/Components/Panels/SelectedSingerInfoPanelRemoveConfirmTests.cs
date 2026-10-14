@@ -2,7 +2,6 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,14 +27,14 @@ public class SelectedSingerInfoPanelRemoveConfirmTests : BunitContext
 
     public SelectedSingerInfoPanelRemoveConfirmTests()
     {
+        this.AddKHostTestDefaults();
+
         _performance = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
         _media = new Media { Id = _performance.MediaId, FilePath = "/music/song.mp4", Title = "Song", Status = MediaStatus.Ready };
 
         _queue.SelectedUser.Returns(_singer);
         _queue.SelectedUserId.Returns(_singer.Id);
         _performances.ReadQueuedAsync().Returns(_ => [_performance]);
-
-        JSInterop.Mode = JSRuntimeMode.Loose;
 
         var mediaService = Substitute.For<IMediaService>();
         mediaService.ReadAsync(_media.Id).Returns(_media);
@@ -46,11 +45,9 @@ public class SelectedSingerInfoPanelRemoveConfirmTests : BunitContext
         Services.AddSingleton(mediaService);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
         Services.AddSingleton<IDialogService>(_dialogs);
         Services.AddSingleton(Substitute.For<ITipsService>());
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

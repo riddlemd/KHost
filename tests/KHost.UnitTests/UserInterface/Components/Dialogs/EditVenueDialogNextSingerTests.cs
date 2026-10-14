@@ -2,10 +2,8 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 
@@ -18,12 +16,11 @@ public class EditVenueDialogNextSingerTests : BunitContext
 
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
-    private readonly IMediaService _media = Substitute.For<IMediaService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public EditVenueDialogNextSingerTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
+
         Services.AddAppSettings();
 
         _mediaPools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -33,10 +30,7 @@ public class EditVenueDialogNextSingerTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IQrCodePngExporter>());
         Services.AddSingleton(Substitute.For<IMediaUploader>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_mediaPools);
-        Services.AddSingleton(_media);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         var visualisations = Substitute.For<IVisualisationPlaylistService>();
         visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
@@ -73,27 +67,27 @@ public class EditVenueDialogNextSingerTests : BunitContext
     [Theory]
     [InlineData(NextSingerBackground.Blackout)]
     [InlineData(NextSingerBackground.Visualisation)]
-    public void PickingABackground_ReachesTheSavedVenue(NextSingerBackground picked)
+    public async Task PickingABackground_ReachesTheSavedVenue(NextSingerBackground picked)
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
         cut.Find(BackgroundSelector).Change(picked.ToString());
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.Equal(picked, saved!.Settings.NextSingerBackground);
     }
 
     [Fact]
-    public void PickingThePlaceholderImageBack_ReachesTheSavedVenue()
+    public async Task PickingThePlaceholderImageBack_ReachesTheSavedVenue()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { NextSingerBackground = NextSingerBackground.Blackout }, venue => saved = venue);
 
         Assert.Equal(nameof(NextSingerBackground.Blackout), cut.Find(BackgroundSelector).GetAttribute("value"));
         cut.Find(BackgroundSelector).Change(nameof(NextSingerBackground.Over));
-        cut.Find("form").Submit();
+        await cut.Find("form").SubmitAsync();
 
         Assert.NotNull(saved);
         Assert.Equal(NextSingerBackground.Over, saved!.Settings.NextSingerBackground);

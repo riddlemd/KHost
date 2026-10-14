@@ -23,6 +23,8 @@ public class MediaImportService : BaseService, IMediaImportService
         .. MediaFormats.ImageExtensions,
     ];
 
+    private static readonly TimeSpan ProgressThrottle = TimeSpan.FromMilliseconds(250);
+
     private readonly IMediaFileParsingService _parser;
     private readonly IMessageBroker _broker;
     private readonly IMediaRepository _repository;
@@ -30,10 +32,11 @@ public class MediaImportService : BaseService, IMediaImportService
     private readonly IAnalyticsService _analytics;
     private readonly IFFmpegService _ffmpeg;
     private readonly IFlashService _flash;
+    private readonly TimeProvider _time;
 
     private CancellationTokenSource? _cts;
     private readonly Lock _startLock = new();
-    private long _lastNotifyMs;
+    private long? _lastNotified;
     private bool _libraryChangedUnannounced;
 
     public ImportState State { get; private set; } = ImportState.Idle;
@@ -62,9 +65,11 @@ public class MediaImportService : BaseService, IMediaImportService
         IPluginRegistry plugins,
         IFFmpegService ffmpeg,
         IFlashService flash,
-        IMessageBroker broker)
+        IMessageBroker broker,
+        TimeProvider? time = null)
         : base(logger)
     {
+        _time = time ?? TimeProvider.System;
         _ffmpeg = ffmpeg;
         _flash = flash;
         _broker = broker;
@@ -106,7 +111,7 @@ public class MediaImportService : BaseService, IMediaImportService
             FailedCount = 0;
             CurrentFilePath = null;
             State = ImportState.Running;
-            _lastNotifyMs = 0;
+            _lastNotified = null;
         }
 
         _broker.Announce(new MediaImportChanged());
@@ -165,11 +170,11 @@ public class MediaImportService : BaseService, IMediaImportService
 
     private void AnnounceThrottled()
     {
-        var now = Environment.TickCount64;
-        if (now - _lastNotifyMs < 250)
+        var now = _time.GetTimestamp();
+        if (_lastNotified is { } last && _time.GetElapsedTime(last, now) < ProgressThrottle)
             return;
 
-        _lastNotifyMs = now;
+        _lastNotified = now;
         _broker.Announce(new MediaImportChanged());
         AnnounceLibraryChangedIfPending();
     }

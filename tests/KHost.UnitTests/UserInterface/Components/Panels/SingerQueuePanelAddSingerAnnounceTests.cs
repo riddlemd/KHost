@@ -31,7 +31,7 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
 
     public SingerQueuePanelAddSingerAnnounceTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker);
 
         var analytics = Substitute.For<IAnalyticsService>();
         var cache = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analytics, _cacheDir);
@@ -75,14 +75,10 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
             NullLogger<SingerQueueService>.Instance, cache, performances, UsersReadFrom(_userDb), LastSungNever(), venues, analytics, rotationFactory, _broker);
 
         Services.AddSingleton<ISingerQueueService>(queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
         Services.AddSingleton(users);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     protected override void Dispose(bool disposing)
@@ -102,11 +98,8 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
         var cut = Render<SingerQueuePanel>();
 
         cut.Find(InputSelector).Input("Zoe");
-        cut.Find(FormSelector).Submit();
-
-        // PublishChanged is fire-and-forget by design (never blocks a handler that calls back in),
-        // so the broker's own callback can still be in flight right after Submit returns.
-        await Task.Delay(50);
+        // Awaited to the handler's end: every announce it fired has reached this synchronous subscriber by then.
+        await cut.Find(FormSelector).SubmitAsync();
 
         Assert.Single(_userDb.Values, u => u.Name == "Zoe");
         Assert.Equal(1, announceCount);

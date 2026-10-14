@@ -5,6 +5,7 @@ using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -18,6 +19,7 @@ public class UpNextServiceTests : IDisposable
     private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly FakeTimeProvider _time = new();
     private readonly List<UpNextService> _built = [];
     private readonly List<IDisposable> _subscriptions = [];
 
@@ -154,8 +156,12 @@ public class UpNextServiceTests : IDisposable
         _broker.Announce(new PerformancesChanged());
         _broker.Announce(new SingerQueueChanged());
 
+        _time.Advance(Settle - TimeSpan.FromTicks(1));
+        Assert.Equal(0, counted());
+
+        _time.Advance(TimeSpan.FromTicks(1));
         Assert.True(await WaitUntilAsync(() => counted() > 0));
-        await Task.Delay(Settle * 3);
+        _time.Advance(Settle * 3);
 
         Assert.Equal(1, counted());
     }
@@ -167,12 +173,14 @@ public class UpNextServiceTests : IDisposable
         Service();
 
         _broker.Announce(new SingerQueueChanged());
+        _time.Advance(Settle);
         Assert.True(await WaitUntilAsync(() => counted() == 1));
-        await Task.Delay(Settle * 2);
+        _time.Advance(Settle * 2);
 
         _broker.Announce(new PerformancesChanged());
+        _time.Advance(Settle);
         Assert.True(await WaitUntilAsync(() => counted() == 2));
-        await Task.Delay(Settle * 3);
+        _time.Advance(Settle * 3);
 
         Assert.Equal(2, counted());
     }
@@ -185,7 +193,7 @@ public class UpNextServiceTests : IDisposable
         Service();
 
         _broker.Announce(new PlaybackChanged());
-        await Task.Delay(Settle * 3);
+        _time.Advance(Settle * 3);
 
         Assert.Equal(0, counted());
     }
@@ -198,6 +206,7 @@ public class UpNextServiceTests : IDisposable
         _playback.CurrentPerformance.Returns(new Performance { SingerId = Guid.NewGuid() });
 
         _broker.Announce(new PlaybackChanged());
+        _time.Advance(Settle);
 
         Assert.True(await WaitUntilAsync(() => counted() == 1));
     }
@@ -211,15 +220,17 @@ public class UpNextServiceTests : IDisposable
 
         // The first one is news: nothing was known about the rule before it.
         _broker.Announce(new SelectedVenueChanged());
+        _time.Advance(Settle);
         Assert.True(await WaitUntilAsync(() => counted() == 1));
-        await Task.Delay(Settle * 2);
+        _time.Advance(Settle * 2);
 
         _broker.Announce(new SelectedVenueChanged());
-        await Task.Delay(Settle * 3);
+        _time.Advance(Settle * 3);
         Assert.Equal(1, counted());
 
         ArrangeVenue(aliases: true);
         _broker.Announce(new SelectedVenueChanged());
+        _time.Advance(Settle);
         Assert.True(await WaitUntilAsync(() => counted() == 2));
     }
 
@@ -230,7 +241,7 @@ public class UpNextServiceTests : IDisposable
         Service().Dispose();
 
         _broker.Announce(new SingerQueueChanged());
-        await Task.Delay(Settle * 3);
+        _time.Advance(Settle * 3);
 
         Assert.Equal(0, counted());
     }
@@ -240,7 +251,7 @@ public class UpNextServiceTests : IDisposable
     {
         var service = new UpNextService(
             NullLogger<UpNextService>.Instance, _broker, _venues, _queue, _performances, _media,
-            new ServiceCollection().AddSingleton(_playback).BuildServiceProvider(), Settle);
+            new ServiceCollection().AddSingleton(_playback).BuildServiceProvider(), _time, Settle);
         _built.Add(service);
 
         return service;

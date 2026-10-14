@@ -81,6 +81,14 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(600);
 
+            entity.Property<string>(EntityFolding.TitleFolded)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            entity.Property<string>(EntityFolding.ArtistFolded)
+                .IsRequired()
+                .HasMaxLength(255);
+
             entity.Property(e => e.SampledHash)
                 .HasMaxLength(64);
 
@@ -96,6 +104,10 @@ internal class DefaultContext : DbContext
             // Every listing and search filters on type, so it sits ahead of the sort columns
             // rather than beside them.
             entity.HasIndex(e => e.Type);
+
+            // Type leads because every listing filters on it before sorting by title or artist.
+            entity.HasIndex(nameof(KHost.Abstractions.Models.Media.Type), EntityFolding.TitleFolded);
+            entity.HasIndex(nameof(KHost.Abstractions.Models.Media.Type), EntityFolding.ArtistFolded);
 
             // Import dedup looks rows up by size first; neither hash is unique, because the same
             // file legitimately exists under two paths until one of them is skipped.
