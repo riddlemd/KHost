@@ -70,6 +70,53 @@ public class MediaRepositorySortTests : IDisposable
         Assert.Equal(["Track long", "Track mid", "Track short", "Track none"], result.Items.Select(m => m.Title));
     }
 
+    // Bundled SQLite lower() folds ASCII only, which would put every accented title after "Zz".
+    [Theory]
+    [InlineData("title", new[] { "Ábba", "ábel", "Éxito", "Zz" })]
+    [InlineData("artist", new[] { "Zz", "Ábba", "ábel", "Éxito" })]
+    public async Task ReadAllAsync_SortByTitleOrArtist_InFoldedOrder(string column, string[] titles)
+    {
+        await SeedAccentedAsync();
+
+        var result = await _repository.ReadAllAsync(1, 0, new SortDescriptor(column), MediaSearchOptions.AllTypes);
+
+        Assert.Equal(titles, result.Items.Select(m => m.Title));
+    }
+
+    [Fact]
+    public async Task ReadAllAsync_DefaultSort_IsTitleInFoldedOrder()
+    {
+        await SeedAccentedAsync();
+
+        var result = await _repository.ReadAllAsync(1, 0, sort: null, MediaSearchOptions.AllTypes);
+
+        Assert.Equal(["Ábba", "ábel", "Éxito", "Zz"], result.Items.Select(m => m.Title));
+    }
+
+    [Fact]
+    public async Task ReadAllByTypesAsync_IsTitleInFoldedOrder()
+    {
+        await SeedAccentedAsync();
+
+        var result = await _repository.ReadAllByTypesAsync(MediaType.Karaoke);
+
+        Assert.Equal(["Ábba", "ábel", "Éxito", "Zz"], result.Select(m => m.Title));
+    }
+
+    // Artists are a different permutation of the same names, so a title sort cannot pass for an artist sort.
+    private async Task SeedAccentedAsync()
+    {
+        using var context = await _factory.CreateDbContextAsync();
+
+        context.Media.AddRange(
+            NewMedia("Zz", null, artist: "Ábba"),
+            NewMedia("Éxito", null, artist: "Zz"),
+            NewMedia("ábel", null, artist: "Éxito"),
+            NewMedia("Ábba", null, artist: "ábel"));
+
+        await context.SaveChangesAsync();
+    }
+
     private async Task SeedAsync()
     {
         using var context = await _factory.CreateDbContextAsync();
@@ -85,10 +132,10 @@ public class MediaRepositorySortTests : IDisposable
         await context.SaveChangesAsync();
     }
 
-    private static Media NewMedia(string title, TimeSpan? duration) => new()
+    private static Media NewMedia(string title, TimeSpan? duration, string artist = "Artist") => new()
     {
         Title = title,
-        Artist = "Artist",
+        Artist = artist,
         FilePath = $"/library/{title}.mp4",
         Format = "mp4",
         Status = MediaStatus.Ready,

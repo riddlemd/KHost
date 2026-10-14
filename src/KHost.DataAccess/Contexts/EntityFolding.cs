@@ -18,6 +18,8 @@ internal static class EntityFolding
     internal const string SearchFolded = "SearchFolded";
     internal const string NameFolded = "NameFolded";
     internal const string NotesFolded = "NotesFolded";
+    internal const string TitleFolded = "TitleFolded";
+    internal const string ArtistFolded = "ArtistFolded";
 
     /// <summary>Transliterates to ASCII and lowercases: "Björk" to "bjork".</summary>
     /// <remarks>Accents and non-Latin scripts both reduce to something a host can type.</remarks>
@@ -39,6 +41,8 @@ internal static class EntityFolding
             {
                 case Media media:
                     Set(entry, SearchFolded, FoldMedia($"{media.Title} {media.Artist}"));
+                    Set(entry, TitleFolded, FoldMedia(media.Title));
+                    Set(entry, ArtistFolded, FoldMedia(media.Artist));
                     break;
 
                 case KHostUser user:
