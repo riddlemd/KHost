@@ -32,6 +32,8 @@ public class SelectedSingerInfoPanelRefreshTests : BunitContext
 
     public SelectedSingerInfoPanelRefreshTests()
     {
+        this.AddKHostTestDefaults(broker: _broker, media: _mediaService);
+
         _first = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
         _second = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
 
@@ -44,19 +46,13 @@ public class SelectedSingerInfoPanelRefreshTests : BunitContext
         _venues.ReadSelectedVenueAsync().Returns(_ => _venue);
         _tips.GetByUserIdAsync(_singer.Id).Returns(_ => []);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         Services.AddSingleton(_queue);
         Services.AddSingleton(_performances);
         Services.AddSingleton(_venues);
-        Services.AddSingleton(_mediaService);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(_tips);
-        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     [Fact]

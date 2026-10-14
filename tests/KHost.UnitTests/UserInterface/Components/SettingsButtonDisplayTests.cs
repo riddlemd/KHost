@@ -28,7 +28,7 @@ public class SettingsButtonDisplayTests : BunitContext
 
     public SettingsButtonDisplayTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker, flash: _flash);
 
         // NSubstitute hands back string.Empty for an unstubbed string, not null, so "nothing is
         // connected" has to be said or every test starts with a display live.
@@ -56,12 +56,9 @@ public class SettingsButtonDisplayTests : BunitContext
         Services.AddSingleton(venues);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IBreakMusicService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(_flash);
         Services.AddSingleton(Substitute.For<IThemeService>());
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         Services.AddSingleton(Substitute.For<IHostApplicationLifetime>());
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton<IEnumerable<IDisplayProvider>>(_ => _providers);
         Services.AddSingleton<IDisplaySwitcher, DisplaySwitcher>();
     }

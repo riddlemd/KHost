@@ -2,11 +2,9 @@ using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -21,7 +19,7 @@ public class NowPlayingPanelTransportShortcutTests : BunitContext
 
     public NowPlayingPanelTransportShortcutTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         _playback.Position.Returns(TimeSpan.Zero);
         _playback.CurrentPerformance.Returns(new Performance { SingerId = Guid.NewGuid() });
@@ -36,13 +34,9 @@ public class NowPlayingPanelTransportShortcutTests : BunitContext
         Services.AddSingleton(venues);
         Services.AddSingleton(_playback);
         Services.AddSingleton(Substitute.For<INextSingerCardService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(appSettings);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(Substitute.For<ISingerQueueService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IPerformanceService>());
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<ITimedLyricsService>());
         Services.AddSingleton(Substitute.For<IBreakMusicService>());
         Services.AddSingleton(Substitute.For<IAdService>());

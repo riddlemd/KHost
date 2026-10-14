@@ -30,6 +30,8 @@ public class SingerQueuePanelRoomMarkRefreshTests : BunitContext
 
     public SingerQueuePanelRoomMarkRefreshTests()
     {
+        this.AddKHostTestDefaults(broker: _broker);
+
         var users = Substitute.For<IUsersService>();
         users.ReadAsync(Arg.Any<Guid>())
             .Returns(args => { _userDb.TryGetValue((Guid)args[0], out var u); return Task.FromResult(u); });
@@ -53,17 +55,11 @@ public class SingerQueuePanelRoomMarkRefreshTests : BunitContext
         _queue = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, performances, UsersReadFrom(_userDb), LastSungNever(),
             venues, Substitute.For<IAnalyticsService>(), rotation, _broker);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         Services.AddSingleton<ISingerQueueService>(_queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(users);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     [Fact]

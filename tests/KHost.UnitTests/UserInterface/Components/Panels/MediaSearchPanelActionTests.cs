@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
-using KHost.Domain.Services.Messaging;
 using System.Reflection;
 using Bunit;
 using KHost.Abstractions.Models;
@@ -15,12 +13,11 @@ namespace KHost.UnitTests.UserInterface.Components.Panels;
 public class MediaSearchPanelActionTests : BunitContext
 {
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
 
     public MediaSearchPanelActionTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(flash: _flash);
 
         _search.Providers.Returns([]);
         _search.SearchAsync(Arg.Any<string>()).Returns([]);
@@ -32,11 +29,8 @@ public class MediaSearchPanelActionTests : BunitContext
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_search);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(queue);
         Services.AddSingleton(performances);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(_flash);
         Services.AddSingleton<IControlState>(new ControlState());
 
         var appSettings = Substitute.For<IAppSettingsService>();

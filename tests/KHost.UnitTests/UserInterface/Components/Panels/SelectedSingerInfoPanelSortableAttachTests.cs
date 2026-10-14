@@ -26,6 +26,8 @@ public class SelectedSingerInfoPanelSortableAttachTests : BunitContext
 
     public SelectedSingerInfoPanelSortableAttachTests()
     {
+        this.AddKHostTestDefaults(broker: _broker, media: _mediaService);
+
         _performance = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
         _media = new Media { Id = _performance.MediaId, FilePath = "/music/song.mp4", Title = "Song", Status = MediaStatus.Ready };
 
@@ -34,22 +36,16 @@ public class SelectedSingerInfoPanelSortableAttachTests : BunitContext
         _performances.ReadQueuedAsync().Returns(_ => _queued);
         _mediaService.ReadAsync(_media.Id).Returns(_ => _media);
 
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
         var venues = Substitute.For<IVenuesService>();
         venues.ReadSelectedVenueAsync().Returns(new Venue { Id = Guid.NewGuid(), Name = "Bar" });
 
         Services.AddSingleton(_queue);
         Services.AddSingleton(_performances);
         Services.AddSingleton(venues);
-        Services.AddSingleton(_mediaService);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<ITipsService>());
-        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     [Fact]

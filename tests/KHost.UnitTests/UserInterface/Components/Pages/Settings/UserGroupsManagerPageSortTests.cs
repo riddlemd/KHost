@@ -1,12 +1,10 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 
@@ -16,7 +14,7 @@ public class UserGroupsManagerPageSortTests : BunitContext
 
     public UserGroupsManagerPageSortTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         _userGroupsService
             .SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<SortDescriptor?>())
@@ -26,10 +24,8 @@ public class UserGroupsManagerPageSortTests : BunitContext
         appSettings.Current.Returns(new AppSettings());
 
         Services.AddSingleton(_userGroupsService);
-        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IVenuesService>());
         Services.AddSingleton(appSettings);
-        Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

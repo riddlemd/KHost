@@ -31,7 +31,7 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
 
     public SingerQueuePanelAddSingerAnnounceTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults(broker: _broker);
 
         var analytics = Substitute.For<IAnalyticsService>();
         var cache = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analytics, _cacheDir);
@@ -75,14 +75,10 @@ public class SingerQueuePanelAddSingerAnnounceTests : BunitContext
             NullLogger<SingerQueueService>.Instance, cache, performances, UsersReadFrom(_userDb), LastSungNever(), venues, analytics, rotationFactory, _broker);
 
         Services.AddSingleton<ISingerQueueService>(queue);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(venues);
         Services.AddSingleton(performances);
         Services.AddSingleton(users);
-        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(Substitute.For<IPlaybackService>());
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
     protected override void Dispose(bool disposing)

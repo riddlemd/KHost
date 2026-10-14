@@ -11,9 +11,7 @@ public class HelpButtonTests : BunitContext
 
     public HelpButtonTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
-
-        Services.AddSingleton(_dialogs);
+        this.AddKHostTestDefaults(dialogs: _dialogs);
     }
 
     [Fact]

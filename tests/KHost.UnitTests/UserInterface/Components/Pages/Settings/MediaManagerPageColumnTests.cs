@@ -2,12 +2,10 @@ using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.DataAccess.Repositories;
-using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 
@@ -17,27 +15,22 @@ public class MediaManagerPageColumnTests : BunitContext
     private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IAppSettingsService _settings = Substitute.For<IAppSettingsService>();
-    private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public MediaManagerPageColumnTests()
     {
+        this.AddKHostTestDefaults(media: _media);
+
         _settings.Current.Returns(new AppSettings());
         _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(null));
 
-        Services.AddSingleton(_media);
         Services.AddSingleton(_venues);
         Services.AddSingleton(_settings);
-        Services.AddSingleton(_dialogs);
-        Services.AddSingleton<IMessageBroker>(_broker);
 
         // The page renders its dialogs eagerly, so their dependencies have to be present too.
         Services.AddSingleton(Substitute.For<IMediaFileParsingService>());
         Services.AddSingleton(Substitute.For<IMediaImportService>());
         Services.AddSingleton(Substitute.For<IMediaPoolService>());
-        Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<KHost.DataAccess.Repositories.IMediaRepository>());
-        JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
     [Fact]

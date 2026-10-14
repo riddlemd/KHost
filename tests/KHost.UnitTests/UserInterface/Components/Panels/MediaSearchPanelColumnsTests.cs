@@ -2,12 +2,10 @@ using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.MediaProviders;
-using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -20,7 +18,6 @@ public class MediaSearchPanelColumnsTests : BunitContext
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     private static readonly IReadOnlyList<MediaResultColumn> YouTubeShape =
     [
@@ -32,17 +29,14 @@ public class MediaSearchPanelColumnsTests : BunitContext
 
     public MediaSearchPanelColumnsTests()
     {
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddKHostTestDefaults();
 
         _queue.Users.Returns(_ => []);
         _performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_search);
-        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_queue);
         Services.AddSingleton(_performances);
-        Services.AddSingleton(Substitute.For<IDialogService>());
-        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IControlState>(new ControlState());
 
         var appSettings = Substitute.For<IAppSettingsService>();
@@ -244,5 +238,4 @@ public class MediaSearchPanelColumnsTests : BunitContext
         Assert.Contains("kh-media-search-panel__col--label", headers[1].ClassName);
         Assert.DoesNotContain("kh-media-search-panel__col--text", headers[1].ClassName);
     }
-
 }
