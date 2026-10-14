@@ -8,7 +8,7 @@ using KHost.Common.Repositories;
 
 namespace KHost.Domain.Services;
 
-public class UserGroupsService : BaseRepositoryService<KHostUserGroup, IUserGroupsRepository>, IUserGroupsService
+public class UserGroupsService : BaseSearchableRepositoryService<KHostUserGroup, IUserGroupsRepository>, IUserGroupsService
 {
 
     public UserGroupsService(ILogger<UserGroupsService> logger, IUserGroupsRepository repository, IMessageBroker broker)

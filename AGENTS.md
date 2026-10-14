@@ -45,7 +45,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
   - Group by area under `Common` (`Media/`, `Plugins/`, `Discovery/`), never its root; mirror that in the tests.
   - Name methods for what the call site reads without repo context: `StreamRate.FromTempo(t)`, `AudioLevels.ClampVolume(v)` (not `For`, `Clamp`), `PluginRid.MatchesThisHost`, `int.CentsToCurrencyString()`. Exception: a member filling a BCL gap keeps the familiar name (`IList<T>.FindIndex`).
 - No "gate" services: a guard lives on the service that owns the call (enqueue rules in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard`). `IMediaGateService`/`IMediaProbeService` are routers, not guards: they answer which plugin owns a file; the rule lives in the plugin.
-- New repositories/services copy an existing one's shape: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
+- New repositories/services copy an existing one's shape: repositories extend `BaseRepository<T>` and implement `SortColumns`; one with text to search extends `BaseSearchableRepository<T>` (or `<T, TOptions>` for a filter) and implements `ApplySearchFilters`; services extend `BaseService` (or `BaseSearchableRepositoryService<,>` / `BaseRepositoryService<,>` for CRUD).
 - In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
 - Services announce, they do not raise events. There is no `StateChanged` and no `IKHostService`. A service takes `IMessageBroker` in its own constructor (never through `BaseService`, which carries only `ILogger`) and calls `Broker.Announce(new ThingChanged())`. Messages are empty records in `KHost.Abstractions.Messaging.Messages`, one per service, named for the fact. See **Messaging**.
 - Member order: fields → events → properties → public → protected → private → nested types.
@@ -249,6 +249,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
   - `MinimumVersion` moves only on a **break**: changing a method a plugin **calls or implements**, including adding an optional parameter (the default compiles into the call site; a changed implemented signature is a `TypeLoadException` at load), or removing anything. A break moves `CurrentVersion` too.
   - Not a break: a new interface member with a **default body** (still an addition).
   - Contract enums stay **append-only** with explicit values: a plugin compiles them as numbers.
+  - Search options are typed per service: a filter is a `SearchAsync` overload taking its own options type (`IMediaService`, `IUsersService`, `IMediaPoolService`), never an untyped `options` parameter.
   - Do not reason from the published catalog about who implements what — the hand-installed plugin is the one running.
   - Widening a method silently changes what `Received(1).Foo(id)` asserts in a plugin's tests: assert the argument, not the bare call.
 - A plugin ships neither contract nor any `Microsoft.Extensions.*` assembly: the package's `build/KHost.Abstractions.targets` trims them from its output, and `PluginLoadContext.Load` hands it the host's copies (an `IOptionsMonitor` from another copy is a different type). A plugin's *test* project keeps them.

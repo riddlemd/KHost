@@ -10,7 +10,7 @@ namespace KHost.DataAccess.Repositories;
 /// <para>Search matches the group name, case- and accent-insensitive. Sort key: <c>name</c>
 /// (the default).</para>
 /// </remarks>
-public interface IUserGroupsRepository : IRepository<KHostUserGroup>
+public interface IUserGroupsRepository : IRepository<KHostUserGroup>, ISearchable<KHostUserGroup>
 {
     /// <summary>Adds the membership; a no-op when the user is already in the group.</summary>
     Task AddUserToGroupAsync(Guid userId, Guid groupId);

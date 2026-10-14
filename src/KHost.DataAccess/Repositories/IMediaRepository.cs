@@ -1,5 +1,4 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 
 namespace KHost.DataAccess.Repositories;
 
@@ -18,10 +17,11 @@ namespace KHost.DataAccess.Repositories;
 /// <para>Search matches title and artist together, without regard to case or accents, and with
 /// stylised spellings read as their plain form ("pink" finds "P!nk"). With no sort given, a query
 /// whose every word has at least three characters comes back ranked by relevance; one with a
-/// shorter word comes back in the default order. Sort keys: <c>title</c> (default), <c>artist</c>,
+/// shorter word comes back in the default order; a sort replaces relevance rather than breaking
+/// ties within it. Search options are as for <see cref="ReadAllAsync(int, int, SortDescriptor?, MediaSearchOptions?)"/>. Sort keys: <c>title</c> (default), <c>artist</c>,
 /// <c>format</c>, <c>dateAdded</c>, <c>status</c>, <c>duration</c>.</para>
 /// </remarks>
-public interface IMediaRepository : IRepository<Media>
+public interface IMediaRepository : IRepository<Media>, ISearchable<Media, MediaSearchOptions>
 {
     /// <summary>Listing and search that reach past karaoke; the plain overloads answer songs alone.</summary>
     /// <param name="pageNumber">1-based page to read; below 1 reads page 1.</param>
@@ -31,15 +31,6 @@ public interface IMediaRepository : IRepository<Media>
     /// <see cref="MediaSearchOptions.Default"/> (karaoke, any status). Use
     /// <see cref="MediaSearchOptions.AllTypes"/> for everything.</param>
     Task<PaginatedResult<Media>> ReadAllAsync(int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
-
-    /// <summary>Search with both a sort and a type/status filter.</summary>
-    /// <param name="query">Text to match; null, empty or whitespace matches every row.</param>
-    /// <param name="pageNumber">1-based page to read; below 1 reads page 1.</param>
-    /// <param name="pageSize">Rows per page; below 1 uses the default, and it is capped (see <see cref="ISearchable{T}"/>).</param>
-    /// <param name="sort">Null keeps relevance order where the query is ranked; a sort replaces
-    /// relevance rather than breaking ties within it.</param>
-    /// <param name="options">As for <see cref="ReadAllAsync(int, int, SortDescriptor?, MediaSearchOptions?)"/>.</param>
-    Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
     /// <summary>Every row of these types, unpaged; a paged picker would drop rows past page one.</summary>
     /// <returns>Ordered by title; empty when <paramref name="types"/> is empty.</returns>

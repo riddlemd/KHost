@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Visualisations;
 
-public class VisualisationPlaylistService : BaseRepositoryService<VisualisationPlaylist, IVisualisationPlaylistRepository>, IVisualisationPlaylistService
+public class VisualisationPlaylistService : BaseSearchableRepositoryService<VisualisationPlaylist, IVisualisationPlaylistRepository>, IVisualisationPlaylistService
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
 

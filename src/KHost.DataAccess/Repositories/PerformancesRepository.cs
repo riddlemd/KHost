@@ -211,15 +211,4 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
     protected override IReadOnlyDictionary<string, Expression<Func<Performance, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Performance, object>> DefaultSortExpression => p => p.CreatedDate;
     protected override bool DefaultSortDescending => true;
-
-    protected override IQueryable<Performance> ApplySearchFilters<TOptions>(IQueryable<Performance> queryable, string query, TOptions? options = null)
-        where TOptions : class
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return queryable;
-
-        // A performance holds only ids and dates, so nothing here can match a text query. Passing
-        // the queryable straight through would return the whole table and read as "everything matched".
-        return queryable.Where(_ => false);
-    }
 }

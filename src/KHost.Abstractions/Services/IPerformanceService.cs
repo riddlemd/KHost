@@ -13,7 +13,12 @@ namespace KHost.Abstractions.Services;
 /// update, delete, move and dequeue announces
 /// <see cref="KHost.Abstractions.Messaging.Messages.PerformancesChanged"/>. Deleting a performance
 /// also cancels its media's download if one is still in flight and no other queued performance uses
-/// that media.</para></remarks>
+/// that media.</para>
+///
+/// <para>A performance holds no text to search. <c>SearchAsync</c> stays only because every
+/// library service shares <see cref="IRepositoryService{T}"/>: a blank query lists every
+/// performance in the given order (<c>createdDate</c>, the default and newest first, or
+/// <c>queuePosition</c>), and any other query answers an empty page.</para></remarks>
 public interface IPerformanceService : IRepositoryService<Performance>
 {
     /// <summary>Every performance matching <paramref name="filter"/>; queued ones by default.</summary>

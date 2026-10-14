@@ -11,7 +11,7 @@ namespace KHost.DataAccess.Repositories;
 /// <para>Search matches the pool name, case- and accent-insensitive, and honours
 /// <see cref="MediaPoolSearchOptions"/>. Sort keys: <c>name</c> (default), <c>purpose</c>.</para>
 /// </remarks>
-public interface IMediaPoolRepository : IRepository<MediaPool>
+public interface IMediaPoolRepository : IRepository<MediaPool>, ISearchable<MediaPool, MediaPoolSearchOptions>
 {
     /// <summary>The pool with its entries loaded. The inherited read leaves them empty.</summary>
     /// <returns>Entries in play order, or null when no pool has this id.</returns>

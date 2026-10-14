@@ -1,6 +1,7 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>Extra conditions for a media search, passed through the searchable options hook.</summary>
+/// <summary>Which types and statuses a media read or search includes, passed to
+/// <see cref="Services.IMediaService"/>'s typed overloads.</summary>
 public sealed class MediaSearchOptions
 {
     /// <summary>Defaults to karaoke, not every type, so a forgotten arg can't offer up an ad.</summary>

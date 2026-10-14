@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
-internal class VisualisationPlaylistRepository : BaseRepository<VisualisationPlaylist>, IVisualisationPlaylistRepository
+internal class VisualisationPlaylistRepository : BaseSearchableRepository<VisualisationPlaylist>, IVisualisationPlaylistRepository
 {
     private static readonly IReadOnlyDictionary<string, Expression<Func<VisualisationPlaylist, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<VisualisationPlaylist, object>>>
@@ -78,8 +78,7 @@ internal class VisualisationPlaylistRepository : BaseRepository<VisualisationPla
     protected override IReadOnlyDictionary<string, Expression<Func<VisualisationPlaylist, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<VisualisationPlaylist, object>> DefaultSortExpression => p => p.Name.ToLower();
 
-    protected override IQueryable<VisualisationPlaylist> ApplySearchFilters<TOptions>(IQueryable<VisualisationPlaylist> queryable, string query, TOptions? options = null)
-        where TOptions : class
+    protected override IQueryable<VisualisationPlaylist> ApplySearchFilters(IQueryable<VisualisationPlaylist> queryable, string query)
     {
         if (string.IsNullOrWhiteSpace(query))
             return queryable;

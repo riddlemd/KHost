@@ -9,7 +9,7 @@ using KHost.Common.Repositories;
 
 namespace KHost.Domain.Services;
 
-public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, IUsersService
+public class UsersService : BaseSearchableRepositoryService<KHostUser, IUsersRepository>, IUsersService
 {
     private readonly IUserGroupsRepository _userGroupsRepository;
     private readonly IMessageBroker _broker;
@@ -120,4 +120,6 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         return dropped;
     }
 
+    public Task<PaginatedResult<KHostUser>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, UserSearchOptions? options)
+        => Repository.SearchAsync(query, pageNumber, pageSize, sort, options);
 }

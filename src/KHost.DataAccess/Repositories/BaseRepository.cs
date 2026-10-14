@@ -13,9 +13,10 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
 {
     private static readonly string _entityTypeName = typeof(T).Name;
 
+    private readonly SearchableDbSetComponent<T, DefaultContext> _searchableComponent;
+
     protected readonly IDbContextFactory<DefaultContext> ContextFactory;
     protected readonly ILogger Logger;
-    protected readonly SearchableDbSetComponent<T, DefaultContext> SearchableComponent;
     protected readonly PaginationComponent<T> PaginationComponent;
 
     protected BaseRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger logger, int defaultPageSize = 50, int maxPageSize = 1000)
@@ -23,7 +24,7 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         ContextFactory = contextFactory;
         Logger = logger;
         PaginationComponent = new(maxPageSize, defaultPageSize);
-        SearchableComponent = new(ContextFactory, PaginationComponent);
+        _searchableComponent = new(ContextFactory, PaginationComponent);
     }
 
     public virtual async Task<T> CreateAsync(T entity)
@@ -133,36 +134,21 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         return $"%{folded}%";
     }
 
-    public virtual async Task<PaginatedResult<T>> SearchAsync<TOptions>(string query, int pageNumber = 1, int pageSize = 50, TOptions? options = null)
-        where TOptions : class
+    public virtual async Task<bool> HasAnyAsync()
     {
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            var result = await SearchableComponent.SearchAsync(query, pageNumber, pageSize,
-                q => ApplySort(ApplySearchFilters(q, query, options), sort: null));
-            Logger.LogDebug("SearchAsync<{EntityType}> q={Query} elapsed={ElapsedMs}ms results={ResultCount}",
-                _entityTypeName, query, sw.ElapsedMilliseconds, result.TotalCount);
-            return result;
-        }
-        finally
-        {
-            KHostMetrics.SearchDuration.Record(sw.ElapsedMilliseconds,
-                new KeyValuePair<string, object?>("entity", _entityTypeName),
-                new KeyValuePair<string, object?>("used_fts", false));
-        }
+        using var context = await ContextFactory.CreateDbContextAsync();
+        return await context.Set<T>().AnyAsync();
     }
 
-    public virtual Task<PaginatedResult<T>> SearchAsync(string query, int pageNumber = 1, int pageSize = 50)
-        => SearchAsync(query, pageNumber, pageSize, sort: null);
-
-    public virtual async Task<PaginatedResult<T>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
+    /// <summary>Runs one text search through <paramref name="filter"/>, timed and recorded.</summary>
+    /// <remarks>For a subclass that implements <see cref="ISearchable{T}"/>; this class offers none.</remarks>
+    protected async Task<PaginatedResult<T>> SearchFilteredAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort,
+        Func<IQueryable<T>, IQueryable<T>> filter)
     {
         var sw = Stopwatch.StartNew();
         try
         {
-            var result = await SearchableComponent.SearchAsync(query, pageNumber, pageSize,
-                q => ApplySort(ApplySearchFilters<object>(q, query, null), sort));
+            var result = await _searchableComponent.SearchAsync(query, pageNumber, pageSize, q => ApplySort(filter(q), sort));
             Logger.LogDebug("SearchAsync<{EntityType}> q={Query} sort={Sort} elapsed={ElapsedMs}ms results={ResultCount}",
                 _entityTypeName, query, sort?.Column, sw.ElapsedMilliseconds, result.TotalCount);
             return result;
@@ -174,15 +160,6 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
                 new KeyValuePair<string, object?>("used_fts", false));
         }
     }
-
-    public virtual async Task<bool> HasAnyAsync()
-    {
-        using var context = await ContextFactory.CreateDbContextAsync();
-        return await context.Set<T>().AnyAsync();
-    }
-
-    protected abstract IQueryable<T> ApplySearchFilters<TOptions>(IQueryable<T> queryable, string query, TOptions? options = null)
-        where TOptions : class;
 
     protected abstract IReadOnlyDictionary<string, Expression<Func<T, object>>> SortColumns { get; }
     protected abstract Expression<Func<T, object>> DefaultSortExpression { get; }

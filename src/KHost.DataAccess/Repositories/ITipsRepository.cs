@@ -10,7 +10,7 @@ using KHost.Abstractions.Models;
 /// <para>Search matches the tip's notes, case- and accent-insensitive. Sort keys:
 /// <c>createdDate</c> (default, newest first), <c>amount</c>, <c>paymentMethod</c>.</para>
 /// </remarks>
-public interface ITipsRepository : IRepository<Tip>
+public interface ITipsRepository : IRepository<Tip>, ISearchable<Tip>
 {
     /// <summary>Every tip from one singer, newest first; empty when there are none.</summary>
     Task<IReadOnlyList<Tip>> GetByUserIdAsync(Guid userId);

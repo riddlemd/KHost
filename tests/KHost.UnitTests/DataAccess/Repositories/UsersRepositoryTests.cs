@@ -214,7 +214,7 @@ public class UsersRepositoryTests : IDisposable
             new KHostUser { Name = "Sam Staffer", Groups = [staff] },
             new KHostUser { Name = "Sam Nobody" });
 
-        var result = await _repository.SearchAsync("Sam", 1, 50, new UserSearchOptions { SingersOnly = true });
+        var result = await _repository.SearchAsync("Sam", 1, 50, sort: null, new UserSearchOptions { SingersOnly = true });
 
         Assert.Equal(["Sam Nobody", "Sam Singer"], result.Items.Select(u => u.Name).Order());
     }

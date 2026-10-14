@@ -20,13 +20,13 @@ public class LocalMediaProviderTests
 
     public LocalMediaProviderTests()
     {
-        _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<MediaSearchOptions>())
+        _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<SortDescriptor?>(), Arg.Any<MediaSearchOptions>())
             .Returns(call =>
             {
                 var query = call.ArgAt<string>(0);
                 var pageNumber = call.ArgAt<int>(1);
                 var pageSize = call.ArgAt<int>(2);
-                var options = call.ArgAt<MediaSearchOptions?>(3);
+                var options = call.ArgAt<MediaSearchOptions?>(4);
 
                 var filtered = string.IsNullOrWhiteSpace(query)
                     ? _mediaStore
@@ -73,7 +73,7 @@ public class LocalMediaProviderTests
 
         await _service.SearchAsync("rock");
 
-        await _repository.Received(1).SearchAsync("rock", Arg.Any<int>(), Arg.Any<int>(), Arg.Any<MediaSearchOptions>());
+        await _repository.Received(1).SearchAsync("rock", Arg.Any<int>(), Arg.Any<int>(), Arg.Any<SortDescriptor?>(), Arg.Any<MediaSearchOptions>());
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class LocalMediaProviderTests
     {
         await _service.SearchAsync("any", pageNumber: 2, pageSize: 25);
 
-        await _repository.Received(1).SearchAsync(Arg.Any<string>(), 2, 25, Arg.Any<MediaSearchOptions>());
+        await _repository.Received(1).SearchAsync(Arg.Any<string>(), 2, 25, Arg.Any<SortDescriptor?>(), Arg.Any<MediaSearchOptions>());
     }
 
     [Fact]

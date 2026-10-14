@@ -21,7 +21,18 @@ public interface IMediaService : IRepositoryService<Media>
     Task<PaginatedResult<Media>> ReadAllAsync(int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
     /// <summary>Rows matching <paramref name="query"/>, filtered by <paramref name="options"/>.</summary>
-    /// <inheritdoc cref="ReadAllAsync(int, int, SortDescriptor?, MediaSearchOptions?)" path="/param"/>
+    /// <remarks>Matches title and artist together, reading a stylised spelling as its plain form
+    /// ("pink" finds "P!nk"). With no sort, a query may come back ranked by how well each row
+    /// matches rather than in title order; a sort replaces that ranking. The plain
+    /// <c>SearchAsync</c> overloads search the same way with null options, so they answer songs
+    /// alone.</remarks>
+    /// <param name="query">Text to match; null, empty or whitespace matches every row.</param>
+    /// <param name="pageNumber">1-based page to read; below 1 reads page 1.</param>
+    /// <param name="pageSize">Rows per page; below 1 uses the default page size.</param>
+    /// <param name="sort">As for <see cref="ReadAllAsync(int, int, SortDescriptor?, MediaSearchOptions?)"/>;
+    /// null keeps the ranking.</param>
+    /// <param name="options">Which types and statuses to include; null answers songs alone, as the
+    /// plain overloads do.</param>
     Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
     /// <summary>Every row of these types, unpaged and title-ordered, which is what a picker needs.</summary>

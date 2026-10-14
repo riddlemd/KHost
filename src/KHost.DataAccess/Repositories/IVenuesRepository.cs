@@ -11,6 +11,6 @@ namespace KHost.DataAccess.Repositories;
 /// <para>Search matches the venue name without regard to case or accents. Sort keys: <c>name</c>
 /// (default), <c>enabled</c>.</para>
 /// </remarks>
-public interface IVenuesRepository : IRepository<Venue>
+public interface IVenuesRepository : IRepository<Venue>, ISearchable<Venue>
 {
 }
