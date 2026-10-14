@@ -35,4 +35,16 @@ public interface IMediaPoolService : IRepositoryService<MediaPool>
 
     /// <summary>Forgets a pool's cursor and history: what a host expects "start over" to do.</summary>
     void ResetSelection(Guid poolId);
+
+    /// <summary>Pools whose name matches <paramref name="query"/>, filtered by
+    /// <paramref name="options"/>. Entries are not loaded.</summary>
+    /// <remarks>The plain <c>SearchAsync</c> overloads search the same way with null options.</remarks>
+    /// <param name="query">Text to match against the name; null, empty or whitespace matches every pool.</param>
+    /// <param name="pageNumber">1-based page to read; below 1 reads page 1.</param>
+    /// <param name="pageSize">Rows per page; below 1 uses the default page size.</param>
+    /// <param name="sort">One of <c>name</c> (default) or <c>purpose</c>; null or unknown uses the
+    /// default order.</param>
+    /// <param name="options">Null applies no extra filter; see <see cref="MediaPoolSearchOptions"/>
+    /// for the purpose and venue it can narrow to.</param>
+    Task<PaginatedResult<MediaPool>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaPoolSearchOptions? options);
 }

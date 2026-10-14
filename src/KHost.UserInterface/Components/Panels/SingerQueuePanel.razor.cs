@@ -98,7 +98,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
     private async Task<IReadOnlyList<KHostUser>> SearchSingersAsync(string query)
     {
         var result = await UsersService.SearchAsync(
-            query, 1, SingerSuggestionLimit, new UserSearchOptions { SingersOnly = true });
+            query, 1, SingerSuggestionLimit, sort: null, new UserSearchOptions { SingersOnly = true });
 
         if (result.Items.Count == 0)
             return result.Items;

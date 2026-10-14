@@ -209,7 +209,7 @@ public class MediaPoolRepositoryTests : IDisposable
         await SeedPoolAsync("House Bed", PoolPurpose.BreakMusic);
         await SeedPoolAsync("House Spots", PoolPurpose.Ads);
 
-        var result = await _repository.SearchAsync("House", 1, 50,
+        var result = await _repository.SearchAsync("House", 1, 50, sort: null,
             new MediaPoolSearchOptions { Purpose = PoolPurpose.Ads });
 
         Assert.Equal("House Spots", Assert.Single(result.Items).Name);

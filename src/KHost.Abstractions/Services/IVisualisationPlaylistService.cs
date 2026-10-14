@@ -7,7 +7,7 @@ namespace KHost.Abstractions.Services;
 /// <remarks>Host-owned; a plugin display may take it to draw what a venue chose and has nothing to
 /// implement. A host singleton, callable from any thread. Every create, update, delete and entry
 /// replacement announces <see cref="KHost.Abstractions.Messaging.Messages.VisualisationPlaylistsChanged"/>.
-/// </remarks>
+/// Search matches the playlist name; the sort key is <c>name</c>.</remarks>
 public interface IVisualisationPlaylistService : IRepositoryService<VisualisationPlaylist>
 {
     /// <summary>The playlist with its entries loaded, in play order; null when there is none.</summary>

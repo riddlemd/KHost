@@ -1,5 +1,4 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 
 namespace KHost.DataAccess.Repositories;
 
@@ -13,9 +12,9 @@ namespace KHost.DataAccess.Repositories;
 /// set). A write made here is persisted but announced to nobody.</para>
 /// <para>A singleton, safe to call from any thread. A returned entity is a copy: changing it
 /// changes nothing stored until it is passed to <see cref="UpdateAsync"/>. Paging follows
-/// <see cref="ISearchable{T}"/>.</para>
+/// <see cref="ISearchable{T}"/>; a repository whose rows hold text implements that as well.</para>
 /// </remarks>
-public interface IRepository<T> : ISearchable<T> where T : RepositoryModel
+public interface IRepository<T> where T : RepositoryModel
 {
     /// <summary>Inserts the row and returns it with its generated values filled in.</summary>
     /// <exception cref="KHost.Abstractions.Exceptions.KHostException">A conflict the host can explain, such as a

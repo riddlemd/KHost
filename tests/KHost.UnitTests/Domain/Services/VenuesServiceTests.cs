@@ -76,30 +76,6 @@ public class VenuesServiceTests : IDisposable
                 return Task.FromResult(result);
             });
 
-        _repository.SearchAsync<object>(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<object>())
-            .Returns(call =>
-            {
-                var query = call.ArgAt<string>(0);
-                var pageNumber = call.ArgAt<int>(1);
-                var pageSize = call.ArgAt<int>(2);
-                if (pageNumber < 1) pageNumber = 1;
-                if (pageSize < 1) pageSize = 50;
-                if (pageSize > 1000) pageSize = 1000;
-                var filtered = string.IsNullOrWhiteSpace(query)
-                    ? _venueStore
-                    : _venueStore.Where(v => v.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                                             v.Notes.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
-                var items = filtered.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
-                var result = new PaginatedResult<Venue>
-                {
-                    Items = items,
-                    TotalCount = filtered.Count,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize
-                };
-                return Task.FromResult(result);
-            });
-
         _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(call =>
             {

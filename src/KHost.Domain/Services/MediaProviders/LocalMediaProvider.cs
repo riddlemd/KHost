@@ -129,7 +129,7 @@ public class LocalMediaProvider : BaseService, IMediaProvider
 
     public async Task<List<MediaSearchEntity>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0)
     {
-        var result = await _repository.SearchAsync(query, pageNumber, pageSize, _searchOptions);
+        var result = await _repository.SearchAsync(query, pageNumber, pageSize, sort: null, _searchOptions);
 
         return [.. result.Items
             .Select(media => new MediaSearchEntity

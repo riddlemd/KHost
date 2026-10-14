@@ -15,7 +15,7 @@ namespace KHost.DataAccess.Repositories;
 /// <see cref="IRepository{T}.ReadAsync"/> come back with groups and provider ids loaded. Sort keys:
 /// <c>name</c> (default), <c>createdDate</c>.</para>
 /// </remarks>
-public interface IUsersRepository : IRepository<KHostUser>
+public interface IUsersRepository : IRepository<KHostUser>, ISearchable<KHostUser, UserSearchOptions>
 {
     /// <summary>The user with this name, or null; an exact spelling wins over one that differs only
     /// in case or accents.</summary>

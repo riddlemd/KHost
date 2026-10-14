@@ -125,8 +125,8 @@ public class MediaRepositoryTypeFilterTests : IDisposable
         Assert.Equal(MediaType.Karaoke, Assert.Single(result.Items).Type);
     }
 
-    // Sort and options together: no base overload carries both, so the media repository builds
-    // that path itself and it is the one most likely to silently drop one of them.
+    // Sort and options together on the substring fallback: the path most likely to silently drop
+    // one of them.
     [Fact]
     public async Task SearchAsync_ShortQueryWithSortAndAllTypes_AppliesBoth()
     {

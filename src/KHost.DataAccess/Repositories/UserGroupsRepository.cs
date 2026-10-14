@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
-internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroupsRepository
+internal class UserGroupsRepository : BaseSearchableRepository<KHostUserGroup>, IUserGroupsRepository
 {
     private static readonly IReadOnlyDictionary<string, Expression<Func<KHostUserGroup, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<KHostUserGroup, object>>>
@@ -58,8 +58,7 @@ internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroup
     protected override IReadOnlyDictionary<string, Expression<Func<KHostUserGroup, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<KHostUserGroup, object>> DefaultSortExpression => g => g.Name.ToLower();
 
-    protected override IQueryable<KHostUserGroup> ApplySearchFilters<TOptions>(IQueryable<KHostUserGroup> queryable, string query, TOptions? options = null)
-        where TOptions : class
+    protected override IQueryable<KHostUserGroup> ApplySearchFilters(IQueryable<KHostUserGroup> queryable, string query)
     {
         if (string.IsNullOrWhiteSpace(query))
             return queryable;

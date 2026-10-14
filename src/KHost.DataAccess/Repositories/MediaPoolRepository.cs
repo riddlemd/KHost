@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
-internal class MediaPoolRepository : BaseRepository<MediaPool>, IMediaPoolRepository
+internal class MediaPoolRepository : BaseSearchableRepository<MediaPool, MediaPoolSearchOptions>, IMediaPoolRepository
 {
     private static readonly IReadOnlyDictionary<string, Expression<Func<MediaPool, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<MediaPool, object>>>
@@ -80,10 +80,9 @@ internal class MediaPoolRepository : BaseRepository<MediaPool>, IMediaPoolReposi
     protected override IReadOnlyDictionary<string, Expression<Func<MediaPool, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<MediaPool, object>> DefaultSortExpression => p => p.Name.ToLower();
 
-    protected override IQueryable<MediaPool> ApplySearchFilters<TOptions>(IQueryable<MediaPool> queryable, string query, TOptions? options = null)
-        where TOptions : class
+    protected override IQueryable<MediaPool> ApplySearchFilters(IQueryable<MediaPool> queryable, string query, MediaPoolSearchOptions? options)
     {
-        if (options is MediaPoolSearchOptions poolOptions)
+        if (options is { } poolOptions)
         {
             if (poolOptions.Purpose is { } purpose)
                 queryable = queryable.Where(p => p.Purpose == purpose);
