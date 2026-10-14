@@ -9,7 +9,7 @@ using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Displays.LocalScreen;
 
-namespace KHost.UnitTests.IPC;
+namespace KHost.UnitTests.IPC.SignalR;
 
 // Uses the real ScreenServerService: it raises ScreenDisconnected while holding the same
 // non-reentrant lock GetConnectedScreensAsync waits on, so an inline handler deadlocks the hub.

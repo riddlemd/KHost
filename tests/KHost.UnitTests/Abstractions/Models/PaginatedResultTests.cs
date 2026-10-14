@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models;
 
-namespace KHost.UnitTests.Domain.Models;
+namespace KHost.UnitTests.Abstractions.Models;
 
 public class PaginatedResultTests
 {

@@ -1,7 +1,7 @@
 using KHost.IPC.SignalR;
 using Microsoft.AspNetCore.SignalR;
 
-namespace KHost.UnitTests.IPC;
+namespace KHost.UnitTests.IPC.SignalR;
 
 public class ScreenHubTests
 {

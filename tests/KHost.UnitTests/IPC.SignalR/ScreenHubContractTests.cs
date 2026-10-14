@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using KHost.IPC.SignalR;
 
-namespace KHost.UnitTests.IPC;
+namespace KHost.UnitTests.IPC.SignalR;
 
 // ScreenCommandJsonContext is the only resolver, so a hub method whose types are missing from it
 // aborts the connection at call time rather than failing to compile.

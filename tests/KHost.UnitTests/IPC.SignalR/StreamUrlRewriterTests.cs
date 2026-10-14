@@ -1,6 +1,6 @@
 using KHost.IPC.SignalR;
 
-namespace KHost.UnitTests.IPC;
+namespace KHost.UnitTests.IPC.SignalR;
 
 public class StreamUrlRewriterTests
 {
