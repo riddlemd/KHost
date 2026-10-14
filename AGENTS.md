@@ -59,10 +59,11 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - `KHostException` lives in `Abstractions`: it is the only way a plugin reports a failure the host can act on.
 - Do NOT commit unless explicitly asked.
 
-## No static methods in Abstractions
+## No static methods in Abstractions (and no implicit enum values)
 
 - `KHost.Abstractions` holds data and contracts only; a static method is behaviour and belongs in `KHost.Common`.
 - Enforced at build time: `build/KHost.Analyzers` raises **KH0001** at the declaration, made fatal in that one project by the `.editorconfig` beside its `.csproj`.
+- **KH0002**, the same way, flags an enum member with no explicit `= value`: a plugin compiles it as its number (see **The published contracts**). `ExplicitEnumValuesInAbstractionsTests` checks both halves.
 - The analyzer ships `DiagnosticSeverity.Hidden`; the `.editorconfig` line is what makes it an error. `NoStaticMethodsInAbstractionsTests` checks both halves — losing either disables the rule with a green build.
 - The reference is `OutputItemType="Analyzer" ReferenceOutputAssembly="false"` (build-time only, no Roslyn assembly in what a plugin redistributes). `LicenceBoundaryTests` skips analyzer references for that reason.
 - Exempt (language requires `static`): `Main`, operators and conversions, static constructors, `[ModuleInitializer]`, extension methods.

@@ -2,3 +2,7 @@
 # nothing, so a static method in it is logic that belongs in KHost.Common.
 [*.cs]
 dotnet_diagnostic.KH0001.severity = error
+
+# KH0002 is fatal here alone for the same reason enums stay append-only: a plugin compiles
+# each member as its number, so an implicit value moves when a member is inserted above it.
+dotnet_diagnostic.KH0002.severity = error

@@ -4,10 +4,10 @@ namespace KHost.Abstractions.Models.Plugins;
 public enum PluginTableColumnKind
 {
     /// <summary>An equal share of the table's width.</summary>
-    Text,
+    Text = 0,
 
     /// <summary>Short text sized to its own words, rather than an equal share.</summary>
-    Label,
+    Label = 1,
 }
 
 /// <summary>One column of a plugin's table, left to right.</summary>

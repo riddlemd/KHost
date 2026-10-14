@@ -181,15 +181,15 @@ public interface IPlaybackService : IDisposable
 public enum PlaybackState
 {
     /// <summary>Nothing is loaded on the main channel.</summary>
-    Stopped,
+    Stopped = 0,
 
     /// <summary>A song or ad is playing and the playhead is moving.</summary>
-    Playing,
+    Playing = 1,
 
     /// <summary>Loaded and held at the playhead.</summary>
-    Paused,
+    Paused = 2,
 
     /// <summary>A stop was asked for and the song is fading out; the current performance and media
     /// stay set until it is done. A play or load now supersedes the stop.</summary>
-    Stopping
+    Stopping = 3
 }

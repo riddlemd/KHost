@@ -4,13 +4,13 @@ namespace KHost.Abstractions.Models;
 public enum AudioTrackRole
 {
     /// <summary>The backing track. Always full level; the others are set against it.</summary>
-    Music,
+    Music = 0,
 
     /// <summary>The original lead vocal, which the singer is there to replace.</summary>
-    Lead,
+    Lead = 1,
 
     /// <summary>Harmony and backing voices, which a singer usually wants left in.</summary>
-    Backing,
+    Backing = 2,
 }
 
 /// <summary>One audio stream in a file with more than one to choose between or mix.</summary>

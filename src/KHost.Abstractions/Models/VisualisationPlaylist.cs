@@ -48,13 +48,13 @@ public enum VisualiserPresetSource
 public enum VisualiserColourScheme
 {
     /// <summary>Green through yellow to red as a level rises, as a hi-fi's meters are.</summary>
-    Classic,
+    Classic = 0,
 
     /// <summary>The screen's own accent, the colour sung words take when a timing sets none.</summary>
-    Theme,
+    Theme = 1,
 
     /// <summary><see cref="VisualisationEntry.Colour"/> throughout.</summary>
-    Single,
+    Single = 2,
 }
 
 /// <summary>One line in a <see cref="VisualisationPlaylist"/>: a preset and how it is drawn.</summary>

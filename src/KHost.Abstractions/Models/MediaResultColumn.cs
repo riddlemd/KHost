@@ -4,16 +4,16 @@ namespace KHost.Abstractions.Models;
 public enum MediaResultColumnKind
 {
     /// <summary>Plain text, sized to share the row equally with other Text columns.</summary>
-    Text,
+    Text = 0,
 
     /// <summary>Read from <see cref="MediaSearchEntity.Duration"/>, shown as m:ss.</summary>
-    Duration,
+    Duration = 1,
 
     /// <summary>The value is an image URL. Empty leaves the cell blank rather than broken.</summary>
-    Thumbnail,
+    Thumbnail = 2,
 
     /// <summary>Short text sized to its own words, not an equal table share like Text columns.</summary>
-    Label,
+    Label = 3,
 }
 
 /// <summary>One search-result column; none declared gets the console's default title/artist/length.</summary>

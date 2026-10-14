@@ -4,19 +4,19 @@ namespace KHost.Abstractions.Models;
 public enum MediaStatus
 {
     /// <summary>Not yet checked.</summary>
-    Unknown,
+    Unknown = 0,
 
     /// <summary>Playable.</summary>
-    Ready,
+    Ready = 1,
 
     /// <summary>Bytes are still arriving; not yet playable.</summary>
-    Downloading,
+    Downloading = 2,
 
     /// <summary>Bytes are in; a provider is still turning them into something playable.</summary>
-    Processing,
+    Processing = 3,
 
     /// <summary>Cannot be played, and won't become playable without a host fixing or re-importing it.</summary>
-    Broken,
+    Broken = 4,
 
     /// <summary>The row is kept but its file is not on disk; the provider that made it fetches it
     /// again when it is next queued.</summary>
@@ -30,32 +30,32 @@ public enum MediaStatus
 public enum MediaType
 {
     /// <summary>Words shown for the singer to follow, over music or video.</summary>
-    Karaoke,
+    Karaoke = 0,
 
     /// <summary>Video with nothing for a singer to follow, e.g. break music or an ad clip.</summary>
-    Video,
+    Video = 1,
 
     /// <summary>Sound with no picture of its own.</summary>
-    Audio,
+    Audio = 2,
 
     /// <summary>A still picture.</summary>
-    Image,
+    Image = 3,
 }
 
 /// <summary>How a still fills the screen; the host picks per image, not the app.</summary>
 public enum ImageScaling
 {
     /// <summary>Whole picture visible, bars where the shapes disagree.</summary>
-    Fit,
+    Fit = 0,
 
     /// <summary>Fills the screen, cropping whatever hangs over the edges.</summary>
-    Fill,
+    Fill = 1,
 
     /// <summary>Fills the screen by distorting the picture to match it.</summary>
-    Stretch,
+    Stretch = 2,
 
     /// <summary>Native pixels, centred. Crops if larger than the screen, bars if smaller.</summary>
-    Original,
+    Original = 3,
 }
 
 /// <summary>One row in the library: a playable file and what is known about it.</summary>

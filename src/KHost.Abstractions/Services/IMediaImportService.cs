@@ -6,14 +6,14 @@ namespace KHost.Abstractions.Services;
 public enum ImportState
 {
     /// <summary>No import is running; a new one may start.</summary>
-    Idle,
+    Idle = 0,
 
     /// <summary>An import is working through its files.</summary>
-    Running,
+    Running = 1,
 
     /// <summary>A cancel was asked for and the run is winding down; it returns to
     /// <see cref="Idle"/> once it stops.</summary>
-    Cancelling
+    Cancelling = 2
 }
 
 /// <summary>Turns a batch of files a host picked into library rows, in the background.</summary>

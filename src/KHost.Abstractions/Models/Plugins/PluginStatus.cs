@@ -4,13 +4,13 @@ namespace KHost.Abstractions.Models.Plugins;
 public enum PluginStatus
 {
     /// <summary>Discovered but not in the enabled list; nothing was loaded.</summary>
-    Disabled,
+    Disabled = 0,
     /// <summary>Enabled and valid; assemblies not loaded yet.</summary>
-    Enabled,
+    Enabled = 1,
     /// <summary>Loaded into the process and its extensions registered.</summary>
-    Loaded,
+    Loaded = 2,
     /// <summary>Built against a plugin API outside the range this host runs; never loaded.</summary>
-    Incompatible,
+    Incompatible = 3,
     /// <summary>Bad manifest, missing assembly, or a load/scan failure; see Error.</summary>
-    Errored,
+    Errored = 4,
 }

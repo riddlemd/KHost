@@ -6,14 +6,14 @@ namespace KHost.Abstractions.Models;
 public enum QrCodeSize
 {
     /// <summary>The smallest of the four steps.</summary>
-    Small,
+    Small = 0,
 
     /// <summary>The default when nothing is chosen.</summary>
-    Medium,
+    Medium = 1,
 
     /// <summary>Larger than <see cref="Medium"/>.</summary>
-    Large,
+    Large = 2,
 
     /// <summary>The largest of the four steps, for a room that needs the code readable from across it.</summary>
-    ExtraLarge,
+    ExtraLarge = 3,
 }
