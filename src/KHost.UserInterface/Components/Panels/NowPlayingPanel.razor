@@ -177,7 +177,7 @@
                             }
                         }
                         <div class="kh-now-playing__progress-fill @(isPlaying ? "kh-now-playing__progress-fill--playing" : "") @(isStopping ? "kh-now-playing__progress-fill--stopping" : "") @(hasLanes ? "kh-now-playing__progress-fill--over-lanes" : "")"
-                             style="width:@(pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%">
+                             style="--kh-fill: @(pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%">
                         </div>
                     </div>
                 }
