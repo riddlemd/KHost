@@ -4,16 +4,16 @@ namespace KHost.Abstractions.Models.Plugins;
 public enum PluginInstallState
 {
     /// <summary>The release zip is being fetched.</summary>
-    Downloading,
+    Downloading = 0,
     /// <summary>The download finished; its checksum and manifest are being checked before it is
     /// accepted.</summary>
-    Verifying,
+    Verifying = 1,
     /// <summary>Payload is staged and applies on the next start.</summary>
-    Staged,
+    Staged = 2,
     /// <summary>The install did not complete; see <see cref="PluginInstallInfo.Error"/>.</summary>
-    Failed,
+    Failed = 3,
     /// <summary>The host cancelled the install before it finished.</summary>
-    Cancelled,
+    Cancelled = 4,
 }
 
 /// <summary>One install this process has run, active or settled, for the Plugins page.</summary>

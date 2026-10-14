@@ -4,11 +4,11 @@ namespace KHost.Abstractions.Models;
 public enum BreakMusicPlayback
 {
     /// <summary>Nothing is playing.</summary>
-    Stopped,
+    Stopped = 0,
 
     /// <summary>Playback is paused, part-way through a track.</summary>
-    Paused,
+    Paused = 1,
 
     /// <summary>A track is actively playing.</summary>
-    Playing,
+    Playing = 2,
 }
