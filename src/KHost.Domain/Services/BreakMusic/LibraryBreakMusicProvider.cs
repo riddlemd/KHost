@@ -187,7 +187,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
         _stream = await _streams.OpenAsync(media.FilePath, cancellationToken: cancellationToken);
 
-        var track = new BackgroundLoad { StreamUrl = _stream.PlaylistUrl, AutoPlay = true };
+        var track = new BackgroundLoad { StreamUrl = _stream.PlaylistUrl!, AutoPlay = true };
         var sent = await SendToDisplaysAsync(display => display.LoadBackgroundAsync(track));
 
         if (!sent)

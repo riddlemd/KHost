@@ -3,7 +3,7 @@ using KHost.Abstractions.Models;
 namespace KHost.Abstractions.Services;
 
 /// <summary>Reads the QR code the venue wants up now. Read-only: offering a code goes through
-/// <see cref="IPluginContext.RegisterQrCodeAsync"/>, which stamps the owner.</summary>
+/// <see cref="IPluginContext.RegisterQrCodeAsync(string, string?, CancellationToken)"/>, which stamps the owner.</summary>
 /// <remarks>Host-owned; a plugin has nothing to implement. A display provider that draws QR codes
 /// takes it, reads <see cref="ReadOfferAsync"/> on connect, and reads again whenever it hears
 /// <see cref="KHost.Abstractions.Messaging.Messages.QrCodeOfferChanged"/>,

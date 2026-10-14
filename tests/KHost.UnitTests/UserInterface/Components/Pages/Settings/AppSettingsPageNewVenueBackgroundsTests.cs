@@ -97,7 +97,7 @@ public class AppSettingsPageNewVenueBackgroundsTests : BunitContext
     {
         var page = Render<AppSettingsPage>();
 
-        Assert.Empty(page.FindAll(".kh-placeholder-image .kh-form-label").Where(l => l.TextContent.Trim() == "Placeholder image"));
+        Assert.DoesNotContain(page.FindAll(".kh-placeholder-image .kh-form-label"), l => l.TextContent.Trim() == "Placeholder image");
         Assert.Contains("Placeholder image", page.Find(".kh-app-settings__stacked .kh-app-settings__labelled").TextContent);
     }
 

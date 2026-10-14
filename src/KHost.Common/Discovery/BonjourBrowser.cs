@@ -42,6 +42,7 @@ public static class BonjourBrowser
     /// <summary>One service instance, already resolved to somewhere you can open a socket to.</summary>
     /// <param name="Name">The instance name, which is what a person recognises.</param>
     /// <param name="HostTarget">Its <c>.local</c> hostname, with no trailing dot.</param>
+    /// <param name="Port">The port the service listens on.</param>
     /// <param name="Address">Null when the name could not be resolved to an address.</param>
     public sealed record Service(string Name, string HostTarget, int Port, IPAddress? Address);
 
@@ -81,6 +82,8 @@ public static class BonjourBrowser
 
     /// <summary>Finds every instance of a service type, resolving each to a host and port.</summary>
     /// <param name="regType">A Bonjour registration type, such as <c>_googlecast._tcp</c>.</param>
+    /// <param name="timeout">How long to listen for instances, and the longest each one is given to resolve.</param>
+    /// <param name="cancellationToken">Ends the browse early by throwing <see cref="OperationCanceledException"/>.</param>
     public static async Task<IReadOnlyList<Service>> BrowseAsync(
         string regType, TimeSpan timeout, CancellationToken cancellationToken = default)
     {

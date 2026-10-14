@@ -331,7 +331,7 @@ public class DatabaseInitializerTests
             {
                 seed.Media.Add(new Media { FilePath = "/library/exito.mp4", Title = "Éxito", Artist = "Björk" });
                 await seed.SaveChangesAsync();
-                await seed.Database.ExecuteSqlRawAsync("UPDATE \"Media\" SET \"" + emptied + "\" = ''");
+                await seed.Media.ExecuteUpdateAsync(s => s.SetProperty(m => EF.Property<string>(m, emptied), ""));
             }
 
             StubPlaylist(ShippedVisualisationPlaylists.BasicId);

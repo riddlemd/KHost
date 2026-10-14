@@ -85,7 +85,7 @@ internal sealed class AdChannels
     {
         _audioStream = await _mediaStreams.OpenAsync(audio.FilePath, start);
 
-        var bed = new BackgroundLoad { StreamUrl = _audioStream.PlaylistUrl, AutoPlay = true };
+        var bed = new BackgroundLoad { StreamUrl = _audioStream.PlaylistUrl!, AutoPlay = true };
         await _link.SendAsync(display => display.LoadBackgroundAsync(bed));
     }
 

@@ -20,6 +20,7 @@ public interface IMediaStreamService
     /// <param name="tempo">Percent either side of recorded speed.</param>
     /// <param name="mix">Levels for a song with separate voices; null leaves the file's own mix.</param>
     /// <param name="cancellationToken">Abandons the open.</param>
+    /// <returns>A session whose <see cref="MediaStreamSession.PlaylistUrl"/> is always set.</returns>
     /// <remarks>Pitch, tempo and mix are fixed for the session's lifetime; changing any of them means
     /// opening a new session. The caller owns the session and must close it.</remarks>
     /// <exception cref="FileNotFoundException">When nothing is at <paramref name="filePath"/>.</exception>
