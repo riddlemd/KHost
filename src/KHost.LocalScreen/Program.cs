@@ -112,9 +112,15 @@ internal static class Program
                     if (stored?.Maximised == true && !movedToSecondary)
                         _chrome!.Maximise();
 
-                    // A screen carried onto the room's display is there to fill it.
-                    if (stored?.FullScreen == true || movedToSecondary)
+                    // Unreadable monitors count as one: a window is the safe way to open.
+                    int monitorCount;
+                    try { monitorCount = _screenWindow!.Monitors.Count; }
+                    catch { monitorCount = 1; }
+
+                    if (MonitorSpace.LaunchesFullScreen(stored?.FullScreen == true, movedToSecondary, monitorCount))
                         SetFullScreen(window!, true, logger);
+                    else if (stored?.FullScreen == true)
+                        logger.LogInformation("Opening as a window: full screen waits for a second monitor");
 
                     return;
                 }
