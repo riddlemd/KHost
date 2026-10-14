@@ -1,11 +1,11 @@
 using KHost.Abstractions.Models;
 
-namespace KHost.Abstractions.Repositories;
+namespace KHost.DataAccess.Repositories;
 
 /// <summary>Users: singers and the host's own accounts, with their groups and provider ids.</summary>
 /// <remarks>
-/// <para>Host-implemented. A plugin goes through <see cref="Services.IUsersService"/>, which
-/// announces <see cref="Messaging.Messages.UsersChanged"/>, refuses to delete the built-in users,
+/// <para>Host-implemented. A plugin goes through <see cref="KHost.Abstractions.Services.IUsersService"/>, which
+/// announces <see cref="KHost.Abstractions.Messaging.Messages.UsersChanged"/>, refuses to delete the built-in users,
 /// and saves a user's <see cref="KHostUser.Groups"/> and <see cref="KHostUser.ForeignKeys"/> as
 /// memberships and keys. Creating or updating a user here with either collection filled does not
 /// reconcile them that way and can overwrite the group rows themselves.</para>
@@ -31,7 +31,7 @@ public interface IUsersRepository : IRepository<KHostUser>
     /// <param name="key">The provider's own id for the singer; matched exactly, case included.</param>
     /// <param name="isEphemeral">True for a key the provider will drop in bulk with
     /// <see cref="DeleteEphemeralForeignKeysAsync"/>, for example when it reconnects.</param>
-    /// <exception cref="Exceptions.KHostException">Another user already holds this source and key.</exception>
+    /// <exception cref="KHost.Abstractions.Exceptions.KHostException">Another user already holds this source and key.</exception>
     Task AddForeignKeyAsync(Guid userId, string source, string key, bool isEphemeral);
 
     /// <summary>Gives up one key. Unknown pairs are not an error.</summary>

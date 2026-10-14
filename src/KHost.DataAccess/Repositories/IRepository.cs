@@ -1,13 +1,14 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Repositories;
 
-namespace KHost.Abstractions.Repositories;
+namespace KHost.DataAccess.Repositories;
 
 /// <summary>Create, read, update and delete for one kind of row in the host's library.</summary>
 /// <remarks>
 /// <para>The host implements this. A plugin does not, and should normally not call it either: every
-/// repository has a matching <see cref="Services.IRepositoryService{T}"/> (for example
-/// <see cref="IUsersRepository"/> and <see cref="Services.IUsersService"/>). The service announces
-/// a change message on the <see cref="Messaging.IMessageBroker"/> after every write so open pages
+/// repository has a matching <see cref="KHost.Abstractions.Services.IRepositoryService{T}"/> (for example
+/// <see cref="IUsersRepository"/> and <see cref="KHost.Abstractions.Services.IUsersService"/>). The service announces
+/// a change message on the <see cref="KHost.Abstractions.Messaging.IMessageBroker"/> after every write so open pages
 /// redraw, and holds the rules this layer does not (which rows may be deleted, which fields must be
 /// set). A write made here is persisted but announced to nobody.</para>
 /// <para>A singleton, safe to call from any thread. A returned entity is a copy: changing it
@@ -17,7 +18,7 @@ namespace KHost.Abstractions.Repositories;
 public interface IRepository<T> : ISearchable<T> where T : RepositoryModel
 {
     /// <summary>Inserts the row and returns it with its generated values filled in.</summary>
-    /// <exception cref="Exceptions.KHostException">A conflict the host can explain, such as a
+    /// <exception cref="KHost.Abstractions.Exceptions.KHostException">A conflict the host can explain, such as a
     /// singer name already taken.</exception>
     Task<T> CreateAsync(T entity);
 
@@ -26,7 +27,7 @@ public interface IRepository<T> : ISearchable<T> where T : RepositoryModel
 
     /// <summary>Overwrites the stored row with every property of <paramref name="entity"/>.</summary>
     /// <remarks>Whole-row: a property left at its default is saved as that default.</remarks>
-    /// <exception cref="Exceptions.KHostException">A conflict the host can explain, as for
+    /// <exception cref="KHost.Abstractions.Exceptions.KHostException">A conflict the host can explain, as for
     /// <see cref="CreateAsync"/>.</exception>
     Task UpdateAsync(T entity);
 

@@ -1,15 +1,15 @@
 using KHost.Abstractions.Models;
 
-namespace KHost.Abstractions.Repositories;
+namespace KHost.DataAccess.Repositories;
 
 /// <summary>Performances: a singer's turn with one song, queued or already sung.</summary>
 /// <remarks>
 /// <para>A performance with a <see cref="Performance.QueuePosition"/> is queued; one without has
 /// been sung (<see cref="PerformanceFilter.UnQueued"/>). The position orders one singer's own
 /// list, not the room's rotation.</para>
-/// <para>Host-implemented. A plugin goes through <see cref="Services.IPerformanceService"/>: it
-/// announces <see cref="Messaging.Messages.PerformancesChanged"/>, and its
-/// <see cref="Services.IPerformanceService.CreateAndEnqueueAsync"/> is where the enqueue rules run
+/// <para>Host-implemented. A plugin goes through <see cref="KHost.Abstractions.Services.IPerformanceService"/>: it
+/// announces <see cref="KHost.Abstractions.Messaging.Messages.PerformancesChanged"/>, and its
+/// <see cref="KHost.Abstractions.Services.IPerformanceService.CreateAndEnqueueAsync"/> is where the enqueue rules run
 /// (the duplicate-song warning, the provider's playback gate) and where the queue position, venue,
 /// sung-as name and creation time are stamped. Creating a row here skips every one of them.</para>
 /// <para>A performance holds only ids and dates, so text search always returns an empty page. Sort

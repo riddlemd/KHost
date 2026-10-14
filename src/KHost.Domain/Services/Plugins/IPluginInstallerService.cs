@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models.Plugins;
 
-namespace KHost.Abstractions.Services;
+namespace KHost.Domain.Services.Plugins;
 
 /// <summary>Downloads, verifies, and stages a release; nothing installs into a running host.</summary>
 /// <remarks>Host-only: the Plugins page's install and remove buttons. A plugin has no business with

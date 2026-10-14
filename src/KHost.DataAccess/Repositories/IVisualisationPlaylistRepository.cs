@@ -1,11 +1,11 @@
 using KHost.Abstractions.Models;
 
-namespace KHost.Abstractions.Repositories;
+namespace KHost.DataAccess.Repositories;
 
 /// <summary>Visualisation playlists and their ordered entries.</summary>
 /// <remarks>
-/// <para>Host-implemented. A plugin goes through <see cref="Services.IVisualisationPlaylistService"/>,
-/// which announces <see cref="Messaging.Messages.VisualisationPlaylistsChanged"/>, holds each entry's
+/// <para>Host-implemented. A plugin goes through <see cref="KHost.Abstractions.Services.IVisualisationPlaylistService"/>,
+/// which announces <see cref="KHost.Abstractions.Messaging.Messages.VisualisationPlaylistsChanged"/>, holds each entry's
 /// settings to their ranges and restarts the playlist's rotation after an edit.
 /// <see cref="ReplaceEntriesAsync"/> here does none of that.</para>
 /// <para>Search matches the playlist name, case- and accent-insensitive. Sort keys: <c>name</c>

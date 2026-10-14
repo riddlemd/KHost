@@ -1,7 +1,6 @@
 using System.Linq.Expressions;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -79,7 +78,7 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         // Exact spelling first: a pre-upgrade database may hold two names the fold now considers
         // equal, of which only one could be refolded. That one must still be found by exact spelling.
         var id = await context.Set<KHostUser>().Where(u => u.Name == name).Select(u => (Guid?)u.Id).FirstOrDefaultAsync()
-            ?? await context.Set<KHostUser>().Where(u => u.NameFolded == folded).Select(u => (Guid?)u.Id).FirstOrDefaultAsync();
+            ?? await context.Set<KHostUser>().Where(u => EF.Property<string>(u, EntityFolding.NameFolded) == folded).Select(u => (Guid?)u.Id).FirstOrDefaultAsync();
 
         // Loaded whole, as ReadAsync does: a caller that saves what this returns would otherwise
         // replace the singer's group memberships with none.
@@ -198,6 +197,6 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(u => EF.Functions.Like(u.NameFolded, FoldedContainsPattern(query), "\\"));
+        return queryable.Where(u => EF.Functions.Like(EF.Property<string>(u, EntityFolding.NameFolded), FoldedContainsPattern(query), "\\"));
     }
 }

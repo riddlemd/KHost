@@ -1,4 +1,6 @@
-namespace KHost.Abstractions.Interactions;
+using KHost.Abstractions.Interactions;
+
+namespace KHost.UserInterface.Interactions;
 
 /// <summary>Presents one request type that expects no answer; what <see cref="IInteractionDispatcher"/>
 /// finds for it.</summary>

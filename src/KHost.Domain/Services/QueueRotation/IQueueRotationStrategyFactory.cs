@@ -1,7 +1,7 @@
 using KHost.Abstractions.Models.QueueRotation;
 using KHost.Abstractions.Services.QueueRotation;
 
-namespace KHost.Abstractions.Services.QueueRotation;
+namespace KHost.Domain.Services.QueueRotation;
 
 /// <summary>The host's catalogue of rotation modes, built-in and plugin-supplied.</summary>
 /// <remarks>Host-only: the singer queue and the venue settings page use it. A plugin has no
