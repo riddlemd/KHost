@@ -5,14 +5,14 @@ namespace KHost.Abstractions.Models;
 public enum OverlayCorner
 {
     /// <summary>Bottom-right corner of the picture.</summary>
-    BottomRight,
+    BottomRight = 0,
 
     /// <summary>Bottom-left corner of the picture.</summary>
-    BottomLeft,
+    BottomLeft = 1,
 
     /// <summary>Top-right corner of the picture.</summary>
-    TopRight,
+    TopRight = 2,
 
     /// <summary>Top-left corner of the picture.</summary>
-    TopLeft,
+    TopLeft = 3,
 }

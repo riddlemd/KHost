@@ -4,8 +4,8 @@ namespace KHost.Abstractions.Models;
 public enum MarqueePosition
 {
     /// <summary>Along the bottom edge of the screen.</summary>
-    Bottom,
+    Bottom = 0,
 
     /// <summary>Along the top edge of the screen.</summary>
-    Top,
+    Top = 1,
 }

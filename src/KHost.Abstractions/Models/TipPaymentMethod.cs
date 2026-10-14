@@ -4,24 +4,24 @@ namespace KHost.Abstractions.Models;
 public enum TipPaymentMethod
 {
     /// <summary>Paid in cash, in person.</summary>
-    Cash,
+    Cash = 0,
     /// <summary>Paid through PayPal.</summary>
-    PayPal,
+    PayPal = 1,
     /// <summary>Paid through Cash App.</summary>
-    CashApp,
+    CashApp = 2,
     /// <summary>Paid through Venmo.</summary>
-    Venmo,
+    Venmo = 3,
     /// <summary>Paid through Zelle.</summary>
-    Zelle,
+    Zelle = 4,
     /// <summary>Paid with Apple Pay.</summary>
-    ApplePay,
+    ApplePay = 5,
     /// <summary>Paid with Google Pay.</summary>
-    GooglePay,
+    GooglePay = 6,
     /// <summary>Paid through a Stripe checkout.</summary>
-    Stripe,
+    Stripe = 7,
     /// <summary>Paid through a Square reader or checkout.</summary>
-    Square,
+    Square = 8,
 
     /// <summary>Any method not otherwise listed.</summary>
-    Other
+    Other = 9
 }

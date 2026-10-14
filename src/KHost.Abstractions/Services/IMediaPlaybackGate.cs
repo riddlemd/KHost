@@ -9,16 +9,16 @@ public enum MediaAction
 {
     /// <summary>Putting it on the queue. Refusing here is the kindest refusal: a host finds out
     /// now, not with the singer already standing at the microphone.</summary>
-    Queue,
+    Queue = 0,
 
     /// <summary>Making it playable, which for licensed content is the moment it leaves the
     /// provider's own container.</summary>
     /// <remarks>Not asked by the host at present. It stays so a gate can answer it once the host
     /// asks again; answer it as you would <see cref="Play"/>.</remarks>
-    Render,
+    Render = 1,
 
     /// <summary>Loading it to play, asked on every load.</summary>
-    Play,
+    Play = 2,
 }
 
 /// <summary>Whether gated media may be used now, and why not when it may not.</summary>

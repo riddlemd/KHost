@@ -4,26 +4,26 @@ namespace KHost.Abstractions.Models;
 public enum DownloadState
 {
     /// <summary>Still running, in either <see cref="DownloadPhase"/>.</summary>
-    Downloading,
+    Downloading = 0,
 
     /// <summary>Finished and ready to use.</summary>
-    Completed,
+    Completed = 1,
 
     /// <summary>Ended without producing a usable file.</summary>
-    Failed,
+    Failed = 2,
 
     /// <summary>Stopped before finishing, at the host's or the provider's own request.</summary>
-    Cancelled,
+    Cancelled = 3,
 }
 
 /// <summary>Which half is running; the entry stays Downloading across both phases.</summary>
 public enum DownloadPhase
 {
     /// <summary>Bytes are still arriving.</summary>
-    Fetching,
+    Fetching = 0,
 
     /// <summary>The bytes are in; the provider is turning them into something playable.</summary>
-    Processing,
+    Processing = 1,
 }
 
 /// <summary>A snapshot of one download, active or settled, for the Downloads page.</summary>

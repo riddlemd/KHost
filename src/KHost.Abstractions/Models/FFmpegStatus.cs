@@ -4,10 +4,10 @@ namespace KHost.Abstractions.Models;
 public enum FFmpegTool
 {
     /// <summary>The encoder every song streams through.</summary>
-    FFmpeg,
+    FFmpeg = 0,
 
     /// <summary>The reader that gives an imported file its length, tracks and tags.</summary>
-    FFprobe,
+    FFprobe = 1,
 }
 
 /// <summary>Where one of the two programs was found, and whether it ran.</summary>
@@ -33,22 +33,22 @@ public sealed record FFmpegToolStatus
 public enum FFmpegInstallState
 {
     /// <summary>No install has run in this process.</summary>
-    None,
+    None = 0,
 
     /// <summary>Fetching the pinned archives.</summary>
-    Downloading,
+    Downloading = 1,
 
     /// <summary>Checking what arrived against the pinned checksums and unpacking it.</summary>
-    Verifying,
+    Verifying = 2,
 
     /// <summary>Running the unpacked programs and putting them in place.</summary>
-    Installing,
+    Installing = 3,
 
     /// <summary>Installed and in use.</summary>
-    Succeeded,
+    Succeeded = 4,
 
     /// <summary>Stopped, with <see cref="FFmpegInstallProgress.Error"/> saying why; nothing was replaced.</summary>
-    Failed,
+    Failed = 5,
 }
 
 /// <summary>The latest install this process ran.</summary>

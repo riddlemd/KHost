@@ -4,11 +4,11 @@ namespace KHost.Abstractions.Models.Plugins;
 public enum PluginSettingType
 {
     /// <summary>A single-line text field.</summary>
-    String,
+    String = 0,
 
     /// <summary>A whole-number field.</summary>
-    Int,
+    Int = 1,
 
     /// <summary>A checkbox.</summary>
-    Bool,
+    Bool = 2,
 }

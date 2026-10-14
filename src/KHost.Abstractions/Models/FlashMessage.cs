@@ -4,10 +4,10 @@ namespace KHost.Abstractions.Models;
 public enum FlashType
 {
     /// <summary>Something completed normally.</summary>
-    Success,
+    Success = 0,
 
     /// <summary>Something needs the host's attention.</summary>
-    Warning
+    Warning = 1
 }
 
 /// <summary>A message shown over the viewport and then withdrawn.</summary>

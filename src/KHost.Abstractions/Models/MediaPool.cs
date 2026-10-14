@@ -4,39 +4,39 @@ namespace KHost.Abstractions.Models;
 public enum PoolPurpose
 {
     /// <summary>What plays between singers.</summary>
-    BreakMusic,
+    BreakMusic = 0,
 
     /// <summary>What plays as a scheduled or host-triggered break.</summary>
-    Ads,
+    Ads = 1,
 }
 
 /// <summary>How the next entry is picked out of a pool.</summary>
 public enum PoolSelectionMode
 {
     /// <summary>In the order the host arranged them, wrapping at the end.</summary>
-    Sequential,
+    Sequential = 0,
 
     /// <summary>Even chance across entries, ignoring weight.</summary>
-    Shuffle,
+    Shuffle = 1,
 
     /// <summary>Chance proportional to weight.</summary>
-    Weighted,
+    Weighted = 2,
 }
 
 /// <summary>What makes an ad pool come due. Only the active pool's trigger is read.</summary>
 public enum AdTriggerMode
 {
     /// <summary>Never on its own; the host presses the button.</summary>
-    HostOnly,
+    HostOnly = 0,
 
     /// <summary>Due after a number of performances have played, set by <see cref="MediaPool.AdTriggerInterval"/>.</summary>
-    EveryNPerformances,
+    EveryNPerformances = 1,
 
     /// <summary>Due after a number of minutes have passed, set by <see cref="MediaPool.AdTriggerInterval"/>.</summary>
-    EveryNMinutes,
+    EveryNMinutes = 2,
 
     /// <summary>Whenever the queue runs dry, instead of leaving break music alone out there.</summary>
-    OnIdle,
+    OnIdle = 3,
 }
 
 /// <summary>A named list to draw from: break music or ads; a media row or a nested pool.</summary>
