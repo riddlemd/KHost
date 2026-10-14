@@ -32,8 +32,8 @@ internal class MediaRepository : BaseSearchableRepository<Media, MediaSearchOpti
     private static readonly IReadOnlyDictionary<string, Expression<Func<Media, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<Media, object>>>
         {
-            ["title"] = m => m.Title.ToLower(),
-            ["artist"] = m => m.Artist.ToLower(),
+            ["title"] = m => EF.Property<string>(m, EntityFolding.TitleFolded),
+            ["artist"] = m => EF.Property<string>(m, EntityFolding.ArtistFolded),
             ["format"] = m => m.Format,
             ["dateAdded"] = m => m.DateAdded,
             ["status"] = m => m.Status,
@@ -205,7 +205,7 @@ internal class MediaRepository : BaseSearchableRepository<Media, MediaSearchOpti
 
         return await context.Media
             .Where(m => types.Contains(m.Type))
-            .OrderBy(m => m.Title.ToLower())
+            .OrderBy(m => EF.Property<string>(m, EntityFolding.TitleFolded))
             .ToListAsync();
     }
 
@@ -222,7 +222,7 @@ internal class MediaRepository : BaseSearchableRepository<Media, MediaSearchOpti
     protected override Func<string?, string> Folder => EntityFolding.FoldMedia;
 
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
-    protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title.ToLower();
+    protected override Expression<Func<Media, object>> DefaultSortExpression => m => EF.Property<string>(m, EntityFolding.TitleFolded);
 
     protected override IQueryable<Media> ApplySearchFilters(IQueryable<Media> queryable, string query, MediaSearchOptions? options)
     {
