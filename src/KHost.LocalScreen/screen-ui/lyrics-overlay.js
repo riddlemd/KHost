@@ -293,8 +293,9 @@ function createLyricsOverlay(canvas, clock) {
     }
 
     function draw() {
+        // Stops rescheduling once the words are gone so an idle screen is not redrawn at refresh rate.
+        if (!lyrics) { frame = null; return; }
         frame = requestAnimationFrame(draw);
-        if (!lyrics) return;
 
         sizeCanvas();
         ctx2d.clearRect(0, 0, canvas.width, canvas.height);
@@ -367,6 +368,7 @@ function createLyricsOverlay(canvas, clock) {
             ctx2d.clearRect(0, 0, canvas.width, canvas.height);
             canvas.hidden = lyrics === null;
 
+            if (!lyrics && frame) { cancelAnimationFrame(frame); frame = null; }
             if (lyrics && !frame) frame = requestAnimationFrame(draw);
         },
     };
