@@ -139,6 +139,9 @@ const EQ_VU_PEAK_HOLD_FRAMES = 30;
 const EQ_VU_PEAK_FALL = 0.01;
 const EQ_VU_SEGMENTS = 40;
 
+/// The side of the square a glow sprite is drawn in; a spark's glow is at most about 50px across.
+const GLOW_SPRITE_SIZE = 64;
+
 /// The screen's own accent: the colour the words are sung in when a timing sets none.
 const EQ_THEME_COLOUR = '#8558fa';
 const EQ_SINGLE_COLOUR = '#33ccff';
@@ -162,6 +165,31 @@ function eqBarEdges(count) {
     return edges;
 }
 
+/// Each bar count's edges and the log of each bar's centre, made once: the bars ask every frame.
+const eqBarLayouts = new Map();
+function eqBarLayout(count) {
+    let layout = eqBarLayouts.get(count);
+    if (!layout) {
+        const edges = eqBarEdges(count);
+        const centres = new Array(count);
+        for (let bar = 0; bar < count; bar++) centres[bar] = Math.log(Math.sqrt(edges[bar] * edges[bar + 1]));
+        layout = { edges, centres };
+        eqBarLayouts.set(count, layout);
+    }
+    return layout;
+}
+
+/// The log of each band's centre, per set of band edges and band count.
+const eqBandCentres = new WeakMap();
+function eqBandCentresFor(bandEdges, bands) {
+    let centres = eqBandCentres.get(bandEdges);
+    if (!centres || centres.length !== bands) {
+        centres = Array.from({ length: bands }, (_, i) => Math.log(Math.sqrt(bandEdges[i] * bandEdges[i + 1])));
+        eqBandCentres.set(bandEdges, centres);
+    }
+    return centres;
+}
+
 const eqClamp01 = (v) => (v > 1 ? 1 : v > 0 ? v : 0);
 
 /// A host levels byte (a quarter decibel under the band's loudest at 255; 0 is silence) as a bar
@@ -177,12 +205,12 @@ function eqHeightFromBandByte(byte) {
 /// With eight bands, bars between two centres ramp from one to the other; they cannot move apart.
 function eqBarsFromBands(bandHeights, bandEdges, count, out) {
     const heights = out || new Float32Array(count);
-    const edges = eqBarEdges(count);
-    const centres = bandHeights.map((_, i) => Math.log(Math.sqrt(bandEdges[i] * bandEdges[i + 1])));
+    const bars = eqBarLayout(count).centres;
+    const centres = eqBandCentresFor(bandEdges, bandHeights.length);
     const last = centres.length - 1;
 
     for (let bar = 0; bar < count; bar++) {
-        const at = Math.log(Math.sqrt(edges[bar] * edges[bar + 1]));
+        const at = bars[bar];
         let value;
         if (at <= centres[0]) value = bandHeights[0];
         else if (at >= centres[last]) value = bandHeights[last];
@@ -203,7 +231,7 @@ function eqBarsFromBands(bandHeights, bandEdges, count, out) {
 /// of a short FFT) reads between the two bins either side of its centre.
 function eqBarsFromSpectrum(bytes, binHz, minDb, maxDb, count, out) {
     const heights = out || new Float32Array(count);
-    const edges = eqBarEdges(count);
+    const edges = eqBarLayout(count).edges;
     const span = maxDb - minDb;
     const toHeight = (byte) => eqClamp01((minDb + (byte / 255) * span - EQ_FFT_FLOOR_DB) / (EQ_FFT_TOP_DB - EQ_FFT_FLOOR_DB));
 
@@ -689,6 +717,14 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
     let scene = {};
     let heights = new Float32Array(barCount);
     let senseHeights = new Float32Array(16);
+    // A plain array, not a Float32Array: the band average must keep double precision.
+    const bandHeights = [];
+    // Each dropped when the palette changes: parsed colours, palette-coloured gradients keyed by
+    // where they run (so a new canvas size makes new ones), and the embers' glow sprites.
+    let palette = null;
+    let fieldColours = null;
+    const gradients = new Map();
+    const sprites = new Map();
 
     function reset() {
         bars = {};
@@ -696,10 +732,25 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         scene = {};
     }
 
-    function gradient(x0, y0, x1, y1) {
-        const g = ctx.createLinearGradient(x0, y0, x1, y1);
-        for (const [at, css] of eqColourStops(scheme, colour)) g.addColorStop(at, css);
+    function paletteChanged() {
+        palette = null;
+        fieldColours = null;
+        gradients.clear();
+        sprites.clear();
+    }
+
+    function cachedGradient(key, make) {
+        let g = gradients.get(key);
+        if (!g) { g = make(); gradients.set(key, g); }
         return g;
+    }
+
+    function gradient(x0, y0, x1, y1) {
+        return cachedGradient(`${x0},${y0},${x1},${y1}`, () => {
+            const g = ctx.createLinearGradient(x0, y0, x1, y1);
+            for (const [at, css] of eqColourStops(scheme, colour)) g.addColorStop(at, css);
+            return g;
+        });
     }
 
     /// Bar heights for this frame from whichever feed there is, shifted by the sensitivity's gain,
@@ -714,7 +765,8 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
             for (let i = 0; i < count; i++) out[i] = eqClamp01(out[i] + (out[i] > 0 ? shift : 0));
         } else if (feed.bands) {
             const { left, right, edges } = feed.bands;
-            const bandHeights = Array.from(left, (byte, i) => (eqHeightFromBandByte(byte) + eqHeightFromBandByte(right[i])) / 2);
+            bandHeights.length = left.length;
+            for (let i = 0; i < left.length; i++) bandHeights[i] = (eqHeightFromBandByte(left[i]) + eqHeightFromBandByte(right[i])) / 2;
             eqBarsFromBands(bandHeights, edges, count, out);
             const shift = (feed.gainDb || 0) / EQ_BAND_RANGE_DB;
             for (let i = 0; i < count; i++) out[i] = eqClamp01(out[i] + (out[i] > 0 ? shift : 0));
@@ -785,9 +837,11 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         ctx.lineTo(w, y(points - 1));
 
         // Coloured by how far the line strays from the middle, the way Winamp's scope was.
-        const g = ctx.createLinearGradient(0, middle - reach, 0, middle + reach);
-        const stops = eqColourStops(scheme, colour);
-        for (const [at, css] of stops) { g.addColorStop(0.5 - at / 2, css); g.addColorStop(0.5 + at / 2, css); }
+        const g = cachedGradient(`scope ${middle},${reach}`, () => {
+            const made = ctx.createLinearGradient(0, middle - reach, 0, middle + reach);
+            for (const [at, css] of eqColourStops(scheme, colour)) { made.addColorStop(0.5 - at / 2, css); made.addColorStop(0.5 + at / 2, css); }
+            return made;
+        });
 
         ctx.lineJoin = 'round';
         ctx.strokeStyle = g;
@@ -844,6 +898,35 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
+    }
+
+    /// The disc glow() paints, at full strength, drawn once per colour and core on an off-page
+    /// canvas; null where none can be made.
+    function glowSprite(rgb, core) {
+        const key = `${rgb},${core}`;
+        if (sprites.has(key)) return sprites.get(key);
+        const size = GLOW_SPRITE_SIZE, half = size / 2;
+        const sprite = createCanvas(size, size);
+        const spriteCtx = sprite && sprite.getContext('2d');
+        if (spriteCtx) {
+            const g = spriteCtx.createRadialGradient(half, half, 0, half, half, half);
+            g.addColorStop(0, rgba(rgb, 1));
+            g.addColorStop(core, rgba(rgb, 0.55));
+            g.addColorStop(1, rgba(rgb, 0));
+            spriteCtx.fillStyle = g;
+            spriteCtx.fillRect(0, 0, size, size);
+        }
+        sprites.set(key, spriteCtx ? sprite : null);
+        return sprites.get(key);
+    }
+
+    /// glow(), stamped from its sprite and faded by globalAlpha; draw() sets that back each frame.
+    function spriteGlow(x, y, r, rgb, alpha, core) {
+        if (!(alpha > 0) || !(r > 0)) return;
+        const sprite = glowSprite(rgb, core);
+        if (!sprite) { glow(x, y, r, rgb, alpha, core); return; }
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(sprite, x - r, y - r, r * 2, r * 2);
     }
 
     /// A scene's moving parts, laid out from the seed the first time it is drawn after a reset.
@@ -1134,6 +1217,11 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         ctx.fillStyle = warm;
         ctx.fillRect(0, h * 0.7, w, h * 0.3);
 
+        if (scene.sparkPalette !== palette) {
+            for (const spark of scene.items) spark.rgb = ambientColourAt(palette, spark.hue);
+            scene.sparkPalette = palette;
+        }
+
         for (const spark of scene.items) {
             spark.y -= spark.rise * (1 + 0.9 * e.level);
             if (spark.y < -0.02) { spark.y = 1.02; spark.x = scene.random(); }
@@ -1141,9 +1229,8 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
             const fade = eqClamp01(spark.y * 1.3);
             const alpha = ambientAlpha((0.22 + 0.18 * e.level) * fade);
             const x = (spark.x + 0.015 * Math.sin(t * 0.8 + spark.sway)) * w;
-            const rgb = ambientColourAt(palette, spark.hue);
-            glow(x, spark.y * h, spark.size * h * 5, rgb, alpha * 0.35, 0.2);
-            glow(x, spark.y * h, spark.size * h * 1.5, rgb, alpha, 0.6);
+            spriteGlow(x, spark.y * h, spark.size * h * 5, spark.rgb, alpha * 0.35, 0.2);
+            spriteGlow(x, spark.y * h, spark.size * h * 1.5, spark.rgb, alpha, 0.6);
         }
     }
 
@@ -1187,7 +1274,7 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         const alpha = ambientAlpha(0.13 + 0.12 * e.level + 0.06 * e.bass);
 
         scene.items.forEach((beam, i) => {
-            beam.phase += (beam.speed * (1 + 0.6 * e.level)) / 30;
+            beam.phase += (beam.speed * (1 + 0.6 * e.level)) / VISUALISER_FPS;
             const angle = Math.sin(beam.phase) * beam.reach;
             const ox = w * (0.1 + (0.8 * i) / (scene.items.length - 1)), oy = h * 1.02;
             const dx = Math.sin(angle), dy = -Math.cos(angle);
@@ -1243,7 +1330,7 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
 
         const width = Math.min(w, AMBIENT_FIELD_WIDTH), height = Math.max(1, Math.round((width * h) / w));
         const drawn = field.draw(style, width, height, {
-            t: scene.clock + t, level: e.level, bass: e.bass, colours: ambientFieldColours(style, scheme, colour), flash,
+            t: scene.clock + t, level: e.level, bass: e.bass, colours: fieldColours || (fieldColours = ambientFieldColours(style, scheme, colour)), flash,
         });
         if (drawn) ctx.drawImage(drawn, 0, 0, width, height, 0, 0, w, h);
     }
@@ -1253,8 +1340,8 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
     function drawScene(feed) {
         if (!scene.items) buildScene();
         const e = sense(feed);
-        const t = scene.frame / 30;
-        const palette = isRetroStyle(style) ? retroColours(style, scheme, colour) : ambientPalette(scheme, colour);
+        const t = scene.frame / VISUALISER_FPS;
+        if (!palette) palette = isRetroStyle(style) ? retroColours(style, scheme, colour) : ambientPalette(scheme, colour);
 
         if (style === 'ambient-gradient') drawDrift(e, t, palette);
         else if (style === 'ambient-bokeh') drawBokeh(e, t, palette);
@@ -1275,7 +1362,7 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         /// Answers whether the style exists; a new one starts its bars and meters from rest.
         setStyle(name) {
             if (!isEqVisualiserStyle(name)) return false;
-            if (name !== style) reset();
+            if (name !== style) { reset(); paletteChanged(); }
             style = name;
             return true;
         },
@@ -1283,9 +1370,10 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroC
         /// Bar count (snapped to EQ_BAR_COUNTS), colour scheme ('classic', 'theme' or 'single')
         /// and the single colour ('#rrggbb'). A `palette` of the venue's main, light and dark
         /// ('#rrggbb' each) draws in those in place of the scheme.
-        setOptions({ barCount: count, colourScheme, colour: single, palette } = {}) {
+        setOptions({ barCount: count, colourScheme, colour: single, palette: venuePalette } = {}) {
             barCount = eqBarCount(count);
-            const venue = Array.isArray(palette) && palette.length === 3 ? palette.map(eqParseColour) : null;
+            paletteChanged();
+            const venue = Array.isArray(venuePalette) && venuePalette.length === 3 ? venuePalette.map(eqParseColour) : null;
             if (venue && venue.every(Boolean)) {
                 scheme = 'venue';
                 colour = venue;
