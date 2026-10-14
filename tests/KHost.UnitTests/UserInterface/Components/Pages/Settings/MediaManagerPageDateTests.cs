@@ -1,6 +1,7 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.DataAccess.Repositories;
 using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
@@ -36,7 +37,7 @@ public class MediaManagerPageDateTests : BunitContext
         Services.AddSingleton(Substitute.For<IMediaImportService>());
         Services.AddSingleton(Substitute.For<IMediaPoolService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
-        Services.AddSingleton(Substitute.For<KHost.Abstractions.Repositories.IMediaRepository>());
+        Services.AddSingleton(Substitute.For<KHost.DataAccess.Repositories.IMediaRepository>());
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 

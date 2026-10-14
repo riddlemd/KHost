@@ -14,8 +14,8 @@ public interface IMediaService : IRepositoryService<Media>
     /// <summary>Listing and search reaching past karaoke; the plain overloads answer songs alone.</summary>
     /// <param name="pageNumber">1-based page to read; below 1 reads page 1.</param>
     /// <param name="pageSize">Rows per page; below 1 uses the default page size.</param>
-    /// <param name="sort">A sort key <see cref="Repositories.IMediaRepository"/> lists; null or unknown
-    /// uses the default order.</param>
+    /// <param name="sort">One of <c>title</c> (default), <c>artist</c>, <c>format</c>,
+    /// <c>dateAdded</c>, <c>status</c>, <c>duration</c>; null or unknown uses the default order.</param>
     /// <param name="options">Which types and statuses to include; null answers songs alone, as the
     /// plain overloads do.</param>
     Task<PaginatedResult<Media>> ReadAllAsync(int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);

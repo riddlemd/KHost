@@ -1,14 +1,15 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Repositories;
 
-namespace KHost.Abstractions.Repositories;
+namespace KHost.DataAccess.Repositories;
 
 /// <summary>The media library table: songs, break music, ad clips and stills alike.</summary>
 /// <remarks>
 /// <para>Host-implemented. A plugin reads and edits the library through
-/// <see cref="Services.IMediaService"/>, which announces
-/// <see cref="Messaging.Messages.MediaLibraryChanged"/> on every write and, on delete, first takes
+/// <see cref="KHost.Abstractions.Services.IMediaService"/>, which announces
+/// <see cref="KHost.Abstractions.Messaging.Messages.MediaLibraryChanged"/> on every write and, on delete, first takes
 /// the song out of every queue it waits in; deleting here leaves those queued turns pointing at
-/// nothing. A plugin that downloads media uses <see cref="Services.IMediaAcquisitionService"/>,
+/// nothing. A plugin that downloads media uses <see cref="KHost.Abstractions.Services.IMediaAcquisitionService"/>,
 /// which owns the import and status rules. The file-path and fingerprint members below serve the
 /// host's own importer and have no service equivalent.</para>
 /// <para>The plain <see cref="IRepository{T}"/> and <see cref="ISearchable{T}"/> overloads return

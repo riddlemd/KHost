@@ -1,8 +1,8 @@
 using System.Reflection;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
-using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.DataAccess.Repositories;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;

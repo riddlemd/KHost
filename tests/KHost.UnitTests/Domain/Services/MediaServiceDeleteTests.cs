@@ -1,7 +1,7 @@
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.DataAccess.Repositories;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.DependencyInjection;

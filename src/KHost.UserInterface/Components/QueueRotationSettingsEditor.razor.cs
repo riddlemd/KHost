@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Abstractions.Models.QueueRotation;
+using KHost.Domain.Services.QueueRotation;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components;

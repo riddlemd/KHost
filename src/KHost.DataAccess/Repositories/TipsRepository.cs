@@ -2,7 +2,6 @@ namespace KHost.DataAccess.Repositories;
 
 using System.Linq.Expressions;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -51,6 +50,6 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(t => EF.Functions.Like(t.NotesFolded, FoldedContainsPattern(query), "\\"));
+        return queryable.Where(t => EF.Functions.Like(EF.Property<string>(t, EntityFolding.NotesFolded), FoldedContainsPattern(query), "\\"));
     }
 }

@@ -2,6 +2,7 @@ using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.MediaLifetime;
+using KHost.Domain.Services.Plugins;
 using KHost.IPC.SignalR.Contracts;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Hosting.Server;

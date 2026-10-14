@@ -5,8 +5,10 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.QueueRotation;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
+using KHost.DataAccess.Repositories;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Domain.Services.QueueRotation;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,7 +50,7 @@ public class SingerQueuePanelRoomMarkRefreshTests : BunitContext
 
         var cache = new JsonFileCacheService(
             NullLogger<JsonFileCacheService>.Instance, Substitute.For<IAnalyticsService>(), _cacheDir);
-        _queue = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.Abstractions.Repositories.IUsersRepository>(),
+        _queue = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.DataAccess.Repositories.IUsersRepository>(),
             venues, Substitute.For<IAnalyticsService>(), rotation, _broker);
 
         JSInterop.Mode = JSRuntimeMode.Loose;

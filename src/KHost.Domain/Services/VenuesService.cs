@@ -1,9 +1,9 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Common.Media;
+using KHost.DataAccess.Repositories;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

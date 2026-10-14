@@ -1,7 +1,8 @@
-using KHost.Abstractions.Models.Plugins;
 using System.Text.Json;
+using KHost.Abstractions.Models.Plugins;
+using KHost.Abstractions.Services;
 
-namespace KHost.Abstractions.Services;
+namespace KHost.Domain.Services.Plugins;
 
 /// <summary>Which plugins are enabled and what their settings are, as saved for the next start.</summary>
 /// <remarks>Host-only: the Plugins page. A plugin reads its own settings through

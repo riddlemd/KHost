@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Linq.Expressions;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Repositories.Components;
 using KHost.Telemetry;

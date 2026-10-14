@@ -77,7 +77,7 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(255);
 
-            entity.Property(e => e.SearchFolded)
+            entity.Property<string>(EntityFolding.SearchFolded)
                 .IsRequired()
                 .HasMaxLength(600);
 
@@ -109,7 +109,7 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(255);
 
-            entity.Property(e => e.NameFolded)
+            entity.Property<string>(EntityFolding.NameFolded)
                 .IsRequired()
                 .HasMaxLength(255);
 
@@ -201,7 +201,7 @@ internal class DefaultContext : DbContext
 
             // Uniqueness is on the folded name, not on Name COLLATE NOCASE: NOCASE folds ASCII
             // only, so it let "ZOË" and "zoë" both exist as separate singers.
-            entity.HasIndex(e => e.NameFolded).IsUnique();
+            entity.HasIndex(EntityFolding.NameFolded).IsUnique();
             entity.HasIndex(e => e.CreatedDate);
         });
 
@@ -255,7 +255,7 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(100);
 
-            entity.Property(e => e.NameFolded)
+            entity.Property<string>(EntityFolding.NameFolded)
                 .IsRequired()
                 .HasMaxLength(100);
 
@@ -268,7 +268,7 @@ internal class DefaultContext : DbContext
                 .HasDefaultValue(false);
 
             entity.HasData(
-                new KHostUserGroup
+                new
                 {
                     Id = new Guid("00000000-0000-0000-0000-000000000001"),
                     Name = "Admin",
@@ -277,7 +277,7 @@ internal class DefaultContext : DbContext
                     // Staff, not somebody waiting to sing.
                     ExcludeFromSingerQueue = true
                 },
-                new KHostUserGroup
+                new
                 {
                     Id = new Guid("00000000-0000-0000-0000-000000000002"),
                     Name = "Regular",
@@ -329,7 +329,7 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<Tip>(entity =>
         {
-            entity.Property(e => e.NotesFolded)
+            entity.Property<string>(EntityFolding.NotesFolded)
                 .IsRequired()
                 .HasMaxLength(1000);
 
@@ -342,12 +342,12 @@ internal class DefaultContext : DbContext
         });
     }
 
-    /// <summary>Venue and KHostUser configure this identical trio; named by property rather than
-    /// generic, since EF only needs the name to reach a shadow-free property either way.</summary>
+    /// <summary>Venue and KHostUser configure this identical trio; by name rather than lambda, since
+    /// NameFolded is a model property on Venue and a shadow property on KHostUser.</summary>
     private static void ConfigureNameFoldedAndNotes(EntityTypeBuilder entity, int nameMaxLength)
     {
         entity.Property("Name").IsRequired().HasMaxLength(nameMaxLength);
-        entity.Property("NameFolded").IsRequired().HasMaxLength(nameMaxLength);
+        entity.Property<string>(EntityFolding.NameFolded).IsRequired().HasMaxLength(nameMaxLength);
         entity.Property("Notes").HasMaxLength(1000);
     }
 }
