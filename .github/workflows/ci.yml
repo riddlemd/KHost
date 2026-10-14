@@ -33,6 +33,10 @@ jobs:
       - run: npm ci
         working-directory: src/KHost.UserInterface
 
+      # The screen page's scripts, under node's own runner: no packages to install.
+      - run: npm test
+        working-directory: src/KHost.LocalScreen/screen-ui-tests
+
       # Redirected like the README says, so the test step below finds the same output.
       - run: dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"
 

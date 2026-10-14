@@ -141,6 +141,7 @@ Logging is at Information by default. Raise it with the standard `Logging:LogLev
 dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"
 dotnet test tests/KHost.UnitTests
 dotnet test tests/KHost.IntegrationTests   # drives real ffmpeg
+(cd src/KHost.LocalScreen/screen-ui-tests && npm test)   # the screen page's JavaScript; no npm install
 ```
 
 SCSS compiles inside `dotnet build`; there is no separate sass step. The unit tests are hermetic
