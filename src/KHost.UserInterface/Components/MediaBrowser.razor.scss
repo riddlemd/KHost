@@ -1,4 +1,9 @@
+// Virtualize takes the nearest ancestor whose overflow-y is not visible as its viewport. The page
+// scrolls as a document, so the card (clip) and the listing (a card body, auto) must stay visible,
+// or every row past the first screen is never rendered.
 .kh-media-importer {
+    overflow: visible;
+
     &__path-bar {
         overflow-y: unset;
         padding: 8px 16px;
@@ -94,10 +99,9 @@
         font-size: 0.85em;
     }
 
-    // Virtualize follows the nearest overflow-y: auto ancestor. The page scrolls as a document, so a
-    // listing that claims to scroll but never does leaves every row past the first screen unrendered.
     &__listing {
         flex: 1;
+        overflow-y: visible;
     }
 
     &__table {
