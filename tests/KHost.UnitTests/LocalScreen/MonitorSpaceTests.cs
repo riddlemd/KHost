@@ -133,6 +133,16 @@ public class MonitorSpaceTests
         Assert.Equal(new WindowBounds(1470, 31, 1920, 1049), fitted);
     }
 
+    /// <summary>Alone, a full-screen screen would cover the console the show is driven from.</summary>
+    [Theory]
+    [InlineData(true, false, 1, false)]
+    [InlineData(true, false, 2, true)]
+    [InlineData(false, true, 2, true)]
+    [InlineData(false, false, 2, false)]
+    [InlineData(false, false, 1, false)]
+    public void LaunchesFullScreen_DependsOnASecondMonitor(bool remembered, bool moved, int monitors, bool expected)
+        => Assert.Equal(expected, MonitorSpace.LaunchesFullScreen(remembered, moved, monitors));
+
     [Fact]
     public void OntoSecondary_OnThePrimary_CentresItOnTheOtherMonitorAtItsOwnSize()
     {
