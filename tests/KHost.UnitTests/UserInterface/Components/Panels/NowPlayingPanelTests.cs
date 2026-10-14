@@ -150,7 +150,7 @@ public class NowPlayingPanelTests : BunitContext
         Assert.Equal(["#0080FF", "#0080FF", "#11A800"], spans.Select(span => span.GetAttribute("fill")));
         Assert.Equal(["25%", "75%", "50%"], spans.Select(span => span.GetAttribute("x")));
         Assert.Contains("kh-now-playing__progress-track--many-lanes", cut.Find(".kh-now-playing__progress-track").ClassName);
-        Assert.Single(cut.FindAll(".kh-now-playing__lanes--by-voice .kh-now-playing__played"));
+        Assert.Single(cut.FindAll(".kh-now-playing__played"));
     }
 
     /// <summary>Colour-blind friendly lyrics move the singers' colours mid-song, and the lanes are
@@ -206,7 +206,7 @@ public class NowPlayingPanelTests : BunitContext
         _playback.Position.Returns(TimeSpan.FromSeconds(60));
         Load(Performance(), media);
 
-        var played = Render<NowPlayingPanel>().Find(".kh-now-playing__lanes--by-voice .kh-now-playing__played");
+        var played = Render<NowPlayingPanel>().Find(".kh-now-playing__played");
 
         Assert.Equal("25%", played.GetAttribute("width"));
     }
@@ -246,6 +246,46 @@ public class NowPlayingPanelTests : BunitContext
 
         cut.WaitForAssertion(() => _lyrics.Received(1).GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()));
         Assert.Equal(3, cut.FindAll(".kh-now-playing__lanes--by-voice .kh-now-playing__lane-span").Count);
+    }
+
+    /// <summary>The lanes are one rect per sung stretch; a tick moves only the playhead's wash.</summary>
+    [Fact]
+    public void Lanes_PositionTicks_MoveTheWash_WithoutRedrawingTheLanes()
+    {
+        var media = Song("duet.mp4");
+        _lyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(Duet());
+        Load(Performance(), media);
+
+        var cut = Render<NowPlayingPanel>();
+        var lanes = cut.FindComponent<LyricLaneTrack>();
+        var lanesBefore = lanes.RenderCount;
+        var panelBefore = cut.RenderCount;
+
+        _playback.Position.Returns(TimeSpan.FromSeconds(60));
+        for (var tick = 0; tick < 3; tick++)
+            _playback.PositionChanged += Raise.Event();
+
+        cut.WaitForAssertion(() => Assert.Equal("25%", cut.Find(".kh-now-playing__played").GetAttribute("width")));
+        Assert.True(cut.RenderCount > panelBefore);
+        Assert.Equal(lanesBefore, lanes.RenderCount);
+    }
+
+    [Fact]
+    public void Lanes_TheNextSong_DrawsItsOwnLanes()
+    {
+        var first = Song("duet.mp4");
+        var second = Song("solo.mp4");
+        _lyrics.GetTimedLyricsAsync(first.FilePath, Arg.Any<CancellationToken>()).Returns(Duet());
+        _lyrics.GetTimedLyricsAsync(second.FilePath, Arg.Any<CancellationToken>())
+            .Returns(Lyrics(new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 240, Voice = "solo", Lines = [Line(120, 180)] }));
+        Load(Performance(), first);
+        var cut = Render<NowPlayingPanel>();
+
+        Load(Performance(), second);
+        _broker.Announce(new PlaybackChanged());
+
+        cut.WaitForAssertion(() => Assert.Equal(
+            ["50%"], cut.FindAll(".kh-now-playing__lanes--by-voice .kh-now-playing__lane-span").Select(span => span.GetAttribute("x"))));
     }
 
     /// <summary>The offset moves only words KHost draws, so the control is offered only for a song that has them.</summary>

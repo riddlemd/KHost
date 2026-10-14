@@ -1,5 +1,6 @@
 @using KHost.Abstractions.Models
 @using KHost.Abstractions.Services
+@using Microsoft.AspNetCore.Components.Web.Virtualization
 
 <div class="kh-card">
             <div class="kh-card__header">
@@ -128,7 +129,14 @@
             </div>
 
             <div class="kh-card__body kh-media-importer__listing">
-                @if (_entries.Count == 0)
+                @if (_loading)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg kh-media-importer__loading">
+                        <Loader Type="Loader.LoaderType.Spinner" />
+                        <span>Reading this folder…</span>
+                    </div>
+                }
+                else if (_entries.Count == 0)
                 {
                     <div class="kh-panel--empty kh-panel--empty-lg">
                         <Icon Name="folder2" />
@@ -177,9 +185,10 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var entry in FilteredEntries)
-                            {
-                                <tr class="@(entry.IsDirectory ? "kh-media-importer__row--dir" : "") @(entry.IsDirectory && _selectedFolderPaths.Contains(entry.FullPath) ? "kh-media-importer__row--dir--selected" : "")"
+                            @* A folder can hold thousands of files; only the rows in view are drawn. *@
+                            <Virtualize Items="FilteredRows" Context="row" ItemSize="RowHeightPx" SpacerElement="tr">
+                                @{ var entry = row.Entry; }
+                                <tr class="kh-media-importer__row @(row.Striped ? "kh-media-importer__row--striped" : "") @(entry.IsDirectory ? "kh-media-importer__row--dir" : "") @(entry.IsDirectory && _selectedFolderPaths.Contains(entry.FullPath) ? "kh-media-importer__row--dir--selected" : "")"
                                     @onclick="() => OnEntryClickAsync(entry)"
                                     title="@GetParsedMetadataTooltip(entry)">
                                     <td class="kh-media-importer__col--check" @onclick:stopPropagation>
@@ -254,7 +263,7 @@
                                         }
                                     </td>
                                 </tr>
-                            }
+                            </Virtualize>
                             @if (!FilteredEntries.Any(e => !e.IsDirectory))
                             {
                                 <tr class="kh-media-importer__row--empty">

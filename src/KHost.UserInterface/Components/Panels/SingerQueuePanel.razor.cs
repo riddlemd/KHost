@@ -27,6 +27,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
     [Parameter] public EventCallback OnSingerAdded { get; set; }
 
     private readonly SubscriptionSet _subscriptions = new();
+    private readonly CoalescedRefresh<Stale> _refresh;
 
     private const int SingerSuggestionLimit = 20;
 
@@ -52,6 +53,8 @@ public partial class SingerQueuePanel : IAsyncDisposable
     // one meanwhile: a highlight on another row would name what Remove does not delete.
     private bool _removePending;
 
+    public SingerQueuePanel() => _refresh = new CoalescedRefresh<Stale>(RefreshAsync);
+
     protected override async Task OnInitializedAsync()
     {
         // The row itself drags. Its buttons are filtered out so a press on remove or an arrow
@@ -60,20 +63,18 @@ public partial class SingerQueuePanel : IAsyncDisposable
             JS, "singers", ".kh-singer-queue-panel__singer-queue",
             "button, .kh-singer-queue-panel__singer-queue__singer--locked", "singerId", nameof(OnSortEndAsync));
 
-        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
-        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
-        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
-        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => Request(Stale.Queue)));
+        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => Request(Stale.Queue)));
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => Request(Stale.Venue)));
+        _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => Request(Stale.Venue)));
+        // Rows read who is singing off the service as they draw; nothing loaded here goes stale.
+        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => InvokeAsync(StateHasChanged)));
 
         var venues = await VenuesService.ReadAllAsync(pageSize: 0);
         _venueNames = venues.Items.ToDictionary(v => v.Id, v => v.Name);
     }
 
-    protected override async Task OnParametersSetAsync()
-    {
-        await RefreshPerformanceCountsAsync();
-        await RefreshVenueSettingsAsync();
-    }
+    protected override Task OnParametersSetAsync() => _refresh.RequestAsync(Stale.All);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -266,13 +267,17 @@ public partial class SingerQueuePanel : IAsyncDisposable
             onCancel: () => _removePending = false);
     }
 
-    private void OnStateChanged() => InvokeAsync(async () =>
+    private void Request(Stale parts) => InvokeAsync(() => _refresh.RequestAsync(parts));
+
+    private async Task RefreshAsync(Stale parts)
     {
-        await RefreshPerformanceCountsAsync();
-        await RefreshVenueSettingsAsync();
+        if (parts.HasFlag(Stale.Queue))
+            await RefreshPerformanceCountsAsync();
+        if (parts.HasFlag(Stale.Venue))
+            await RefreshVenueSettingsAsync();
 
         StateHasChanged();
-    });
+    }
 
     // Rendering needs this synchronously, and the venue read is async, so cache it and refresh
     // on venue state changes so saving the setting takes effect without a reload.
@@ -317,5 +322,14 @@ public partial class SingerQueuePanel : IAsyncDisposable
     {
         _subscriptions.Dispose();
         await _sortable.DisposeAsync();
+    }
+
+    [Flags]
+    private enum Stale
+    {
+        None = 0,
+        Venue = 1,
+        Queue = 2,
+        All = Venue | Queue,
     }
 }

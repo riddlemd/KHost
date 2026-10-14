@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
@@ -163,5 +164,34 @@ public class NowPlayingPanelPlayNextShortcutTests : BunitContext
         var panel = Render<NowPlayingPanel>();
 
         Assert.True(panel.Find(PlayNextSelector).HasAttribute("disabled"));
+    }
+
+    /// <summary>A song load announces the queue and the performances together; the older read
+    /// answering last must not leave the button saying nobody has a song.</summary>
+    [Fact]
+    public async Task ABurstOfQueueMessages_ReadsTwiceNotThrice_AndEndsOnTheNewestAnswer()
+    {
+        var panel = Render<NowPlayingPanel>();
+        panel.WaitForAssertion(() => Assert.False(panel.Find(PlayNextSelector).HasAttribute("disabled")));
+
+        var stale = new TaskCompletionSource<Performance?>();
+        var fresh = new TaskCompletionSource<Performance?>();
+        var third = new TaskCompletionSource<Performance?>();
+        _performances.ClearReceivedCalls();
+        _performances.ReadSingersNextPerformanceAsync(_first.Id).Returns(stale.Task, fresh.Task, third.Task);
+
+        await _broker.PublishAsync(new SingerQueueChanged());
+        await _broker.PublishAsync(new PerformancesChanged());
+        await _broker.PublishAsync(new MediaLibraryChanged());
+
+        await panel.InvokeAsync(() =>
+        {
+            fresh.SetResult(_performance);
+            third.SetResult(_performance);
+        });
+        await panel.InvokeAsync(() => stale.SetResult(null));
+
+        panel.WaitForAssertion(() => Assert.False(panel.Find(PlayNextSelector).HasAttribute("disabled")));
+        await _performances.Received(2).ReadSingersNextPerformanceAsync(_first.Id);
     }
 }

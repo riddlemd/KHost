@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using KHost.Common.Media;
 using KHost.Abstractions.Models;
+using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components;
 
@@ -13,10 +14,14 @@ public partial class MediaBrowser : IDisposable
 {
     private enum SortColumn { Name, Type, Status, Size, Modified }
 
+    /// <summary>Matches <c>.kh-media-importer__row</c>'s height in the stylesheet.</summary>
+    private const int RowHeightPx = 40;
+
     [Inject] private IMediaImportService ImportService { get; set; } = default!;
     [Inject] private IMediaRepository MediaRepository { get; set; } = default!;
     [Inject] private IMediaFileParsingService ParsingService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+    [Inject] private IMediaFolderReader FolderReader { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -35,6 +40,11 @@ public partial class MediaBrowser : IDisposable
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _selectedFolderPaths = new(StringComparer.OrdinalIgnoreCase);
     private ImportState _prevImportState = ImportState.Idle;
+    private bool _loading;
+
+    // Bumped by every navigation, so a slow listing for a folder already left is dropped.
+    private int _navigation;
+    private CancellationTokenSource? _countCts;
 
     private List<(string Display, string FullPath)> GetBreadcrumbSegments()
     {
@@ -72,6 +82,24 @@ public partial class MediaBrowser : IDisposable
     // the empty check): cached against them rather than rebuilt on every access.
     private (List<FileEntry> Entries, string Query, bool HideImported, SortColumn Column, bool Ascending)? _filteredEntriesKey;
     private List<FileEntry> _filteredEntriesCache = [];
+    private List<FileEntry>? _filteredRowsSource;
+    private List<FilteredRow> _filteredRowsCache = [];
+
+    /// <summary>The rows as drawn, each with its place in the list: the virtualised table keeps a
+    /// spacer row ahead of them, so the stylesheet cannot stripe by DOM position.</summary>
+    private List<FilteredRow> FilteredRows
+    {
+        get
+        {
+            var entries = FilteredEntries;
+            if (!ReferenceEquals(entries, _filteredRowsSource))
+            {
+                _filteredRowsCache = entries.Select((entry, index) => new FilteredRow(entry, index % 2 == 1)).ToList();
+                _filteredRowsSource = entries;
+            }
+            return _filteredRowsCache;
+        }
+    }
 
     private List<FileEntry> FilteredEntries
     {
@@ -156,8 +184,16 @@ public partial class MediaBrowser : IDisposable
     {
         _subscriptions.Add(Broker.Subscribe<MediaImportChanged>(OnImportStateChanged));
 
+        _loading = true;
+
         var musicPath = Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
-        if (Directory.Exists(musicPath))
+        var navigation = _navigation;
+        var hasMusic = await FolderReader.ExistsAsync(musicPath);
+
+        // The host can type a path before the default folder answers; theirs wins.
+        if (navigation != _navigation) return;
+
+        if (hasMusic)
             await NavigateToAsync(musicPath);
         else
             LoadDrives();
@@ -165,6 +201,9 @@ public partial class MediaBrowser : IDisposable
 
     private void LoadDrives()
     {
+        _navigation++;
+        CancelFolderCounts();
+        _loading = false;
         _currentPath = null;
         _pathInput = string.Empty;
         _filterQuery = string.Empty;
@@ -180,65 +219,46 @@ public partial class MediaBrowser : IDisposable
         _pathInput = path;
         _filterQuery = string.Empty;
 
-        List<string> filePaths;
-        List<FileEntry> dirs;
+        var navigation = ++_navigation;
+        CancelFolderCounts();
+        _loading = true;
+        _entries = [];
+        StateHasChanged();
 
+        var supportedExts = ImportService.SupportedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        MediaFolderListing listing;
+        HashSet<string> existingInDb;
         try
         {
-            var supportedExts = ImportService.SupportedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            dirs = Directory.GetDirectories(path)
-                .Select(d =>
-                {
-                    int fileCount = 0;
-                    try
-                    {
-                        fileCount = Directory.EnumerateFiles(d)
-                            .Count(f => supportedExts.Contains(Path.GetExtension(f)));
-                    }
-                    catch { }
-
-                    return new FileEntry(
-                        d,
-                        Path.GetFileName(d),
-                        true,
-                        string.Empty,
-                        false,
-                        0,
-                        Directory.GetLastWriteTime(d),
-                        fileCount > 0 ? fileCount : null,
-                        null);
-                })
-                .OrderBy(e => e.Name)
-                .ToList();
-
-            filePaths = Directory.GetFiles(path)
-                .Where(f => supportedExts.Contains(Path.GetExtension(f)))
-                .ToList();
+            listing = await FolderReader.ReadAsync(path, supportedExts);
+            existingInDb = await MediaRepository.GetExistingFilePathsAsync(listing.Files.Select(f => f.FullPath).ToList());
+            if (navigation != _navigation) return;
         }
-        catch (UnauthorizedAccessException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
+            if (navigation != _navigation) return;
             _entries = [];
+            _loading = false;
             return;
         }
 
-        var existingInDb = await MediaRepository.GetExistingFilePathsAsync(filePaths);
+        var dirs = listing.Folders
+            .Select(d => new FileEntry(d.FullPath, Path.GetFileName(d.FullPath), true, string.Empty, false, 0, d.Modified, null, null))
+            .OrderBy(e => e.Name)
+            .ToList();
 
-        var files = filePaths
-            .Select(f =>
-            {
-                var fileInfo = new FileInfo(f);
-                return new FileEntry(
-                    f,
-                    Path.GetFileName(f),
-                    false,
-                    Path.GetExtension(f).TrimStart('.'),
-                    existingInDb.Contains(f),
-                    fileInfo.Length,
-                    fileInfo.LastWriteTime,
-                    null,
-                    null);
-            })
+        var files = listing.Files
+            .Select(f => new FileEntry(
+                f.FullPath,
+                Path.GetFileName(f.FullPath),
+                false,
+                Path.GetExtension(f.FullPath).TrimStart('.'),
+                existingInDb.Contains(f.FullPath),
+                f.Size,
+                f.Modified,
+                null,
+                null))
             .OrderBy(e => e.Name)
             .ToList();
 
@@ -248,6 +268,47 @@ public partial class MediaBrowser : IDisposable
         files = GroupKaraokePairs(files);
 
         _entries = [parentEntry, ..dirs, ..files];
+        _loading = false;
+
+        if (dirs.Count > 0)
+        {
+            _countCts = new CancellationTokenSource();
+            _ = CountFolderFilesAsync(dirs.Select(d => d.FullPath).ToList(), supportedExts, _countCts.Token);
+        }
+    }
+
+    /// <summary>Fills in each subfolder's count once the listing is up: counting walks every
+    /// subfolder, which on a network share is the slow part.</summary>
+    private async Task CountFolderFilesAsync(
+        IReadOnlyList<string> folders, IReadOnlySet<string> extensions, CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<string, int> counts;
+        try
+        {
+            counts = await FolderReader.CountFilesAsync(folders, extensions, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        // Matched by path, so counts for a folder already left change nothing on screen.
+        await InvokeAsync(() =>
+        {
+            _entries = _entries
+                .Select(e => e.IsDirectory && e.Name != ".." && counts.TryGetValue(e.FullPath, out var n) && n > 0
+                    ? e with { SupportedFileCount = n }
+                    : e)
+                .ToList();
+            StateHasChanged();
+        });
+    }
+
+    private void CancelFolderCounts()
+    {
+        _countCts?.Cancel();
+        _countCts?.Dispose();
+        _countCts = null;
     }
 
     private async Task GoUpAsync()
@@ -360,7 +421,7 @@ public partial class MediaBrowser : IDisposable
 
         try
         {
-            if (Directory.Exists(_pathInput))
+            if (await FolderReader.ExistsAsync(_pathInput))
                 await NavigateToAsync(_pathInput);
             else
                 _pathInput = _currentPath ?? string.Empty;
@@ -574,7 +635,13 @@ public partial class MediaBrowser : IDisposable
             StateHasChanged();
         });
 
-    public void Dispose() => _subscriptions.Dispose();
+    public void Dispose()
+    {
+        _subscriptions.Dispose();
+        CancelFolderCounts();
+    }
+
+    private readonly record struct FilteredRow(FileEntry Entry, bool Striped);
 
     internal sealed record FileEntry(
         string FullPath,

@@ -35,6 +35,7 @@ public partial class MediaSearchPanel : IDisposable
     private const int MaxVisibleResults = 300;
 
     private readonly SubscriptionSet _subscriptions = new();
+    private readonly CoalescedRefresh<Stale> _refresh;
 
     private bool _searching;
     private string _query = "";
@@ -60,6 +61,12 @@ public partial class MediaSearchPanel : IDisposable
     private int _selectedResultIndex = -1;
     private int _lastScrolledResultIndex = -1;
 
+    public MediaSearchPanel() => _refresh = new CoalescedRefresh<Stale>(async _ =>
+    {
+        await UpdateQueuedMediaAsync();
+        StateHasChanged();
+    });
+
     /// <summary>Puts the caret in the query field, so typing after adding a singer needs no mouse.</summary>
     public ValueTask FocusQueryAsync() => _queryInputRef.FocusAsync();
 
@@ -73,7 +80,7 @@ public partial class MediaSearchPanel : IDisposable
         await SeedSearchModeAsync();
 
         // Without this the badges stay empty until some unrelated state change fires.
-        await UpdateQueuedMediaAsync();
+        await _refresh.RequestAsync(Stale.Queued);
     }
 
     /// <summary>Starts the panel in App Settings' configured mode, or — with "Remember" — in
@@ -325,11 +332,7 @@ public partial class MediaSearchPanel : IDisposable
     private MediaProviderAction[] CombineWithGlobalActions(IEnumerable<MediaProviderAction> actions)
         => [.._globalActions, ..actions];
 
-    private void OnStateChanged() => InvokeAsync(async () =>
-    {
-        await UpdateQueuedMediaAsync();
-        StateHasChanged();
-    });
+    private void OnStateChanged() => InvokeAsync(() => _refresh.RequestAsync(Stale.Queued));
 
     /// <summary>Tracks what each singer already queued, so a claimed song is not offered again.</summary>
     private async Task UpdateQueuedMediaAsync()
@@ -366,5 +369,12 @@ public partial class MediaSearchPanel : IDisposable
         // A search still running would otherwise call StateHasChanged on a disposed component.
         _searchCts?.Cancel();
         _searchCts?.Dispose();
+    }
+
+    [Flags]
+    private enum Stale
+    {
+        None = 0,
+        Queued = 1,
     }
 }
