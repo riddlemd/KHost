@@ -318,6 +318,36 @@ public class DatabaseInitializerTests
         finally { Delete(dbPath); }
     }
 
+    /// <summary>The migration adds the sort columns empty, because SQL cannot run the fold.</summary>
+    [Theory]
+    [InlineData("TitleFolded")]
+    [InlineData("ArtistFolded")]
+    public async Task InitializeAsync_FoldsTheSortTitleAndArtistOfRowsWrittenBeforeTheColumns(string emptied)
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            using (var seed = factory.CreateDbContext())
+            {
+                seed.Media.Add(new Media { FilePath = "/library/exito.mp4", Title = "Éxito", Artist = "Björk" });
+                await seed.SaveChangesAsync();
+                await seed.Database.ExecuteSqlRawAsync("UPDATE \"Media\" SET \"" + emptied + "\" = ''");
+            }
+
+            StubPlaylist(ShippedVisualisationPlaylists.BasicId);
+            StubPlaylist(ShippedVisualisationPlaylists.AdvancedId);
+
+            await CreateSut(factory).InitializeAsync();
+
+            using var context = factory.CreateDbContext();
+            var folded = context.Media
+                .Select(m => new { Title = EF.Property<string>(m, EntityFolding.TitleFolded), Artist = EF.Property<string>(m, EntityFolding.ArtistFolded) })
+                .Single();
+            Assert.Equal(("exito", "bjork"), (folded.Title, folded.Artist));
+        }
+        finally { Delete(dbPath); }
+    }
+
     private static (IDbContextFactory<DefaultContext> Factory, string Path) NewDatabase()
     {
         var path = Path.Combine(Path.GetTempPath(), $"khost-dbinit-{Guid.NewGuid():N}.db");

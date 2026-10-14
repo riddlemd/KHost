@@ -148,6 +148,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ArtistFolded")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ContentHash")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -212,6 +217,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("TitleFolded")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Type")
                         .HasColumnType("INTEGER");
 
@@ -233,6 +243,10 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("Title");
 
                     b.HasIndex("Type");
+
+                    b.HasIndex("Type", "ArtistFolded");
+
+                    b.HasIndex("Type", "TitleFolded");
 
                     b.ToTable("Media");
                 });
