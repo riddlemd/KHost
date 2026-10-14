@@ -5296,5 +5296,332 @@ public class PlaybackServiceTests : IDisposable
         // Words sent now would light over the venue's card.
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetTimedLyricsCommand>());
     }
-}
 
+    // --- a display report racing a pause, and a load racing a stream rebuild ---
+
+    private volatile bool _receiverConnected;
+    private readonly ThreadLocal<bool> _onHeldReportThread = new();
+
+    /// <summary>Starts a receiver report that has passed the transport-state check but not yet
+    /// moved the playhead, and holds it there until released.</summary>
+    /// <remarks>The hold is inside the carrying-display lookup, which runs between the two.</remarks>
+    private async Task<(Task Landed, Action Release)> ReceiverReportHeldInFlightAsync(TimeSpan position, DateTime sampledAtUtc)
+    {
+        var inWindow = new ManualResetEventSlim();
+        var release = new ManualResetEventSlim();
+
+        _display.ConnectedDeviceId.Returns(_ =>
+        {
+            if (!_onHeldReportThread.Value) return _receiverConnected ? "Living Room TV" : null;
+
+            inWindow.Set();
+            release.Wait(TimeSpan.FromSeconds(10));
+            return "Living Room TV";
+        });
+
+        var landed = Task.Factory.StartNew(() =>
+        {
+            _onHeldReportThread.Value = true;
+            _display.PlaybackStatusChanged += Raise.Event<EventHandler<DisplayPlaybackStatus>>(_display,
+                new DisplayPlaybackStatus { Position = position, IsPlaying = true, SampledAtUtc = sampledAtUtc });
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        Assert.True(await Task.Run(() => inWindow.Wait(TimeSpan.FromSeconds(5))), "the report never reached the window");
+
+        return (landed, release.Set);
+    }
+
+    private async Task PlayingOnAReceiverAsync(TimeSpan playedFor)
+    {
+        ConnectScreens(0);
+        _receiverConnected = true;
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        _clock.Advance(playedFor);
+        await _service.TickAsync();
+    }
+
+    [Fact]
+    public async Task Pause_AReportSampledBeforeItLandingAfter_LeavesThePlayheadWherePaused()
+    {
+        await PlayingOnAReceiverAsync(TimeSpan.FromSeconds(2));
+        var (landed, release) = await ReceiverReportHeldInFlightAsync(TimeSpan.FromSeconds(30), Now - TimeSpan.FromSeconds(1));
+
+        try
+        {
+            await _service.PauseAsync();
+        }
+        finally
+        {
+            release();
+        }
+
+        var paused = _service.Position;
+        await landed;
+
+        Assert.Equal(paused, _service.Position);
+    }
+
+    [Fact]
+    public async Task DisplayLoss_AReportSampledBeforeTheParkLandingAfter_LeavesTheSongAtTheStart()
+    {
+        await PlayingOnAReceiverAsync(TimeSpan.FromSeconds(2));
+        var (landed, release) = await ReceiverReportHeldInFlightAsync(TimeSpan.FromSeconds(30), Now - TimeSpan.FromSeconds(1));
+
+        try
+        {
+            _receiverConnected = false;
+            _broker.Announce(new DisplaysChanged());
+
+            Assert.True(await WaitForParkedAtStartAsync());
+        }
+        finally
+        {
+            release();
+        }
+
+        await landed;
+
+        Assert.Equal(TimeSpan.Zero, _service.Position);
+    }
+
+    private readonly List<MediaStreamSession> _sessions = [];
+
+    private MediaStreamSession OpenSession(NSubstitute.Core.CallInfo call)
+    {
+        var n = Interlocked.Increment(ref _streamsOpened);
+        var session = new MediaStreamSession
+        {
+            Id = $"stream-{n}",
+            SourcePath = call.ArgAt<string>(0),
+            PlaylistUrl = $"http://host/media/stream-{n}/stream.m3u8",
+            StartOffset = call.ArgAt<TimeSpan>(1),
+            Pitch = call.ArgAt<int>(2),
+            Tempo = call.ArgAt<int>(3),
+        };
+        lock (_sessions) _sessions.Add(session);
+        return session;
+    }
+
+    /// <summary>Holds the first stream opened at <paramref name="pitch"/> until released.</summary>
+    private (Task Building, TaskCompletionSource Release) HoldTheStreamOpenedAtPitch(int pitch)
+    {
+        var building = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = 0;
+
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                if (call.ArgAt<int>(2) == pitch && Interlocked.Exchange(ref held, 1) == 0)
+                {
+                    building.TrySetResult();
+                    await release.Task;
+                }
+
+                return OpenSession(call);
+            });
+
+        return (building.Task, release);
+    }
+
+    private int LoadsSent() => Broadcasts().OfType<LoadMediaCommand>().Count();
+
+    private static (Performance, Media) CreateNextPerformance()
+    {
+        var (performance, media) = CreatePerformance();
+        media.FilePath = "/music/next.mp4";
+        return (performance, media);
+    }
+
+    [Fact]
+    public async Task AReopenStillBuilding_WhenTheNextSongLoads_LeavesTheNextSongOnTheDisplay()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        var (building, release) = HoldTheStreamOpenedAtPitch(2);
+
+        await _service.SetPitchAsync(2);
+        await building.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var (next, nextMedia) = CreateNextPerformance();
+        var loading = _service.LoadAsync(next, nextMedia);
+        release.SetResult();
+        await loading.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForAsync(() => LoadsSent() >= 3);
+
+        MediaStreamSession nextSession;
+        lock (_sessions) nextSession = Assert.Single(_sessions, s => s.SourcePath == nextMedia.FilePath);
+        Assert.Equal(nextSession.PlaylistUrl, LastBroadcast<LoadMediaCommand>()?.StreamUrl);
+        await _mediaStreams.DidNotReceive().CloseAsync(nextSession.Id);
+
+        await _service.StopAsync();
+
+        // Only what the song holds is closed at its end: this proves the next song's encode is it.
+        await _mediaStreams.Received(1).CloseAsync(nextSession.Id);
+    }
+
+    [Fact]
+    public async Task AReopenQueuedForTheLastSong_DoesNotRebuildTheNextOne()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(45));
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        var (building, release) = HoldTheStreamOpenedAtPitch(3);
+
+        await _service.SetPitchAsync(3);
+        await building.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Behind the stream, so it asks for a rebuild of its own, queued behind the one building.
+        var seeking = _service.SeekAsync(TimeSpan.FromSeconds(10));
+        var (next, nextMedia) = CreateNextPerformance();
+        var loading = _service.LoadAsync(next, nextMedia);
+        release.SetResult();
+        await Task.WhenAll(seeking, loading).WaitAsync(TimeSpan.FromSeconds(5));
+
+        lock (_sessions)
+            Assert.Single(_sessions, s => s.SourcePath == nextMedia.FilePath);
+    }
+
+    [Fact]
+    public async Task AnAdStartedWhileAReopenIsStillBuilding_IsWhatTheDisplayEndsOn()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        var (building, release) = HoldTheStreamOpenedAtPitch(2);
+
+        await _service.SetPitchAsync(2);
+        await building.WaitAsync(TimeSpan.FromSeconds(5));
+        await _service.StopAsync();
+
+        var ad = CreateAd();
+        var playing = _service.PlayAdAsync(ad);
+        release.SetResult();
+        Assert.True(await playing.WaitAsync(TimeSpan.FromSeconds(5)));
+        await WaitForAsync(() => LoadsSent() >= 3);
+
+        MediaStreamSession adSession;
+        lock (_sessions) adSession = Assert.Single(_sessions, s => s.SourcePath == ad.FilePath);
+        Assert.Equal(adSession.PlaylistUrl, LastBroadcast<LoadMediaCommand>()?.StreamUrl);
+    }
+
+    private List<string> ClosedSessions() => [.. _mediaStreams.ReceivedCalls()
+        .Where(c => c.GetMethodInfo().Name == nameof(IMediaStreamService.CloseAsync))
+        .Select(c => (string)c.GetArguments()[0]!)];
+
+    /// <summary>Starts a key change whose rebuild is held mid-build, then stops the song under it.</summary>
+    private async Task<MediaStreamSession> StopWhileAReopenIsBuildingAsync()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        var (building, release) = HoldTheStreamOpenedAtPitch(2);
+
+        await _service.SetPitchAsync(2);
+        await building.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var stopping = _service.StopAsync();
+        release.SetResult();
+        await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+
+        MediaStreamSession? rebuilt = null;
+        await WaitForAsync(() =>
+        {
+            lock (_sessions) rebuilt = _sessions.FirstOrDefault(s => s.Pitch == 2);
+            return rebuilt is not null && ClosedSessions().Contains(rebuilt.Id);
+        });
+
+        return Assert.IsType<MediaStreamSession>(rebuilt);
+    }
+
+    [Fact]
+    public async Task AReopenStillBuilding_WhenTheSongStops_ClosesItsEncodeAndLeavesTheDisplayAlone()
+    {
+        var loadsBefore = 0;
+        _screenServer.When(s => s.BroadcastCommandAsync(Arg.Any<StopCommand>())).Do(_ => loadsBefore = LoadsSent());
+
+        var rebuilt = await StopWhileAReopenIsBuildingAsync();
+        await Task.Delay(50);
+
+        Assert.Equal(loadsBefore, LoadsSent());
+        Assert.Single(ClosedSessions(), id => id == rebuilt.Id);
+    }
+
+    [Fact]
+    public async Task AStopDuringAReopen_ClosesEveryEncodeOnce()
+    {
+        await StopWhileAReopenIsBuildingAsync();
+        await Task.Delay(50);
+
+        var closed = ClosedSessions();
+        Assert.Equal(closed.Distinct().Count(), closed.Count);
+        Assert.Contains("stream-1", closed);
+    }
+
+    [Fact]
+    public async Task APlayCancellingAFadingStop_WaitsForAReopenInsteadOfOpeningASecondStream()
+    {
+        using var service = MakeService(TimeSpan.FromSeconds(5));
+        var (performance, media) = CreatePerformance();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+        await service.SeekAsync(TimeSpan.FromSeconds(45));
+        await service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        var (building, release) = HoldTheStreamOpenedAtPitch(2);
+
+        // Behind the rebuilt stream, so this reopens at 10s and moves the playhead there first.
+        var seeking = service.SeekAsync(TimeSpan.FromSeconds(10));
+        await building.WaitAsync(TimeSpan.FromSeconds(5));
+        var stopping = service.StopAsync();
+        var playing = service.PlayAsync();
+        release.SetResult();
+        await Task.WhenAll(seeking, playing).WaitAsync(TimeSpan.FromSeconds(5));
+        _clock.Advance(TimeSpan.FromSeconds(5));
+        await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+
+        lock (_sessions)
+            Assert.Single(_sessions, s => s.StartOffset == TimeSpan.FromSeconds(10));
+        Assert.Equal(PlaybackState.Playing, service.State);
+    }
+
+    [Fact]
+    public async Task EveryPathThatRebuildsOrParks_StillLetsTheNextSongAndAnAdLoad()
+    {
+        var work = Task.Run(async () =>
+        {
+            var (performance, media) = CreatePerformance();
+            await _service.LoadAsync(performance, media);
+            await _service.PlayAsync();
+            await _service.SeekAsync(TimeSpan.FromSeconds(45));
+
+            // Reopen, display loss and rejoin replay each hold the reload lock while they work.
+            await _service.SetPitchAsync(2);
+            Assert.True(await WaitForStreamsOpenedAsync(2));
+            ConnectScreens(0);
+            Assert.True(await WaitForParkedAtStartAsync());
+            ConnectScreens(1);
+            Assert.True(await WaitForStreamsOpenedAsync(3));
+
+            var (next, nextMedia) = CreateNextPerformance();
+            await _service.LoadAsync(next, nextMedia);
+            await _service.PlayAsync();
+            await _service.StopAsync();
+
+            Assert.True(await _service.PlayAdAsync(CreateAd()));
+        });
+
+        Assert.Same(work, await Task.WhenAny(work, Task.Delay(TimeSpan.FromSeconds(5))));
+        await work;
+    }
+}
