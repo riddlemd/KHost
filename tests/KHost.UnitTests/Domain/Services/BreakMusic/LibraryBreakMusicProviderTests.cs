@@ -109,7 +109,9 @@ public class LibraryBreakMusicProviderTests : IDisposable
 
         RaiseBackgroundEnded();
 
-        Assert.False(await WaitForLoadsAsync(2));
+        // The end is handled on the raising thread, and nothing it would await is pending, so a
+        // second load would already be here.
+        Assert.True(_sent.OfType<LoadBackgroundCommand>().Count() < 2);
     }
 
     public void Dispose()

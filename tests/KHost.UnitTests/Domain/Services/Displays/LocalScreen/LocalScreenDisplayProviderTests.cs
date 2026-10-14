@@ -11,18 +11,22 @@ using KHost.Domain.Services.QrCodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 
 public class LocalScreenDisplayProviderTests
 {
+    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(50);
+
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IMessageBroker _broker = Substitute.For<IMessageBroker>();
     private readonly LocalScreenDisplayProvider _provider;
 
     // What the screen is drawn from, for the tests that follow a change message to the screen.
     private readonly MessageBroker _realBroker = new(NullLogger<MessageBroker>.Instance);
+    private readonly FakeTimeProvider _time = new();
     private readonly IUpNextService _upNext = Substitute.For<IUpNextService>();
     private readonly Venue.VenueSettings _settings = new() { MarqueeEnabled = true, MarqueeMessage = "Tonight" };
     private readonly IQrCodeOfferService _qrCodes = Substitute.For<IQrCodeOfferService>();
@@ -65,7 +69,9 @@ public class LocalScreenDisplayProviderTests
                 .AddSingleton(_streams)
                 .AddSingleton(_timedLyrics)
                 .BuildServiceProvider(),
-            playbackOptions: _playbackOptions);
+            redrawSettle: Settle,
+            playbackOptions: _playbackOptions,
+            time: _time);
     }
 
     private static IScreenConnection Connection(string screenId, string connectionId)
@@ -662,9 +668,9 @@ public class LocalScreenDisplayProviderTests
         if (codes) Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
         if (card) Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
 
-        // One redraw sends its overlays in turn, so the ones it owed are in by now; a short grace
-        // covers a stray one that was never owed.
-        await Task.Delay(50);
+        // One redraw sends its overlays in turn, so the ones it owed are in by now; more windows
+        // let a stray one that was never owed show itself.
+        _time.Advance(Settle, steps: 2);
 
         Assert.Equal(marquee, Sent<SetMarqueeCommand>().Any());
         Assert.Equal(codes, Sent<SetScreenQrCodesCommand>().Any());
@@ -742,7 +748,7 @@ public class LocalScreenDisplayProviderTests
         provider.Dispose();
 
         _realBroker.Announce(new UpNextChanged());
-        await Task.Delay(50);
+        _time.Advance(Settle, steps: 2);
 
         Assert.Empty(Sent<SetMarqueeCommand>());
     }
@@ -1095,7 +1101,7 @@ public class LocalScreenDisplayProviderTests
 
         _realBroker.Announce(new PlaybackChanged());
         Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
-        await Task.Delay(50);
+        _time.Advance(Settle, steps: 2);
 
         Assert.Empty(Sent<ShowImageCommand>());
     }
@@ -1179,7 +1185,7 @@ public class LocalScreenDisplayProviderTests
 
         _realBroker.Announce(new SelectedVenueChanged());
         Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
-        await Task.Delay(50);
+        _time.Advance(Settle, steps: 2);
 
         Assert.Empty(Sent<ShowImageCommand>());
         Assert.Empty(Sent<HideImageCommand>());
@@ -1247,7 +1253,7 @@ public class LocalScreenDisplayProviderTests
 
         RaiseConnected(Connection("Screen 1", "conn-a"));
         Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
-        await Task.Delay(100);
+        _time.Advance(Settle, steps: 2);
 
         Assert.Single(Sent<SetVolumeCommand>());
     }
@@ -1699,20 +1705,10 @@ public class LocalScreenDisplayProviderTests
             .Select(call => call.GetArguments()[0])
             .OfType<TCommand>()];
 
-    // Redraws leave the broker's thread, so an assertion straight after an announce races them.
-    private async Task<bool> WaitForSentAsync<TCommand>(Func<TCommand, bool>? matches = null)
+    // A connect reaches the redraw from a pool thread, so the clock is stepped until the send shows.
+    private Task<bool> WaitForSentAsync<TCommand>(Func<TCommand, bool>? matches = null)
         where TCommand : IScreenCommand
-    {
-        for (var attempt = 0; attempt < 500; attempt++)
-        {
-            if (Sent<TCommand>().Any(command => matches?.Invoke(command) ?? true))
-                return true;
-
-            await Task.Delay(10);
-        }
-
-        return false;
-    }
+        => _time.AdvanceUntilAsync(Settle, () => Sent<TCommand>().Any(command => matches?.Invoke(command) ?? true));
 
     private static IScreenProvider AvailableLauncher()
     {

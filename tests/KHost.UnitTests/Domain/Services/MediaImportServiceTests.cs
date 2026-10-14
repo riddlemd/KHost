@@ -7,6 +7,7 @@ using KHost.DataAccess.Repositories;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using Microsoft.Extensions.Time.Testing;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -18,6 +19,7 @@ public class MediaImportServiceTests
     private readonly IAnalyticsService _analytics = Substitute.For<IAnalyticsService>();
     private readonly IPluginRegistry _plugins = Substitute.For<IPluginRegistry>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly FakeTimeProvider _time = new();
     private readonly IFFmpegService _ffmpeg = Substitute.For<IFFmpegService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly MediaImportService _service;
@@ -44,7 +46,8 @@ public class MediaImportServiceTests
             _plugins,
             _ffmpeg,
             _flash,
-            _broker);
+            _broker,
+            _time);
     }
 
     /// <summary>Without ffprobe every row imports with no length or tags; the host hears it once.</summary>
@@ -371,9 +374,9 @@ public class MediaImportServiceTests
         _parser.LoadAndParseAsync(Arg.Any<string>(), Arg.Any<MediaType>())
             .Returns(call => new Media { FilePath = call.Arg<string>(), Title = "T" });
         // Slow enough that the 250 ms progress throttle ticks mid-run, so its library announce is exercised.
-        _repository.CreateAsync(Arg.Any<Media>()).Returns(async call =>
+        _repository.CreateAsync(Arg.Any<Media>()).Returns(call =>
         {
-            await Task.Delay(30);
+            _time.Advance(TimeSpan.FromMilliseconds(30));
             Record("row");
             return call.Arg<Media>();
         });
