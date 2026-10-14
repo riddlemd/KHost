@@ -292,7 +292,7 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
             var envelope = new SignedEnvelope(
                 connection.ScreenId, seq, payload, ScreenMessageAuth.Sign(key, session.Nonce, seq, payload));
 
-            await _hubContext.Clients.Client(connection.ConnectionId).SendAsync("ReceiveCommand", envelope.ToJson());
+            await _hubContext.Clients.Client(connection.ConnectionId).SendAsync(ScreenClientMethods.ReceiveCommand, envelope.ToJson());
         }
         finally { session.SendGate.Release(); }
     }
