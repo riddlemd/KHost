@@ -39,9 +39,6 @@ public class MediaImportContentDedupTests : IDisposable
         parser.LoadAndParseAsync(Arg.Any<string>()).Returns(call =>
             new Media { FilePath = call.Arg<string>(), Title = Path.GetFileName(call.Arg<string>()) });
 
-        var mediaService = Substitute.For<IMediaService>();
-        mediaService.CreateAsync(Arg.Any<Media>()).Returns(call => _repository.CreateAsync(call.Arg<Media>()));
-
         var analytics = Substitute.For<IAnalyticsService>();
         analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
 
@@ -49,7 +46,6 @@ public class MediaImportContentDedupTests : IDisposable
             NullLogger<MediaImportService>.Instance,
             parser,
             _repository,
-            mediaService,
             new MediaFingerprintService(NullLogger<MediaFingerprintService>.Instance),
             analytics,
             EmptyRegistry(),

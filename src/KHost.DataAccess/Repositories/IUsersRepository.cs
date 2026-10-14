@@ -21,6 +21,10 @@ public interface IUsersRepository : IRepository<KHostUser>, ISearchable<KHostUse
     /// in case or accents.</summary>
     Task<KHostUser?> FindByNameAsync(string name);
 
+    /// <summary>The users with these ids, loaded as <see cref="IRepository{T}.ReadAsync"/> loads one,
+    /// in the order asked; an id with no user is left out.</summary>
+    Task<List<KHostUser>> ReadManyAsync(IEnumerable<Guid> ids);
+
     /// <summary>The singer a provider's id names, or null if unclaimed; the pair is unique.</summary>
     /// <remarks>Matched exactly, case included: an external id is not a name.</remarks>
     Task<KHostUser?> ReadByForeignKeyAsync(string source, string key);

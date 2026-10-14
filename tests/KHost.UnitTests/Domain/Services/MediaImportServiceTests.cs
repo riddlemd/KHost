@@ -1,4 +1,5 @@
 using System.Reflection;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
@@ -13,7 +14,6 @@ public class MediaImportServiceTests
 {
     private readonly IMediaFileParsingService _parser = Substitute.For<IMediaFileParsingService>();
     private readonly IMediaRepository _repository = Substitute.For<IMediaRepository>();
-    private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IMediaFingerprintService _fingerprints = Substitute.For<IMediaFingerprintService>();
     private readonly IAnalyticsService _analytics = Substitute.For<IAnalyticsService>();
     private readonly IPluginRegistry _plugins = Substitute.For<IPluginRegistry>();
@@ -39,7 +39,6 @@ public class MediaImportServiceTests
             NullLogger<MediaImportService>.Instance,
             _parser,
             _repository,
-            _mediaService,
             _fingerprints,
             _analytics,
             _plugins,
@@ -293,7 +292,7 @@ public class MediaImportServiceTests
 
         await ImportAsync("/new/song.mp4");
 
-        await _mediaService.Received(1).CreateAsync(
+        await _repository.Received(1).CreateAsync(
             Arg.Is<Media>(m => m.FileSize == 100 && m.SampledHash == "s"));
     }
 
@@ -360,6 +359,55 @@ public class MediaImportServiceTests
     private void GivenParsed(string path)
         => _parser.LoadAndParseAsync(path).Returns(_ => new Media { FilePath = path, Title = "T" });
 
+    /// <summary>Every library panel re-reads on MediaLibraryChanged, so a folder of files must not
+    /// announce it once per row.</summary>
+    [Fact]
+    public async Task StartAsync_ManyFiles_AnnouncesTheLibraryOnTheProgressThrottleAndOnceAfterTheLastRow()
+    {
+        const int files = 20;
+        var events = new List<string>();
+        void Record(string what) { lock (events) events.Add(what); }
+
+        _parser.LoadAndParseAsync(Arg.Any<string>(), Arg.Any<MediaType>())
+            .Returns(call => new Media { FilePath = call.Arg<string>(), Title = "T" });
+        // Slow enough that the 250 ms progress throttle ticks mid-run, so its library announce is exercised.
+        _repository.CreateAsync(Arg.Any<Media>()).Returns(async call =>
+        {
+            await Task.Delay(30);
+            Record("row");
+            return call.Arg<Media>();
+        });
+        using var library = _broker.Subscribe<MediaLibraryChanged>(_ => Record("library"));
+        using var progress = _broker.Subscribe<MediaImportChanged>(_ => Record("progress"));
+
+        await ImportAsync([.. Enumerable.Range(0, files).Select(i => $"/room/song{i}.mp4")]);
+
+        List<string> seen;
+        lock (events) seen = [.. events];
+        var libraryAt = Enumerable.Range(0, seen.Count).Where(i => seen[i] == "library").ToList();
+
+        Assert.Equal(files, seen.Count(e => e == "row"));
+        Assert.InRange(libraryAt.Count, 2, files - 1);
+        Assert.True(libraryAt[^1] > seen.LastIndexOf("row"), "the last library announce must follow the last row");
+        Assert.All(libraryAt.SkipLast(1), i => Assert.Equal("progress", seen[i - 1]));
+    }
+
+    [Fact]
+    public async Task StartAsync_ARunThatAddsNoRows_DoesNotAnnounceTheLibrary()
+    {
+        GivenParsed("/room/good.mp4");
+        _parser.LoadAndParseAsync("/room/bad.mp4", Arg.Any<MediaType>())
+            .Returns<Task<Media>>(_ => throw new InvalidDataException("unreadable"));
+        await ImportAsync("/room/good.mp4");
+
+        var announced = 0;
+        using var library = _broker.Subscribe<MediaLibraryChanged>(_ => Interlocked.Increment(ref announced));
+        await ImportAsync("/room/bad.mp4");
+
+        Assert.Equal(1, _service.FailedCount);
+        Assert.Equal(0, announced);
+    }
+
     private async Task ImportAsync(params string[] paths)
     {
         await _service.StartAsync(paths);
@@ -384,7 +432,7 @@ public class MediaImportServiceTests
             await WaitForIdleAsync();
 
             await _parser.Received(1).LoadAndParseAsync(zip, MediaType.Karaoke);
-            await _mediaService.Received(1).CreateAsync(Arg.Is<Media>(m => m.FilePath == zip));
+            await _repository.Received(1).CreateAsync(Arg.Is<Media>(m => m.FilePath == zip));
             Assert.Equal((1, 0), (_service.ImportedCount, _service.FailedCount));
 
             _repository.GetExistingFilePathsAsync(Arg.Any<IEnumerable<string>>())
@@ -470,7 +518,7 @@ public class MediaImportServiceTests
         var registry = Substitute.For<IPluginRegistry>();
         registry.Plugins.Returns(plugins);
         return new MediaImportService(
-            NullLogger<MediaImportService>.Instance, _parser, _repository, _mediaService,
+            NullLogger<MediaImportService>.Instance, _parser, _repository,
             _fingerprints, _analytics, registry, _ffmpeg, _flash, _broker);
     }
 

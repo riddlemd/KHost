@@ -50,7 +50,7 @@ public class SingerQueuePanelRoomMarkRefreshTests : BunitContext
 
         var cache = new JsonFileCacheService(
             NullLogger<JsonFileCacheService>.Instance, Substitute.For<IAnalyticsService>(), _cacheDir);
-        _queue = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, performances, users, Substitute.For<KHost.DataAccess.Repositories.IUsersRepository>(),
+        _queue = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, performances, UsersReadFrom(_userDb), LastSungNever(),
             venues, Substitute.For<IAnalyticsService>(), rotation, _broker);
 
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -100,5 +100,20 @@ public class SingerQueuePanelRoomMarkRefreshTests : BunitContext
         }
 
         base.Dispose(disposing);
+    }
+
+    private static IUsersRepository UsersReadFrom(Dictionary<Guid, KHostUser> userDb)
+    {
+        var repository = Substitute.For<IUsersRepository>();
+        repository.ReadManyAsync(Arg.Any<IEnumerable<Guid>>())
+            .Returns(args => Task.FromResult<List<KHostUser>>([.. ((IEnumerable<Guid>)args[0]).Where(userDb.ContainsKey).Select(id => userDb[id])]));
+        return repository;
+    }
+
+    private static IPerformancesRepository LastSungNever()
+    {
+        var repository = Substitute.For<IPerformancesRepository>();
+        repository.ReadLastSungBySingersAsync(Arg.Any<IEnumerable<Guid>>()).Returns(new Dictionary<Guid, DateTime>());
+        return repository;
     }
 }

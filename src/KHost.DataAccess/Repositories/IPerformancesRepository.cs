@@ -43,6 +43,9 @@ public interface IPerformancesRepository : IRepository<Performance>
     /// <param name="since">UTC; compared against each performance's creation time.</param>
     Task<IReadOnlyDictionary<Guid, int>> CountSungSinceAsync(IEnumerable<Guid> singerIds, DateTime since);
 
+    /// <summary>When each singer last sang; one who never has is absent, not null.</summary>
+    Task<IReadOnlyDictionary<Guid, DateTime>> ReadLastSungBySingersAsync(IEnumerable<Guid> singerIds);
+
     /// <summary>Distinct venues sung at, most recent first; pre-tracking performances skipped.</summary>
     /// <returns>At most <paramref name="count"/> visits; empty when <paramref name="count"/> is zero or less.</returns>
     Task<IReadOnlyList<RecentVenueVisit>> ReadRecentVenueVisitsBySingerAsync(Guid singerId, int count);
