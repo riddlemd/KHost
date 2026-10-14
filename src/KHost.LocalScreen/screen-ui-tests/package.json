@@ -1,0 +1,8 @@
+{
+  "name": "khost-screen-ui-tests",
+  "private": true,
+  "description": "Behaviour tests for the screen page scripts, run with node --test; no dependencies.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
