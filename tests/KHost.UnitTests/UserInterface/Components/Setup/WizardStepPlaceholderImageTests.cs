@@ -111,7 +111,7 @@ public class WizardStepPlaceholderImageTests : BunitContext
 
         await cut.Find(".kh-placeholder-image__image").TriggerEventAsync("onload", new Microsoft.AspNetCore.Components.Web.ProgressEventArgs());
 
-        Assert.Equal("width: 50%", cut.Find(".kh-placeholder-image__image").GetAttribute("style"));
+        Assert.Equal("--kh-original-width: 50%", cut.Find(".kh-placeholder-image__image").GetAttribute("style"));
     }
 
     /// <summary>Only Original sizes the picture itself; every other choice fills the screen's box.</summary>
