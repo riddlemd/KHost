@@ -6,8 +6,9 @@ namespace KHost.UnitTests.UserInterface.Services;
 
 public class FileRevealServiceTests : IDisposable
 {
-    private const string Song = "/karaoke/The Band/song one.mp4";
-    private const string Folder = "/karaoke/The Band";
+    // Built with this OS's separator: the folder comes back from Path, which writes its own.
+    private static readonly string Folder = Path.Combine(Path.DirectorySeparatorChar + "karaoke", "The Band");
+    private static readonly string Song = Path.Combine(Folder, "song one.mp4");
 
     private readonly string _root = Directory.CreateTempSubdirectory("khost-reveal-").FullName;
     private readonly FileRevealService _service = new(NullLogger<FileRevealService>.Instance);
@@ -28,7 +29,7 @@ public class FileRevealServiceTests : IDisposable
     {
         var info = FileRevealService.BuildStartInfo(FileManager.Finder, Song, fileExists: false, folderExists: true)!;
 
-        Assert.Equal(["/karaoke/The Band"], info.ArgumentList);
+        Assert.Equal([Folder], info.ArgumentList);
     }
 
     /// <summary>Explorer reads its own command line; /select and the quoted path must arrive as one argument.</summary>

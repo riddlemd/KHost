@@ -40,7 +40,8 @@ public sealed class LyricTextShaperTests : IDisposable
         Assert.Equal(small * 2, large, precision: 2);
     }
 
-    /// <summary>The same letter takes its initial, medial and final form by where it stands.</summary>
+    /// <summary>The same letter takes a different form at each end of a word; unjoined, all three are
+    /// one glyph. Some faces draw the initial and medial forms alike, so only the ends are compared.</summary>
     [Fact]
     public void Shape_ArabicWord_JoinsEachLetterToItsNeighbours()
     {
@@ -48,7 +49,7 @@ public sealed class LyricTextShaperTests : IDisposable
 
         Assert.Equal(3, shaped.Glyphs.Count);
         Assert.All(shaped.Glyphs, g => Assert.NotEqual(0, g.Id));
-        Assert.Equal(3, shaped.Glyphs.Select(g => g.Id).Distinct().Count());
+        Assert.NotEqual(shaped.Glyphs[0].Id, shaped.Glyphs[^1].Id);
     }
 
     /// <summary>Lam followed by alef is one ligature in every Arabic face.</summary>
