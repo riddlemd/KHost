@@ -205,4 +205,20 @@ public class MonitorSpaceTests
         => Assert.Equal(
             new WindowBounds(left, top, width, height),
             MonitorSpace.ClampInto(new WindowBounds(x, y, w, h), new WindowBounds(0, 0, 1000, 600)));
+
+    [Fact]
+    public void ToWindowSpace_NoMonitorsReported_IsNone()
+        => Assert.Empty(MonitorSpace.ToWindowSpace([], yUp: true));
+
+    /// <summary>A centre on the seam between two side-by-side monitors is on the one to the right.</summary>
+    [Fact]
+    public void MonitorUnder_CentreOnTheSharedEdge_IsTheMonitorThatStartsThere()
+    {
+        var monitors = MonitorSpace.ToWindowSpace([RetinaReported, ExternalReported], yUp: true);
+
+        // Centre x = 1270 + 400 / 2 = 1470, the external's left edge and the primary's right.
+        var monitor = MonitorSpace.MonitorUnder(new WindowBounds(1270, 100, 400, 300), monitors);
+
+        Assert.Equal(1470, monitor.Area.Left);
+    }
 }
