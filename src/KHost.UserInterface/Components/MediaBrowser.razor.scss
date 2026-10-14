@@ -94,9 +94,10 @@
         font-size: 0.85em;
     }
 
+    // Virtualize follows the nearest overflow-y: auto ancestor. The page scrolls as a document, so a
+    // listing that claims to scroll but never does leaves every row past the first screen unrendered.
     &__listing {
         flex: 1;
-        overflow-y: auto;
     }
 
     &__table {
