@@ -31,7 +31,7 @@ public sealed class AppPathsTests : IDisposable
     public void Given_Windows_When_TheDataRootIsResolved_Then_ItIsKHostUnderLocalAppDataNotTheAppFolder()
     {
         // Given
-        const string appFolder = @"C:\Users\someone\AppData\Local\KHost\current\";
+        const string appFolder = @"C:\Users\someone\AppData\Local\KHost.App\current\";
         const string localAppData = @"C:\Users\someone\AppData\Local";
 
         // When

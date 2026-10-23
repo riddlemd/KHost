@@ -1,0 +1,11 @@
+@* Stays up until the operator acts: installing restarts KHost, so it is their call when. Same look as the flash stack. *@
+@if (Updates?.ReadyVersion is { } version)
+{
+    <div class="kh-flash-stack">
+        <div class="kh-flash kh-flash--success" role="status" aria-live="polite">
+            <Icon Name="arrow-clockwise" />
+            <span class="kh-flash__text">KHost @version is ready to install. Restarting clears the singer queue.</span>
+            <button class="kh-button" title="Restart KHost and install the update" @onclick="Restart">Restart to update</button>
+        </div>
+    </div>
+}
