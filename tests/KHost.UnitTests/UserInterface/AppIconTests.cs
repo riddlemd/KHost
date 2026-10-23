@@ -44,7 +44,7 @@ public sealed class AppIconTests : IDisposable
     [MemberData(nameof(WindowPlatforms))]
     public void ResolveWindowIcon_WhenTheFileIsMissing_ReturnsNull(string platform)
     {
-        // Photino throws on a path that does not exist, which would stop the window opening.
+        // A window given a path that does not exist opens with no icon; null says so up front.
         Assert.Null(AppIcon.ResolveWindowIcon(_baseDirectory, OSPlatform.Create(platform)));
     }
 

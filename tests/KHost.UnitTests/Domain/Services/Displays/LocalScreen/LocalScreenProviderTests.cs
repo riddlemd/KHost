@@ -16,6 +16,16 @@ public class LocalScreenProviderTests
     }
 
     [Fact]
+    public void ResolveExePath_RunsFromInsideTheBundle_OnMacOS()
+        => Assert.Equal(
+            Path.Combine("/app", "KHost.LocalScreen.app", "Contents", "MacOS", "KHost.LocalScreen"),
+            LocalScreenProvider.ResolveExePath(null, "/app", isWindows: false, isMacOS: true));
+
+    [Fact]
+    public void ResolveExePath_ConfiguredPath_WinsOnMacOSToo()
+        => Assert.Equal("/custom/screen-app", LocalScreenProvider.ResolveExePath("/custom/screen-app", "/app", isWindows: false, isMacOS: true));
+
+    [Fact]
     public void ResolveExePath_UsesExeAppHost_OnWindows()
     {
         var path = LocalScreenProvider.ResolveExePath(null, "/app", isWindows: true);

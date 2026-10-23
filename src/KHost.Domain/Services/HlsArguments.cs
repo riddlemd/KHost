@@ -52,8 +52,8 @@ internal static class HlsArguments
     private const int GraphicsFramesPerSecond = 30;
 
     /// <summary>EVENT playlist type so a consumer can start on the first segment.</summary>
-    /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and in WKWebView, which is what
-    /// LocalScreen renders through; a display provider's device is a third consumer it also suits.
+    /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and on cast devices; LocalScreen
+    /// renders through stock Chromium, which has no H.264, so it is not one of them.
     /// A frame taller than 1080 lines is Main@5.1, the lowest level that allows one. A display with
     /// no H.264 (Oriel on stock Chromium) is handed <see cref="VideoEncoderProfile.Vp9"/>, which
     /// brings Opus and fMP4 with it, picture or not.</remarks>

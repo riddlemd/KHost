@@ -16,7 +16,7 @@ as a statement from each preset author.
 
 **How the ten were chosen.** Rendered offline in WebGL 2 for 240 frames each, twice: fed silence,
 and fed a synthetic tone. Kept only presets whose mean luminance (0-255) stayed between 15 and 90
-both ways: alive with no input, since an encoded song on WebKit reaches the visualiser as silence
+both ways: alive with no input, since a song with no tap reaches the visualiser as silence
 (see AGENTS.md), and dark enough that the words over it stay the brightest thing on screen. Many
 presets in the pack fail the first test and fade to black in silence. The set measured 18-83.
 

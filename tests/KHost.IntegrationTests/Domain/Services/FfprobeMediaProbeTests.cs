@@ -58,6 +58,33 @@ public class FfprobeMediaProbeTests : IDisposable
         Assert.Empty(probe.AudioTracks);
     }
 
+    [RequiresFfmpegFact]
+    public async Task Probe_AVideo_HasAMovingPicture()
+        => Assert.True((await _probe.ProbeAsync(await CreateSilentMp4Async(seconds: 1)))?.HasMovingPicture);
+
+    [RequiresFfmpegFact]
+    public async Task Probe_AudioOnly_HasNoMovingPicture()
+    {
+        var path = Path.Combine(_workingDirectory, "tone.mp3");
+        await RunFfmpegAsync($"-f lavfi -i sine=frequency=440 -t 1 -c:a libmp3lame \"{path}\"");
+
+        Assert.False((await _probe.ProbeAsync(path))?.HasMovingPicture);
+    }
+
+    /// <summary>Cover art rides along as a one-frame video stream; it is not a picture to play.</summary>
+    [RequiresFfmpegFact]
+    public async Task Probe_AudioWithCoverArt_HasNoMovingPicture()
+    {
+        var cover = Path.Combine(_workingDirectory, "cover.png");
+        await RunFfmpegAsync($"-f lavfi -i color=c=red:s=64x64 -frames:v 1 \"{cover}\"");
+        var path = Path.Combine(_workingDirectory, "covered.mp3");
+        await RunFfmpegAsync(
+            $"-f lavfi -i sine=frequency=440 -t 1 -i \"{cover}\" -map 0:a -map 1:v -c:a libmp3lame -c:v png " +
+            $"-frames:v 1 -disposition:v attached_pic -t 1 \"{path}\"");
+
+        Assert.False((await _probe.ProbeAsync(path))?.HasMovingPicture);
+    }
+
     private async Task<string> CreateSilentMp4Async(int seconds)
     {
         var path = Path.Combine(_workingDirectory, $"silence-{Guid.NewGuid():n}.mp4");

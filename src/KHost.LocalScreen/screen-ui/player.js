@@ -40,10 +40,7 @@ function songClock() {
     // blanks the words and card for as long as a decode outlasts the lead-in.
     if (player && player === stemMixer) return songOffsetSeconds + player.currentTime * songRate;
 
-    // srcObject as well as src: WebKit refuses hls.js's blob: URL on this opaque-origin page, so
-    // the stream is attached as a MediaSource and `src` stays empty. Asking only for `src` reads a
-    // playing song as nothing holding it, and the words never draw on macOS at all.
-    if (!player || (!player.src && !player.srcObject) || player.readyState < 1) return null;
+    if (!player || !player.src || player.readyState < 1) return null;
 
     return songOffsetSeconds + player.currentTime * songRate;
 }
@@ -132,7 +129,7 @@ const placeholder = document.getElementById('placeholder');
 const blanked = document.getElementById('blanked');
 const hostLost = document.getElementById('hostlost');
 
-// Not `chrome`: a global lexical by that name shadows WebView2's window.chrome, which carries its messaging.
+// Not `chrome`: a global lexical by that name shadows Chromium's own window.chrome.
 const screenChrome = createScreenChrome({
     doc: document,
     overlay,
@@ -143,10 +140,9 @@ const screenChrome = createScreenChrome({
     releaseElementTap,
 });
 
+// window.khostScreen is the preload's bridge (preload.js); absent when the page runs in a test.
 function send(payload) {
-    if (window.external && window.external.sendMessage) {
-        window.external.sendMessage(JSON.stringify(payload));
-    }
+    if (window.khostScreen) window.khostScreen.send(JSON.stringify(payload));
 }
 
 function reportError(message) {
@@ -305,25 +301,13 @@ function attach(player, url, autoplay) {
         if (autoplay) el.play().catch((e) => reportError(`play: ${e}`));
     });
     instance.loadSource(url);
-
-    // WebKit refuses hls.js's blob: URL on this opaque-origin page, so this uses srcObject; Chromium's
-    // srcObject throws on a bare MediaSource, so it falls back to attachMedia in a try (else silent).
-    const mediaSource = new MediaSource();
-
-    try {
-        el.srcObject = mediaSource;
-    } catch {
-        instance.attachMedia(el);
-        return;
-    }
-
-    instance.attachMedia({ media: el, mediaSource });
+    instance.attachMedia(el);
 }
 
 // An encoded song is listened to through a capture of its element, never by routing the element
 // into WebAudio: createMediaElementSource takes the element's sound away from the speakers for
 // good, binds it to one context that a sleep can leave dead, and puts the stop fade and the venue
-// level behind a second volume control. Where capture is missing (WebKit), the visualiser draws
+// level behind a second volume control. Where capture is missing, the visualiser draws
 // without the beat rather than risk the song.
 let elementTapContext = null;
 let elementTap = null;
@@ -331,7 +315,7 @@ let elementTap = null;
 function elementAudioSource(el) {
     if (typeof el.captureStream !== 'function') return null;
 
-    const media = el.srcObject || el.currentSrc;
+    const media = el.currentSrc;
     if (!media || el.readyState < 2) return null;
 
     if (elementTap && elementTap.el === el && elementTap.media === media) return elementTap.source;
@@ -340,7 +324,7 @@ function elementAudioSource(el) {
         const stream = el.captureStream();
         if (stream.getAudioTracks().length === 0) return null;
 
-        elementTapContext = elementTapContext || new (window.AudioContext || window.webkitAudioContext)();
+        elementTapContext = elementTapContext || new AudioContext();
         elementTapContext.resume().catch(() => {});
 
         releaseElementTap();
@@ -443,9 +427,6 @@ function waitUnlessSuperseded(ms, stillCurrent) {
 /// Stops an element and lets go of its source, without touching whatever is playing.
 function retire(el) {
     try { el.pause(); } catch { /* ignore */ }
-    // srcObject as well as src: removeAttribute leaves an attached MediaSource in place, and the
-    // next load would then be appending to the source the last song already ended.
-    try { el.srcObject = null; } catch { /* ignore */ }
     try { el.removeAttribute('src'); el.load(); } catch { /* ignore */ }
 }
 
@@ -718,7 +699,6 @@ function onHostLost(message) {
 
 function onVideo(message) {
     // Hidden, not paused: a paused element would drift the moment it's turned back on.
-    // visibility, not display: display:none drops it from the render tree, stalling WebKit's decoder.
     videos.forEach((v) => { v.style.visibility = message.enabled === false ? 'hidden' : ''; });
     // The words and their card hide the same way, and for the same reason: the engine keeps drawing so
     // the words are still on the song when the picture comes back.
@@ -752,10 +732,6 @@ function onHideImage() {
     // clearing its picture got a black screen with nothing on it at all, since show-image
     // had already hidden the card and nothing put it back.
     placeholder.hidden = false;
-}
-
-function onWindowDragNative() {
-    titleBar.nativeDragStarted();
 }
 
 function onWindowState(message) {
@@ -799,7 +775,6 @@ const commandHandlers = {
     'video': onVideo,
     'volume': onVolume,
     'show-image': onShowImage,
-    'window-drag-native': onWindowDragNative,
     'window-state': onWindowState,
     'hide-image': onHideImage,
     'screen-theme': screenChrome.setScreenTheme,
@@ -944,9 +919,7 @@ function reportState() {
     });
 }
 
-if (window.external && window.external.receiveMessage) {
-    window.external.receiveMessage(handleCommand);
-}
+if (window.khostScreen) window.khostScreen.receive(handleCommand);
 
 // Whether this engine decodes only royalty-free formats: stock Chromium (Oriel without its codec
 // runtime) has no H.264 or AAC, so the host must send VP9 and Opus instead.
@@ -955,6 +928,6 @@ function decodesOnlyOpenCodecs() {
     return probe ? !MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401f,mp4a.40.2"') : false;
 }
 
-// Last line on purpose: until this arrives the host doesn't know the screen exists, and a command
-// pushed into a page-less web view crashes the whole process inside Photino's SendWebMessage.
+// Last line on purpose: until this arrives the host doesn't know the screen exists, so no command
+// reaches a page whose handlers are not wired up yet.
 send({ type: 'ready', openCodecsOnly: decodesOnlyOpenCodecs() });

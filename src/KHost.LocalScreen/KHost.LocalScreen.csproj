@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <KHostOrielRid>$(RuntimeIdentifier)</KHostOrielRid>
+    <KHostOrielRid Condition="'$(KHostOrielRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</KHostOrielRid>
+    <OrielMacBundleId>dev.riddlemd.khost.screen</OrielMacBundleId>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -39,7 +45,9 @@
 
   <ItemGroup>
     <!-- Logging comes with the AspNetCore framework reference above. -->
-    <PackageReference Include="Photino.NET" />
+    <PackageReference Include="Oriel" />
+    <!-- CEF itself, for the OS this builds for: the publish RID, else the SDK's own. -->
+    <PackageReference Include="Oriel.Runtime.$(KHostOrielRid)" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Logging" />
     <PackageReference Include="Serilog.Sinks.Console" />
@@ -58,6 +66,7 @@
        so the lookup in Program.cs cannot break on MSBuild's path-to-namespace mangling. -->
   <ItemGroup>
     <EmbeddedResource Include="screen-ui\index.html" LogicalName="screen-ui/index.html" />
+    <EmbeddedResource Include="screen-ui\preload.js" LogicalName="screen-ui/preload.js" />
     <EmbeddedResource Include="screen-ui\hls.light.min.js" LogicalName="screen-ui/hls.light.min.js" />
     <EmbeddedResource Include="screen-ui\title-bar.js" LogicalName="screen-ui/title-bar.js" />
     <EmbeddedResource Include="screen-ui\lyrics-overlay.js" LogicalName="screen-ui/lyrics-overlay.js" />

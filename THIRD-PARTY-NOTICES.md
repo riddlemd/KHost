@@ -22,7 +22,7 @@ These ship inside a KHost build (host and/or screen app, or the browser assets).
 | Component | Version | Used in | License | Copyright / Author |
 |---|---|---|---|---|
 | FFMpegCore | 5.4.0 | host | MIT | Malte Rosenbjerg and contributors |
-| Photino.NET | 4.0.16 | host, screen | Apache-2.0 | TryPhotino |
+| Oriel (with CEF and Chromium in `Oriel.Runtime.<rid>`) | 1.0.0 | host, screen | MIT (CEF: BSD-3-Clause; Chromium: BSD-3-Clause and the licenses in its `credits.html`) | riddlemd / Marshall A. Greenblatt / The Chromium Authors |
 | QRCoder | 1.6.0 | host | MIT | Raffael Herrmann |
 | SkiaSharp / HarfBuzzSharp (with their Win32, macOS and Linux native assets) | SkiaSharp 3.119.3-preview.1.1; HarfBuzzSharp 8.3.1.3 | host (burned-in words) | MIT (Skia: BSD-3-Clause; HarfBuzz: Old MIT) | Microsoft / Google / HarfBuzz contributors |
 | Konscious.Security.Cryptography.Argon2 | 1.3.1 | host | MIT | Keef Aragon |
@@ -44,7 +44,7 @@ License texts:
 - MIT and BSD-3-Clause are reproduced in [§4](#4-common-license-texts).
 - Apache-2.0: [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt)
   (https://www.apache.org/licenses/LICENSE-2.0) — retain each project's `NOTICE`
-  file where provided. Photino.NET and Photino.Native ship no `NOTICE` file.
+  file where provided.
 - Skia / HarfBuzz native library notices, for the SkiaSharp / HarfBuzzSharp row
   above: [`licenses/SkiaSharp-native-THIRD-PARTY-NOTICES.txt`](licenses/SkiaSharp-native-THIRD-PARTY-NOTICES.txt)
   (the native asset packages' own bundled third-party notices, identical across

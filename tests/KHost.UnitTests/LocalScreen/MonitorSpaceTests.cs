@@ -2,101 +2,47 @@ using KHost.LocalScreen;
 
 namespace KHost.UnitTests.LocalScreen;
 
-/// <summary>Photino reports macOS monitors bottom-up and places windows top-down.</summary>
+/// <summary>Monitors as Oriel reports them: DIPs, top-down from the primary's top-left.</summary>
 public class MonitorSpaceTests
 {
-    // Measured on a 2x Retina laptop (points) with a 1x 1920x1080 display to its right, 124pt lower.
-    private static readonly (WindowBounds Area, WindowBounds WorkArea) RetinaReported =
-        (new(0, 0, 1470, 956), new(0, 0, 1470, 922));
+    // Measured on a 2x Retina laptop (points) with a 1x 1920x1080 display to its right; each work
+    // area starts under its own menu bar.
+    private static readonly ScreenMonitor Retina = new(new(0, 0, 1470, 956), new(0, 34, 1470, 922));
 
-    private static readonly (WindowBounds Area, WindowBounds WorkArea) ExternalReported =
-        (new(1470, -124, 1920, 1080), new(1470, -124, 1920, 1049));
+    private static readonly ScreenMonitor External = new(new(1470, 0, 1920, 1080), new(1470, 31, 1920, 1049));
 
-    /// <summary>The overshoot: placed at the raw y of -124, AppKit pushes the window down to just
-    /// under the external's menu bar, and a window sized to the monitor ends 31pt off its bottom.</summary>
-    [Fact]
-    public void ToWindowSpace_MacExternalMonitorBelowThePrimary_PutsTheWorkAreaUnderItsMenuBar()
-    {
-        var monitors = MonitorSpace.ToWindowSpace([RetinaReported, ExternalReported], yUp: true);
+    private static readonly IReadOnlyList<ScreenMonitor> Monitors = [Retina, External];
 
-        Assert.Equal(new WindowBounds(1470, 0, 1920, 1080), monitors[1].Area);
-        Assert.Equal(new WindowBounds(1470, 31, 1920, 1049), monitors[1].WorkArea);
-        Assert.Equal(monitors[1].Area.Bottom, monitors[1].WorkArea.Bottom);
-    }
-
-    [Theory]
-    // Retina primary, menu bar only: 34pt off the top.
-    [InlineData(0, 0, 1470, 922, 956, 0, 34, 1470, 922)]
-    // Retina primary with a 70pt dock: AppKit raises the work area's origin by the dock.
-    [InlineData(0, 70, 1470, 852, 956, 0, 34, 1470, 852)]
-    // A monitor stacked above the primary sits at a negative top.
-    [InlineData(0, 956, 1920, 1080, 956, 0, -1080, 1920, 1080)]
-    public void ToWindowSpace_MacRect_FlipsAboutThePrimarysHeight(
-        int x, int y, int w, int h, int primaryHeight, int left, int top, int width, int height)
-        => Assert.Equal(
-            new WindowBounds(left, top, width, height),
-            MonitorSpace.ToWindowSpace(new WindowBounds(x, y, w, h), primaryHeight, yUp: true));
-
-    /// <summary>Windows reports monitors and places windows in the same device pixels, top-down,
-    /// whatever each monitor's scale; the rects pass through.</summary>
-    [Theory]
-    [InlineData(0, 0, 2880, 1680)]       // 150% 1920x1080 with a taskbar, in device pixels
-    [InlineData(2880, 0, 2400, 1290)]    // 125% 1920x1080 to its right
-    [InlineData(-1920, -200, 1920, 1040)] // 100% to the left and higher
-    public void ToWindowSpace_Windows_LeavesTheRectAlone(int x, int y, int w, int h)
-    {
-        var rect = new WindowBounds(x, y, w, h);
-        var monitors = MonitorSpace.ToWindowSpace([(new(0, 0, 2880, 1728), new(0, 0, 2880, 1680)), (rect, rect)], yUp: false);
-
-        Assert.Equal(rect, monitors[1].WorkArea);
-    }
-
-    [Fact]
-    public void ToWindowSpace_PrimaryListedSecond_StillFlipsAboutThePrimary()
-    {
-        var monitors = MonitorSpace.ToWindowSpace([ExternalReported, RetinaReported], yUp: true);
-
-        Assert.Equal(31, monitors[0].WorkArea.Top);
-        Assert.Equal(34, monitors[1].WorkArea.Top);
-    }
+    private static readonly WindowBounds Fallback = new(80, 80, 1280, 720);
 
     [Fact]
     public void MonitorUnder_WindowOnAMonitorAboveThePrimary_FindsThatMonitor()
     {
-        var above = (new WindowBounds(0, 956, 1920, 1080), new WindowBounds(0, 956, 1920, 1049));
-        var monitors = MonitorSpace.ToWindowSpace([RetinaReported, above], yUp: true);
+        var above = new ScreenMonitor(new(0, -1080, 1920, 1080), new(0, -1049, 1920, 1049));
 
-        // Raw, the upper monitor's rect spans y 956..2036 and this window, at y -900, matches neither.
-        var monitor = MonitorSpace.MonitorUnder(new WindowBounds(100, -900, 1280, 720), monitors);
+        var monitor = MonitorSpace.MonitorUnder(new WindowBounds(100, -900, 1280, 720), [Retina, above]);
 
-        // Its own menu bar takes the top 31pt of the 1080 above the primary.
-        Assert.Equal(new WindowBounds(0, -1049, 1920, 1049), monitor.WorkArea);
+        Assert.Equal(above, monitor);
     }
 
     [Fact]
     public void MonitorUnder_CentreOffEveryMonitor_TakesTheOneItOverlapsMost()
     {
-        var monitors = MonitorSpace.ToWindowSpace([RetinaReported, ExternalReported], yUp: true);
-
         // Centre below both displays, but most of the window is on the external.
-        var monitor = MonitorSpace.MonitorUnder(new WindowBounds(1400, 700, 1000, 900), monitors);
+        var monitor = MonitorSpace.MonitorUnder(new WindowBounds(1400, 700, 1000, 900), Monitors);
 
         Assert.Equal(1470, monitor.Area.Left);
     }
 
+    /// <summary>A centre on the seam between two side-by-side monitors is on the one to the right.</summary>
     [Fact]
-    public void FullScreenArea_MacOS_IsTheWorkAreaBecauseTheMenuBarPinsTheWindow()
+    public void MonitorUnder_CentreOnTheSharedEdge_IsTheMonitorThatStartsThere()
     {
-        var external = MonitorSpace.ToWindowSpace([RetinaReported, ExternalReported], yUp: true)[1];
+        // Centre x = 1270 + 400 / 2 = 1470, the external's left edge and the primary's right.
+        var monitor = MonitorSpace.MonitorUnder(new WindowBounds(1270, 100, 400, 300), Monitors);
 
-        Assert.Equal(external.WorkArea, MonitorSpace.FullScreenArea(external, menuBarPinsWindows: true));
-        Assert.Equal(external.Area, MonitorSpace.FullScreenArea(external, menuBarPinsWindows: false));
+        Assert.Equal(1470, monitor.Area.Left);
     }
-
-    private static readonly IReadOnlyList<ScreenMonitor> Monitors =
-        MonitorSpace.ToWindowSpace([RetinaReported, ExternalReported], yUp: true);
-
-    private static readonly WindowBounds Fallback = new(80, 80, 1280, 720);
 
     [Fact]
     public void Fit_InsideAWorkArea_IsUnchanged()
@@ -133,6 +79,14 @@ public class MonitorSpaceTests
         Assert.Equal(new WindowBounds(1470, 31, 1920, 1049), fitted);
     }
 
+    [Fact]
+    public void Fit_NoMonitorsReported_LeavesTheWindowWhereItWas()
+    {
+        var remembered = new WindowBounds(5000, 5000, 1280, 720);
+
+        Assert.Equal(remembered, MonitorSpace.Fit(remembered, [], Fallback));
+    }
+
     /// <summary>Alone, a full-screen screen would cover the console the show is driven from.</summary>
     [Theory]
     [InlineData(true, false, 1, false)]
@@ -164,15 +118,13 @@ public class MonitorSpaceTests
     {
         var window = new WindowBounds(80, 80, 1280, 720);
 
-        Assert.Equal(window, MonitorSpace.OntoSecondary(window, [Monitors[0]]));
+        Assert.Equal(window, MonitorSpace.OntoSecondary(window, [Retina]));
     }
 
     [Fact]
     public void OntoSecondary_PrimaryListedSecond_StillMovesOffThePrimary()
     {
-        var monitors = MonitorSpace.ToWindowSpace([ExternalReported, RetinaReported], yUp: true);
-
-        var placed = MonitorSpace.OntoSecondary(new WindowBounds(80, 80, 1280, 720), monitors);
+        var placed = MonitorSpace.OntoSecondary(new WindowBounds(80, 80, 1280, 720), [External, Retina]);
 
         Assert.Equal(1470 + ((1920 - 1280) / 2), placed.Left);
     }
@@ -183,14 +135,6 @@ public class MonitorSpaceTests
         var placed = MonitorSpace.OntoSecondary(new WindowBounds(0, 0, 2000, 1200), Monitors);
 
         Assert.Equal(new WindowBounds(1470, 31, 1920, 1049), placed);
-    }
-
-    [Fact]
-    public void Fit_NoMonitorsReported_LeavesTheWindowWhereItWas()
-    {
-        var remembered = new WindowBounds(5000, 5000, 1280, 720);
-
-        Assert.Equal(remembered, MonitorSpace.Fit(remembered, [], Fallback));
     }
 
     [Theory]
@@ -205,20 +149,4 @@ public class MonitorSpaceTests
         => Assert.Equal(
             new WindowBounds(left, top, width, height),
             MonitorSpace.ClampInto(new WindowBounds(x, y, w, h), new WindowBounds(0, 0, 1000, 600)));
-
-    [Fact]
-    public void ToWindowSpace_NoMonitorsReported_IsNone()
-        => Assert.Empty(MonitorSpace.ToWindowSpace([], yUp: true));
-
-    /// <summary>A centre on the seam between two side-by-side monitors is on the one to the right.</summary>
-    [Fact]
-    public void MonitorUnder_CentreOnTheSharedEdge_IsTheMonitorThatStartsThere()
-    {
-        var monitors = MonitorSpace.ToWindowSpace([RetinaReported, ExternalReported], yUp: true);
-
-        // Centre x = 1270 + 400 / 2 = 1470, the external's left edge and the primary's right.
-        var monitor = MonitorSpace.MonitorUnder(new WindowBounds(1270, 100, 400, 300), monitors);
-
-        Assert.Equal(1470, monitor.Area.Left);
-    }
 }

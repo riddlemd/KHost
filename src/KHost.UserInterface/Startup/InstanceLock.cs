@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Photino.NET;
+using Oriel;
+using KHost.Common.Storage;
 
 namespace KHost.UserInterface.Startup;
 
@@ -11,14 +12,14 @@ internal static class InstanceLock
     internal const int AlreadyRunningExitCode = 1;
 
     /// <summary>Holds an exclusive handle on the lock file, or null when another instance has it.</summary>
-    /// <remarks>Scoped to the install directory, so separate installs may coexist.</remarks>
+    /// <remarks>Scoped to the data folder: two hosts on one library would corrupt it.</remarks>
     internal static FileStream? TryAcquire()
     {
         try
         {
             // FileShare.None, and the OS drops the handle even on a kill, so the lock cannot go stale.
             return new FileStream(
-                Path.Combine(AppContext.BaseDirectory, InstanceLockFileName),
+                Path.Combine(AppPaths.DataRoot, InstanceLockFileName),
                 FileMode.OpenOrCreate,
                 FileAccess.ReadWrite,
                 FileShare.None);
@@ -41,25 +42,22 @@ internal static class InstanceLock
             return;
         }
 
-        // ShowMessage crashes on a window the native layer has not built yet, so the dialog has to
-        // be raised from inside the created handler, which is why a throwaway window hosts it.
-        PhotinoWindow? window = null;
-        window = new PhotinoWindow()
-            .SetTitle("KHost")
-            .SetAppIcon(NullLogger.Instance)
-            .SetUseOsDefaultSize(false)
-            .SetSize(1, 1)
-            .RegisterWindowCreatedHandler((_, _) =>
+        // A window-less app: the dialog is all this process shows before it exits.
+        var app = OrielApp.Create("KHost");
+        // Not the running window's profile, which that window's Chromium holds locked.
+        app.SetPath("userData", Path.Combine(Path.GetTempPath(), "khost-instance-dialog"));
+        app.Ready += (_, _) =>
+        {
+            MacDockIcon.TrySet(NullLogger.Instance);
+            Dialog.ShowMessageBoxSync(new MessageBoxOptions
             {
-                MacDockIcon.TrySet(NullLogger.Instance);
-                window!.ShowMessage("KHost", Message, PhotinoDialogButtons.Ok, PhotinoDialogIcon.Warning);
-
-                // Close() here does not break out of WaitForClose, which would leave the process
-                // pumping an invisible window forever. Showing the dialog is all this process does.
-                Environment.Exit(AlreadyRunningExitCode);
-            })
-            .LoadRawString("<html><body></body></html>");
-
-        window.WaitForClose();
+                Type = MessageBoxType.Warning,
+                Title = "KHost",
+                Message = Message,
+                Buttons = ["OK"],
+            });
+            app.Quit();
+        };
+        app.Run();
     }
 }

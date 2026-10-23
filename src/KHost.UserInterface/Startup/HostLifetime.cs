@@ -30,8 +30,8 @@ internal static class HostLifetime
             LaunchStartupScreen(app);
         });
 
-        // Screens we started are ours to close: on macOS closing the window tears the process down
-        // inside Photino, so container disposal never runs and a screen would be left announcing a lost host.
+        // Screens we started are ours to close, before the host's container goes: a screen left
+        // running would keep announcing a lost host.
         app.Lifetime.ApplicationStopping.Register(() =>
         {
             // Told first: this bypasses LocalScreenDisplayProvider.DisconnectAsync for the reliable

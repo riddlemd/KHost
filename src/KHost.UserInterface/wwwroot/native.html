@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<!-- The console window's host page (Blazor Hybrid). Components/App.razor is the same page for a browser tab: keep
+     the stylesheets and scripts of the two in step. -->
+<html lang="en" data-bs-theme="dark" data-kh-surface="native">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="KHost.UserInterface.styles.css" />
+    <script src="_khost/shell.js"></script>
+</head>
+
+<body>
+    <!-- Out of the layout: the page's flex layout is body's, as it is where a browser tab renders into body. -->
+    <div id="app" style="display: contents"></div>
+    <script src="_framework/blazor.webview.js" autostart="true"></script>
+    <script src="js/scroll-utils.js"></script>
+    <script src="js/page-lifecycle.js"></script>
+    <script src="js/browser-keys.js"></script>
+    <script src="js/Sortable.min.js"></script>
+    <script src="js/sortable-interop.js"></script>
+    <script src="js/visualiser-preview-interop.js"></script>
+    <script src="js/shortcuts.js"></script>
+</body>
+
+</html>

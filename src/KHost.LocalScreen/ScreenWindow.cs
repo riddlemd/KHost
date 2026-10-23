@@ -1,5 +1,4 @@
-using System.Drawing;
-using Photino.NET;
+using Oriel;
 
 namespace KHost.LocalScreen;
 
@@ -27,43 +26,14 @@ internal interface IScreenWindow
 
     void SetLocation(int left, int top);
 
-    /// <summary>Hands a move of the whole window to the OS's own drag, where there is one to hand it to.</summary>
-    /// <returns>False, with why, when the window must be dragged by hand.</returns>
-    bool TryBeginNativeMove(out string detail);
-
     void Minimise();
 
     void Close();
 }
 
-/// <summary>Monitor geometry in the window's own space, and the rules that place a window on it.</summary>
+/// <summary>The rules that place a window on the monitors, all in Oriel's DIPs from the primary's top-left.</summary>
 internal static class MonitorSpace
 {
-    /// <summary>Moves a monitor rect Photino reported into the space window positions are in.</summary>
-    /// <remarks>On macOS Photino hands back AppKit's screen rects as they are — origin at the primary
-    /// monitor's bottom-left, y growing upwards — while it places windows from the top-left, y
-    /// growing down. Used unflipped, a monitor offset vertically from the primary gets a top that
-    /// is really its bottom, and AppKit then nudges the window below the menu bar, pushing its
-    /// bottom off the display. Both are points on macOS and device pixels on Windows, so only the
-    /// axis differs, never the scale.</remarks>
-    internal static WindowBounds ToWindowSpace(WindowBounds reported, int primaryHeight, bool yUp)
-        => yUp ? reported with { Top = primaryHeight - reported.Bottom } : reported;
-
-    /// <summary>All of Photino's monitors, in window space.</summary>
-    internal static IReadOnlyList<ScreenMonitor> ToWindowSpace(
-        IReadOnlyList<(WindowBounds Area, WindowBounds WorkArea)> reported, bool yUp)
-    {
-        if (reported.Count == 0) return [];
-
-        // AppKit's primary is the one at the origin; every other screen is placed relative to it.
-        var primary = reported.FirstOrDefault(m => m.Area.Left == 0 && m.Area.Top == 0, reported[0]);
-        var height = primary.Area.Height;
-
-        return reported
-            .Select(m => new ScreenMonitor(ToWindowSpace(m.Area, height, yUp), ToWindowSpace(m.WorkArea, height, yUp)))
-            .ToList();
-    }
-
     /// <summary>The monitor under the window's centre, else the one it overlaps most, else the first.</summary>
     /// <remarks>A venue drives the console on one display and the screen on a television; taking
     /// the first monitor would drag the screen off the television and onto the console mid-show.
@@ -82,13 +52,6 @@ internal static class MonitorSpace
 
         return monitors.MaxBy(m => Overlap(window, m.WorkArea));
     }
-
-    /// <summary>What a window grown to full screen can cover.</summary>
-    /// <remarks>AppKit pins a window's top below the menu bar however it is placed, so a window the
-    /// monitor's full height is pushed down and its bottom edge — where a QR code sits — is off the
-    /// display. On macOS the grown window therefore fills the work area.</remarks>
-    internal static WindowBounds FullScreenArea(ScreenMonitor monitor, bool menuBarPinsWindows)
-        => menuBarPinsWindows ? monitor.WorkArea : monitor.Area;
 
     /// <summary>Where a remembered window should open on the monitors there are now.</summary>
     /// <remarks>A remembered rect can be perfectly sensible and still land nowhere: a venue runs the
@@ -173,38 +136,25 @@ internal static class MonitorSpace
     }
 }
 
-internal sealed class PhotinoScreenWindow(PhotinoWindow window) : IScreenWindow
+/// <remarks>Oriel reports windows and displays alike in DIPs from the primary's top-left, so its
+/// rects are window space as they come.</remarks>
+internal sealed class OrielScreenWindow(BrowserWindow window) : IScreenWindow
 {
-    public WindowBounds Bounds => new(window.Left, window.Top, window.Width, window.Height);
+    public WindowBounds Bounds => ToBounds(window.GetBounds());
 
     public WindowBounds WorkArea => MonitorSpace.MonitorUnder(Bounds, Monitors).WorkArea;
 
     public IReadOnlyList<ScreenMonitor> Monitors
-        => MonitorSpace.ToWindowSpace(
-            window.Monitors.Select(m => (ToBounds(m.MonitorArea), ToBounds(m.WorkArea))).ToList(),
-            OperatingSystem.IsMacOS());
+        => [.. Screen.GetAllDisplays().Select(d => new ScreenMonitor(ToBounds(d.Bounds), ToBounds(d.WorkArea)))];
 
-    // Size before place: shrinking at the old origin first never pushes an edge off the monitor.
     public void SetBounds(WindowBounds bounds)
-    {
-        window.SetSize(new Size(bounds.Width, bounds.Height));
-        window.SetLocation(new Point(bounds.Left, bounds.Top));
-    }
+        => window.SetBounds(new Rectangle(bounds.Left, bounds.Top, bounds.Width, bounds.Height));
 
-    public void SetLocation(int left, int top) => window.SetLocation(new Point(left, top));
+    public void SetLocation(int left, int top) => window.SetPosition(left, top);
 
-    public bool TryBeginNativeMove(out string detail)
-    {
-        if (OperatingSystem.IsMacOS())
-            return MacWindowDrag.TryBegin(out detail);
+    public void Minimise() => window.Minimize();
 
-        detail = "no native drag on this OS";
-        return false;
-    }
-
-    public void Minimise() => window.SetMinimized(true);
-
-    // The same exit the OS close button took: WaitForClose returns and Main's cleanup runs.
+    // The same exit the OS close button takes: the last window closing ends OrielApp.Run.
     public void Close() => window.Close();
 
     private static WindowBounds ToBounds(Rectangle r) => new(r.X, r.Y, r.Width, r.Height);

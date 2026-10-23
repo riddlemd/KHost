@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using KHost.IPC.SignalR.Contracts;
 using Microsoft.Extensions.Logging;
+using KHost.Common.Storage;
 
 namespace KHost.Domain.Services.Displays.LocalScreen;
 
@@ -15,7 +16,7 @@ public sealed class FileScreenKeyStore : IScreenKeyStore
     private readonly ILogger<FileScreenKeyStore> _logger;
 
     public FileScreenKeyStore(ILogger<FileScreenKeyStore> logger)
-        : this(Path.Combine(AppContext.BaseDirectory, "cache", "screens"), logger)
+        : this(Path.Combine(AppPaths.Cache, "screens"), logger)
     {
     }
 

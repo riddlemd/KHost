@@ -16,6 +16,12 @@ public sealed record MediaProbeResult
     /// where the host can only guess from whatever the muxer happened to call them.</remarks>
     public IReadOnlyList<AudioTrack> AudioTracks { get; init; } = [];
 
+    /// <summary>Whether it carries a moving picture of its own to play: video, not a cover image.
+    /// Null when the probe does not say, which a reader takes as none.</summary>
+    /// <remarks>Answered by whoever reads the file, so the host never runs ffprobe on a container
+    /// only a plugin understands.</remarks>
+    public bool? HasMovingPicture { get; init; }
+
     /// <summary>Container-level tags, matched without regard to case.</summary>
     /// <remarks>Tag names are case-preserving per muxer but effectively case-insensitive across
     /// them, so a reader must not depend on how one file happened to spell one.</remarks>

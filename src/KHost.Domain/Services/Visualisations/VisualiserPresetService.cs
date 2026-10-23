@@ -5,6 +5,7 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using KHost.Common.Storage;
 
 namespace KHost.Domain.Services.Visualisations;
 
@@ -97,7 +98,7 @@ public sealed class VisualiserPresetService : IVisualiserPresetService
     {
         _logger = logger;
         _broker = broker;
-        _directory = directory ?? Path.Combine(AppContext.BaseDirectory, "cache", "visualiser-presets");
+        _directory = directory ?? Path.Combine(AppPaths.Cache, "visualiser-presets");
     }
 
     public IReadOnlyList<VisualiserPreset> ReadAll()

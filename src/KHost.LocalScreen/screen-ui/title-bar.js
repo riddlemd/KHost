@@ -1,7 +1,6 @@
 // The window is chromeless on every OS, so its buttons, its drag (the strip along the top and the
 // whole picture) and its resize edges are drawn here and carried out by WindowChrome in .NET. Dragging is driven from the pointer rather
-// than CSS app-region: WKWebView and WebKitGTK have no such region, and WebView2 honours it only
-// with a setting Photino does not expose.
+// than CSS app-region, which would leave a double-click on the picture and a drag threshold to the OS.
 
 /// Pointer travel before a press on the strip becomes a drag. Without it, the first press of a
 /// double-click on a maximised window would restore it before the second press arrives.
@@ -161,13 +160,6 @@ function createTitleBar({ doc, send, requestFrame, setTimer = setTimeout, clearT
             maximiseButton.setAttribute('aria-label', label);
 
             if (fullScreen && gesture) finish();
-        },
-
-        /// From WindowChrome: the OS has taken the drag, and holds the pointer until it is let go.
-        nativeDragStarted() {
-            if (!gesture) return;
-            gesture.started = false;
-            finish();
         },
     };
 }

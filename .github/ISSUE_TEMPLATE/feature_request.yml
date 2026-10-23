@@ -39,7 +39,7 @@ body:
       options:
         - Console / singer queue
         - Media library, search, or import
-        - Screen output (Photino / video)
+        - Screen output (video)
         - Chromecast
         - Plugins & provider SDK
         - Settings & venue configuration

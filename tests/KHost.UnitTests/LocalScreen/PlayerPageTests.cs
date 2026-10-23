@@ -11,7 +11,7 @@ public class PlayerPageTests
         var page = Program.BuildPlayerPage();
 
         // A marker from player.js itself: the page must carry the source, not a reference to it.
-        Assert.Contains("window.external.sendMessage", page);
+        Assert.Contains("window.khostScreen.send", page);
         Assert.DoesNotContain("<script src=\"player.js\"></script>", page);
     }
 
@@ -136,36 +136,15 @@ public class PlayerPageTests
         Assert.DoesNotContain("canPlayType", page, StringComparison.Ordinal);
     }
 
-    // Left to itself hls.js attaches via URL.createObjectURL, but the page is a raw string in the
-    // web view, so that URL is blob:null/…, which WebKit refuses silently; macOS played nothing.
+    // hls.js owns the MediaSource and its URL: a second attach path is how the screen went black
+    // once, and srcObject left behind outlives a teardown that only clears src.
     [Fact]
-    public void BuildPlayerPage_Always_AttachesTheMediaSourceItselfRatherThanLettingHlsMintAUrl()
+    public void BuildPlayerPage_Always_LetsHlsAttachTheElementItself()
     {
         var page = Program.BuildPlayerPage();
 
-        Assert.Contains("el.srcObject = mediaSource", page, StringComparison.Ordinal);
-        Assert.Contains("instance.attachMedia({ media: el, mediaSource })", page, StringComparison.Ordinal);
-    }
-
-    // Chromium's srcObject throws TypeError on a bare MediaSource, so the attach above cannot be
-    // the only way in; unguarded it abandoned load() mid-call and the Windows screen went black.
-    [Fact]
-    public void BuildPlayerPage_Always_FallsBackWhenSrcObjectRefusesTheMediaSource()
-    {
-        var page = Program.BuildPlayerPage();
-
-        Assert.Contains("try {", page, StringComparison.Ordinal);
         Assert.Contains("instance.attachMedia(el);", page, StringComparison.Ordinal);
-    }
-
-    // teardown clears src; an attached MediaSource outlives that, and the next song would then
-    // append to the source the last one already ended.
-    [Fact]
-    public void BuildPlayerPage_Always_ClearsSrcObjectOnTeardown()
-    {
-        var page = Program.BuildPlayerPage();
-
-        Assert.Contains("el.srcObject = null", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("srcObject", page, StringComparison.Ordinal);
     }
 
     [Fact]

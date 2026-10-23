@@ -2,6 +2,7 @@ using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using KHost.Common.Storage;
 
 namespace KHost.Domain.Services;
 
@@ -18,7 +19,7 @@ public class JsonFileCacheService : ICacheService
     {
         _logger = logger;
         _analytics = analytics;
-        _directory = directory ?? Path.Combine(AppContext.BaseDirectory, "cache");
+        _directory = directory ?? AppPaths.Cache;
     }
 
     public async Task<T?> LoadAsync<T>(string key)

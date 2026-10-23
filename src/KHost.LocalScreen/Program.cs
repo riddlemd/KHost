@@ -1,18 +1,23 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using KHost.IPC.SignalR;
 using Microsoft.Extensions.Logging;
-using Photino.NET;
+using Oriel;
 using Serilog;
 using Serilog.Events;
+using KHost.Common.Storage;
 
 namespace KHost.LocalScreen;
 
 internal static class Program
 {
+    /// <summary>The one IPC channel between the page and this process; preload.js names it too.</summary>
+    private const string PageChannel = "screen";
+
     private static ScreenIpcController? _ipc;
     private static WindowPlacementStore? _placement;
     private static WindowChrome? _chrome;
-    private static PhotinoScreenWindow? _screenWindow;
+    private static OrielScreenWindow? _screenWindow;
 
     /// <summary>A first run's window: small enough to fit any monitor rather than fill whatever it landed on.</summary>
     private static readonly WindowBounds DefaultBounds = new(80, 80, 1280, 720);
@@ -22,10 +27,12 @@ internal static class Program
     private static int _restoreLeft, _restoreTop, _restoreWidth, _restoreHeight;
 
     [STAThread]
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
         var serverUri = GetArg(args, "--server-uri") ?? "http://localhost:5000/ipc/screen";
         var screenId = GetArg(args, "--screen-id") ?? Environment.MachineName;
+
+        var app = OrielApp.Create("KHost Screen");
         var authKey = ReadAuthKey(GetArg(args, "--key-file"));
 
         var logLevel = ParseLogLevel(GetArg(args, "--log-level"));
@@ -43,7 +50,7 @@ internal static class Program
             player,
             loggerFactory.CreateLogger<ScreenIpcController>());
 
-        _placement = new WindowPlacementStore(screenId, AppContext.BaseDirectory, logger);
+        _placement = new WindowPlacementStore(screenId, AppPaths.DataRoot, logger);
 
         // Where this screen was last left; checked against the monitors once the window exists.
         var stored = _placement.Read();
@@ -58,99 +65,119 @@ internal static class Program
                 : "Restoring window placement {Left},{Top} {Width}x{Height} (full screen {FullScreen}, maximised {Maximised})",
             left, top, width, height, stored?.FullScreen ?? false, stored?.Maximised ?? false);
 
-        PhotinoWindow? window = null;
+        // Every screen is its own process, and two on one profile would fight over Chromium's lock on it.
+        app.SetPath("userData", ProfileDirectory(screenId));
+        // Songs start on a command from the host, never on a click in this window.
+        app.CommandLine.AppendSwitch("autoplay-policy", "no-user-gesture-required");
+
+        BrowserWindow? window = null;
         var ready = false;
-        window = new PhotinoWindow()
-            .SetTitle("KHost Screen")
-            .SetAppIcon(logger)
-            .RegisterWindowCreatedHandler((_, _) => MacDockIcon.TrySet(logger))
+
+        void SendToPage(string json) => window!.WebContents.Send(PageChannel, JsonValue.Create(json));
+
+        IpcMain.On(PageChannel, e =>
+        {
+            if (e.Args is not [{ ValueKind: JsonValueKind.String } argument]) return;
+            var message = argument.GetString()!;
+
+            // The page saying it is wired up: nothing is sent to it before this.
+            if (message.Contains("\"ready\"", StringComparison.Ordinal) && !ready)
+            {
+                ready = true;
+                var openCodecsOnly = ReadsOpenCodecsOnly(message);
+
+                player.SendToBrowser = SendToPage;
+                _chrome!.SendToPage = SendToPage;
+                _chrome.PublishState();
+
+                _ = ConnectUntilUpAsync(
+                    cancellationToken => _ipc!.ConnectAsync(serverUri, screenId, authKey, openCodecsOnly, cancellationToken),
+                    () => _ipc!.LastRefusalReason, logger, serverUri, Task.Delay, _closing.Token);
+                // Position keeps the host's playhead live between commands, which only report
+                // on completion; the resync keeps those reports' stamps honest as clocks drift.
+                _ = RepeatAsync(TimeSpan.FromSeconds(1), () => _ipc!.SendCurrentStateAsync(), logger, _closing.Token);
+                _ = RepeatAsync(TimeSpan.FromMinutes(5), () => _ipc!.ResyncClockAsync(), logger, _closing.Token);
+
+                // Before full screen, and here rather than at construction because both need a
+                // window that exists — the page being ready is the first moment that is true.
+                var movedToSecondary = FitOntoMonitors(_screenWindow!, logger);
+
+                // After the fit, so un-maximising returns to a rect that is on a monitor now.
+                if (stored?.Maximised == true && !movedToSecondary)
+                    _chrome!.Maximise();
+
+                // Unreadable monitors count as one: a window is the safe way to open.
+                int monitorCount;
+                try { monitorCount = _screenWindow!.Monitors.Count; }
+                catch { monitorCount = 1; }
+
+                if (MonitorSpace.LaunchesFullScreen(stored?.FullScreen == true, movedToSecondary, monitorCount))
+                    SetFullScreen(window!, true, logger);
+                else if (stored?.FullScreen == true)
+                    logger.LogInformation("Opening as a window: full screen waits for a second monitor");
+
+                return;
+            }
+
+            // Parsed once here: the player and the window each route on the same type.
+            JsonDocument document;
+            try { document = JsonDocument.Parse(message); }
+            catch (JsonException) { return; }
+
+            using (document)
+            {
+                var root = document.RootElement;
+                if (!player.HandleBrowserMessage(root, message) && !_chrome!.Handle(root))
+                    HandleWindowMessage(window!, root, logger);
+            }
+        });
+
+        app.Ready += (_, _) =>
+        {
+            var page = WritePlayerPage();
+
+            window = new BrowserWindow(new BrowserWindowOptions
+            {
+                Title = "KHost Screen",
+                // The page draws the window buttons, a drag strip along the top and the edges
+                // (title-bar.js), the same on every OS, and hides them in full screen.
+                Frame = false,
+                X = left,
+                Y = top,
+                Width = width,
+                Height = height,
+                BackgroundColor = "#000000",
+                Icon = AppIcon.ResolveWindowIcon(AppContext.BaseDirectory, AppIcon.CurrentPlatform),
+                WebPreferences = new WebPreferences
+                {
+                    Preload = page.Preload,
 #if !DEBUG
-            .SetDevToolsEnabled(false)
+                    DevTools = false,
 #endif
-            // Photino logs every SendWebMessage into the host's inherited stdout.
-            .SetLogVerbosity(0)
-            // The page draws the window buttons, a drag strip along the top and the edges
-            // (title-bar.js), the same on every OS, and hides them in full screen. Chromeless cannot change after creation, which is why
-            // full screen is a resize rather than a switch of frame.
-            .SetChromeless(true)
-            .SetUseOsDefaultSize(false)
-            .SetUseOsDefaultLocation(false)
-            .SetSize(width, height)
-            .SetLeft(left)
-            .SetTop(top)
+                },
+            });
+
             // Saved as it moves, not on the way out: the host closes a screen by killing the
             // process, so an exit handler would never run on the ordinary path.
-            .RegisterLocationChangedHandler((_, _) => Remember(window!))
-            .RegisterSizeChangedHandler((_, _) => Remember(window!))
-            .RegisterMaximizedHandler((_, _) => Remember(window!))
-            .RegisterRestoredHandler((_, _) => Remember(window!))
-            .RegisterWebMessageReceivedHandler((_, message) =>
-            {
-                if (message is null) return;
+            window.Moved += (_, _) => Remember(window);
+            window.Resized += (_, _) => Remember(window);
+            window.Maximized += (_, _) => Remember(window);
+            window.Unmaximized += (_, _) => Remember(window);
 
-                // The page saying it is wired up. SendWebMessage into a web view with no page yet is
-                // a native crash that takes the screen down with no managed exception to log.
-                if (message.Contains("\"ready\"", StringComparison.Ordinal) && !ready)
-                {
-                    ready = true;
-                    var openCodecsOnly = ReadsOpenCodecsOnly(message);
+            _screenWindow = new OrielScreenWindow(window);
+            _chrome = new WindowChrome(_screenWindow, logger);
 
-                    player.SendToBrowser = json => window!.SendWebMessage(json);
-                    _chrome!.SendToPage = json => window!.SendWebMessage(json);
-                    _chrome.PublishState();
+            MacDockIcon.TrySet(logger);
 
-                    _ = ConnectUntilUpAsync(
-                        cancellationToken => _ipc!.ConnectAsync(serverUri, screenId, authKey, openCodecsOnly, cancellationToken),
-                        () => _ipc!.LastRefusalReason, logger, serverUri, Task.Delay, _closing.Token);
-                    // Position keeps the host's playhead live between commands, which only report
-                    // on completion; the resync keeps those reports' stamps honest as clocks drift.
-                    _ = RepeatAsync(TimeSpan.FromSeconds(1), () => _ipc!.SendCurrentStateAsync(), logger, _closing.Token);
-                    _ = RepeatAsync(TimeSpan.FromMinutes(5), () => _ipc!.ResyncClockAsync(), logger, _closing.Token);
+            // A file rather than a string: a file page is a secure context, which secure-context
+            // gated APIs need. The file is the same page, written once per run.
+            window.LoadUrl(new Uri(page.Page).AbsoluteUri);
 
-                    // Before full screen, and here rather than at construction because both need a
-                    // window that exists — the page being ready is the first moment that is true.
-                    var movedToSecondary = FitOntoMonitors(_screenWindow!, logger);
+            logger.LogInformation("LocalScreen starting: server={ServerUri} screen={ScreenId}", serverUri, screenId);
+        };
 
-                    // After the fit, so un-maximising returns to a rect that is on a monitor now.
-                    if (stored?.Maximised == true && !movedToSecondary)
-                        _chrome!.Maximise();
-
-                    // Unreadable monitors count as one: a window is the safe way to open.
-                    int monitorCount;
-                    try { monitorCount = _screenWindow!.Monitors.Count; }
-                    catch { monitorCount = 1; }
-
-                    if (MonitorSpace.LaunchesFullScreen(stored?.FullScreen == true, movedToSecondary, monitorCount))
-                        SetFullScreen(window!, true, logger);
-                    else if (stored?.FullScreen == true)
-                        logger.LogInformation("Opening as a window: full screen waits for a second monitor");
-
-                    return;
-                }
-
-                // Parsed once here: the player and the window each route on the same type.
-                JsonDocument document;
-                try { document = JsonDocument.Parse(message); }
-                catch (JsonException) { return; }
-
-                using (document)
-                {
-                    var root = document.RootElement;
-                    if (!player.HandleBrowserMessage(root, message) && !_chrome!.Handle(root))
-                        HandleWindowMessage(window!, root, logger);
-                }
-            })
-            // Loaded from a file rather than handed over as a string: a string page has an opaque
-            // origin, which is not a secure context, which costs the page every secure-context
-            // gated API. The file is the same page, written once per run.
-            .Load(new Uri(WritePlayerPage()));
-
-        _screenWindow = new PhotinoScreenWindow(window);
-        _chrome = new WindowChrome(_screenWindow, logger);
-
-        logger.LogInformation("LocalScreen starting: server={ServerUri} screen={ScreenId}", serverUri, screenId);
-
-        window.WaitForClose();
+        // Returns once the window has closed: the last window closing quits the app.
+        var exitCode = app.Run();
 
         // Stops the connect retry loop, which otherwise keeps a closing screen alive waiting on
         // its next delay.
@@ -166,34 +193,21 @@ internal static class Program
         _ipc.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Log.CloseAndFlush();
         _closing.Dispose();
+
+        return exitCode;
     }
 
-    /// <summary>Photino's own full screen.</summary>
-    /// <returns>False when this build refuses it after the window exists, so the caller falls back
-    /// to filling the monitor instead.</returns>
-    /// <remarks>Reached only on Linux; see <see cref="SetFullScreen"/> for why.</remarks>
-    private static bool TryNativeFullScreen(
-        PhotinoWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
+    /// <summary>Chromium's profile for one screen, outside the binary's folder: a signed bundle is read-only.</summary>
+    internal static string ProfileDirectory(string screenId)
     {
-        try
-        {
-            window.SetFullScreen(fullScreen);
-            logger.LogInformation("Native full screen {FullScreen}", fullScreen);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            logger.LogInformation(ex, "Native full screen is unavailable; filling the monitor instead");
-
-            return false;
-        }
+        var safe = string.Concat(screenId.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_'));
+        return Path.Combine(Path.GetTempPath(), "khost-screen", "profiles", safe);
     }
 
     /// <summary>Moves a remembered window onto the monitors there are now; see <see cref="MonitorSpace.Fit"/>
     /// and <see cref="MonitorSpace.OntoSecondary"/>.</summary>
     /// <returns>Whether the window was carried off the primary onto another monitor.</returns>
-    private static bool FitOntoMonitors(PhotinoScreenWindow window, Microsoft.Extensions.Logging.ILogger logger)
+    private static bool FitOntoMonitors(OrielScreenWindow window, Microsoft.Extensions.Logging.ILogger logger)
     {
         try
         {
@@ -243,8 +257,8 @@ internal static class Program
     /// <summary>Where the page was written, so it can be cleaned up when the screen closes.</summary>
     private static string? _pagePath;
 
-    /// <summary>Writes the built page beside the screen's own temp state and answers its path.</summary>
-    internal static string WritePlayerPage()
+    /// <summary>Writes the built page and its preload beside the screen's own temp state and answers their paths.</summary>
+    internal static (string Page, string Preload) WritePlayerPage()
     {
         var root = Path.Combine(Path.GetTempPath(), "khost-screen");
         var directory = Path.Combine(root, Environment.ProcessId.ToString());
@@ -255,8 +269,11 @@ internal static class Program
         var path = Path.Combine(directory, "player.html");
         File.WriteAllText(path, BuildPlayerPage());
 
+        var preload = Path.Combine(directory, "preload.js");
+        File.WriteAllText(preload, ReadResource("screen-ui/preload.js"));
+
         _pagePath = directory;
-        return path;
+        return (path, preload);
     }
 
     /// <summary>Removes pages left by screens that are no longer running.</summary>
@@ -328,14 +345,14 @@ internal static class Program
     }
 
     /// <summary>Full screen and maximised are remembered as flags over the windowed rect; see <see cref="WindowPlacement"/>.</summary>
-    private static void Remember(PhotinoWindow window)
+    private static void Remember(BrowserWindow window)
     {
-        if (_placement is null) return;
+        if (_placement is null || _screenWindow is null) return;
 
         try
         {
             _placement.Schedule(WindowPlacement.Capture(
-                new WindowBounds(window.Left, window.Top, window.Width, window.Height),
+                _screenWindow.Bounds,
                 _isFullScreen,
                 new WindowBounds(_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight),
                 _chrome?.IsMaximised ?? false,
@@ -348,7 +365,7 @@ internal static class Program
     }
 
     /// <summary>Handles the page messages that drive the window rather than the player.</summary>
-    private static void HandleWindowMessage(PhotinoWindow window, JsonElement root, Microsoft.Extensions.Logging.ILogger logger)
+    private static void HandleWindowMessage(BrowserWindow window, JsonElement root, Microsoft.Extensions.Logging.ILogger logger)
     {
         var type = root.TryGetProperty("type", out var p) ? p.GetString() : null;
 
@@ -363,67 +380,23 @@ internal static class Program
         }
     }
 
-    /// <summary>Photino's own full screen where it behaves, and growing the window to cover the
-    /// monitor where it does not.</summary>
-    /// <remarks>macOS and Windows get the grown window. On Windows Photino's SetFullScreen returns
-    /// and leaves the chromeless window where it was, so the flag said full screen over a small
-    /// window and a relaunch restored the same. On macOS it enters a native
-    /// full-screen Space, and two things follow that a venue cannot live with: every other display
-    /// is blanked, so the host cannot see the console it drives the show from, and
-    /// <c>SetFullScreen(false)</c> is a silent no-op — it neither throws nor leaves, so the flag
-    /// says windowed while the window is still full screen and the next double-click does nothing.
-    /// The window has no OS frame to keep, and the page hides its own bar on
-    /// <see cref="WindowChrome.FullScreen"/>, so the grown window is the picture alone.</remarks>
-    private static void SetFullScreen(PhotinoWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
+    /// <summary>Fills the monitor the window is on with the picture alone.</summary>
+    /// <remarks>On macOS the simple full screen: native full screen moves the window to a Space of
+    /// its own and blanks every other display, so the host loses the console it runs the show from.
+    /// </remarks>
+    private static void SetFullScreen(BrowserWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
     {
         try
         {
             if (fullScreen)
-            {
-                (_restoreLeft, _restoreTop) = (window.Left, window.Top);
-                (_restoreWidth, _restoreHeight) = (window.Width, window.Height);
-            }
+                (_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight) = _screenWindow!.Bounds;
 
-            // Photino's own. Several of its setters refuse to run once the window exists, so this
-            // asks rather than assumes, and the resize stands behind it unchanged. Linux only: macOS
-            // cannot leave it again, and Windows does nothing to a chromeless window.
-            if (OperatingSystem.IsLinux() && TryNativeFullScreen(window, fullScreen, logger))
-            {
-                _isFullScreen = fullScreen;
-                _chrome?.FullScreen = fullScreen;
-                Remember(window);
-                return;
-            }
-
-            if (fullScreen)
-            {
-                var area = MonitorSpace.FullScreenArea(
-                    MonitorSpace.MonitorUnder(_screenWindow!.Bounds, _screenWindow.Monitors), OperatingSystem.IsMacOS());
-
-                // Not SetTopMost: a floating window on macOS never becomes key, so Escape stops
-                // reaching the page.
-                window.SetLeft(area.Left);
-                window.SetTop(area.Top);
-                window.SetSize(area.Width, area.Height);
-
-                logger.LogInformation("Full screen on monitor {Area}; window now {Left},{Top} {Width}x{Height}",
-                    area, window.Left, window.Top, window.Width, window.Height);
-            }
-            else
-            {
-                var remembered = new WindowBounds(_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight);
-                var target = _chrome?.LeaveFullScreenTo(remembered, DefaultBounds) ?? remembered;
-                (_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight) = target;
-
-                window.SetSize(target.Width, target.Height);
-                window.SetLeft(target.Left);
-                window.SetTop(target.Top);
-
-                logger.LogInformation("Restored to {X},{Y} {Width}x{Height}", target.Left, target.Top, target.Width, target.Height);
-            }
+            if (OperatingSystem.IsMacOS()) window.SetSimpleFullScreen(fullScreen);
+            else window.SetFullScreen(fullScreen);
 
             _isFullScreen = fullScreen;
             _chrome?.FullScreen = fullScreen;
+            logger.LogInformation("Full screen {FullScreen}; window now {Bounds}", fullScreen, _screenWindow!.Bounds);
             Remember(window);
         }
         catch (Exception ex)
@@ -533,7 +506,7 @@ internal static class Program
     /// <remarks>A launched screen inherits the host's working directory; the log would land unseen.</remarks>
     private static Serilog.Core.Logger CreateSerilog(string screenId, LogLevel minimum)
     {
-        var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+        var logDirectory = AppPaths.Logs;
         Directory.CreateDirectory(logDirectory);
         Telemetry.KHostLogFiles.SweepStaleLogs(logDirectory);
 

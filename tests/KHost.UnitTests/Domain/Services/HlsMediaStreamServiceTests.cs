@@ -35,7 +35,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     {
         var arguments = HlsArguments.BuildArguments(new EncodeInputs("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2));
 
-        // The intersection of Chromecast, WKWebView and browser support. Widening any of these
+        // The intersection of Chromecast, Safari and browser support. Widening any of these
         // silently drops one class of consumer.
         Assert.Contains("-c:v libx264", arguments);
         Assert.Contains("-profile:v main", arguments);

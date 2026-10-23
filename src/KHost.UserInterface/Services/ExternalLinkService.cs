@@ -4,8 +4,8 @@ namespace KHost.UserInterface.Services;
 
 public sealed class ExternalLinkService : IExternalLinkService
 {
-    // A plain <a target="_blank"> is unreliable inside Photino's webview: no host is registered to
-    // turn a new-window request into a real OS window, so UseShellExecute hands off instead.
+    // The OS's browser, not a page in the app: in the console window a new-window request would
+    // otherwise open a second app window, so UseShellExecute hands off instead.
     public void Open(string url)
         => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 }

@@ -1,12 +1,12 @@
 # AGENTS.md
 
-**KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
+**KHost** — karaoke host app. .NET 10 + Blazor UI in an Oriel window (Blazor Hybrid through Oriel.Blazor), Oriel screen app. Solution: `KHost.slnx` (no `.sln`).
 
 Projects (`src/`):
 - `Abstractions` — every plugin-facing interface, the shared models, what a plugin builds against. MIT, no project refs, the bottom layer.
 - `Common` — helpers over those contracts. MIT.
 - `Domain` (services) / `DataAccess` (EF Core 10 + SQLite).
-- `UserInterface` (Blazor Server) and `LocalScreen` (Photino video output).
+- `UserInterface` (the console: Blazor components rendered in an Oriel window through Oriel.Blazor; Kestrel still serves screens, media and `--headless`) and `LocalScreen` (the video output: an Oriel window, Chromium through CEF, in its own process).
 - `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager — keep it textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults` (HTTP client defaults: decompression + standard resilience; OpenTelemetry that exports only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set).
 - `tools/`: `KHost.CatalogSync`, the CLI that writes entries into the plugin catalog (`plugins.json` in `riddlemd/KHost.Releases`).
 - `build/`: `KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time.
@@ -15,7 +15,7 @@ Projects (`src/`):
 ## Commands
 
 ```bash
-dotnet run --project src/KHost.UserInterface                # run the app (native Photino window)
+dotnet run --project src/KHost.UserInterface                # run the app (native Oriel window)
 dotnet run --project src/KHost.UserInterface -- --headless  # no window; console served at http://localhost:5251
 dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"    # build (redirected so VS's bin/ isn't locked)
 dotnet test tests/KHost.UnitTests                           # --filter "FullyQualifiedName~Name" to narrow
@@ -27,7 +27,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 ./build/check-secrets-drift.sh                               # diff src/KHost.Secrets/Interop against the pinned upstream commit; needs network
 ```
 
-- **Test with `--headless`.** The console is an ordinary page at `http://localhost:5251`: drive it with browser tooling and read the DOM. The Photino window reaches neither, and a LocalScreen window launched over it turns every later capture into a black rectangle.
+- **Test with `--headless`.** The console is an ordinary page at `http://localhost:5251`: drive it with browser tooling and read the DOM. The native window reaches neither, and a LocalScreen window launched over it turns every later capture into a black rectangle.
 - Use the windowed run only for the window itself: native chrome, `SetSize`, the appliance lockdown.
 - Port 5251 is held by an exclusive `.instance.lock` — stop one run before starting the other.
 - SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler); no separate sass step.
@@ -312,13 +312,13 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
     - **Field scenes** (`AMBIENT_FIELDS`: clouds, nebula, aurora, smoke, ink, gas giant, haze, thunderhead, silk) are a WebGL 1 fragment shader each, drawn on an off-page canvas at most `AMBIENT_FIELD_WIDTH` wide and copied up onto `#visualiser-eq`, so that canvas stays 2D. No WebGL, or a shader that will not build, draws black. Classic is each scene's own three colours (`AMBIENT_FIELD_CLASSIC`, slots main/light/dark); the accent or a single colour fills those slots as the other scenes' palette does. A field covers every pixel, so its output is scaled to `AMBIENT_FIELD_PEAK` in place of `AMBIENT_MAX_ALPHA`. The thunderhead's lightning is stepped in JS (`stepFlash`): a beat may start one, at most every `AMBIENT_FLASH_GAP` frames, swelling and dying over frames rather than strobing.
 - **A video is an entry too** (`VisualiserPresetSource.Video`, `VisualisationEntry.VideoMediaId`, a soft reference to a library `Video` row): the screen plays it muted and looping in `#visualiser-video` under the words, from 0:00 each song. Not clocked to the song (key, tempo and seek leave it alone), frozen on pause, faded with a stop, never on the next-singer card. Brightness and colour apply; bar count, palette and sensitivity do not, and no levels are read.
   - `IVideoBackdropService` (Domain only: it serves files off this machine) probes the file **every time** and hands out a token URL under `/media/backdrops/{token}`. H.264 in MP4/MOV at `yuv420p`/`yuvj420p` with no sound or AAC is served as it is (for a screen with no H.264: VP9/AV1, see **Streaming a song**); anything else (10-bit included: a `<video>` cannot play it) is encoded once to a silent 720p H.264 MP4, capped at 10 minutes, kept for **this run only** by path + write time in `<temp>/khost-backdrops/<guid>` (swept like stream sessions).
-  - Always a plain MP4, never HLS: the song stream needs hls.js/MSE and its WebKit opaque-origin workarounds; a background does not.
+  - Always a plain MP4, never HLS: the song stream needs hls.js/MSE and its opaque-origin workarounds; a background does not.
   - The encode never blocks the load: the provider sends the visualiser off, then the video once the URL lands, only if the same song and pick are still current. A missing or unplayable row draws black.
   - The Visualisations page previews only a video that plays as it is (`DirectUrlForAsync`, never encodes) and says so for the rest.
 - **Look**: brightness and colour are a CSS filter on the canvas. Sensitivity scales each frame's swing from its own running loudness (a plain gain cancels out — butterchurn reads every band against its own average), applied after samples are filled, so tap and host levels are treated alike.
 - **The Visualisations page preview** runs the screen's own `visualiser.js` and `lyrics-overlay.js`, copied unchanged into `wwwroot/js/visualiser/` by `copy:vendors` (a test fails on drift), in a `sandbox="allow-scripts"` frame with no origin (an imported preset is code; the console holds the host's session), fed a synthetic beat and two sample lines.
 - **It listens, never re-routes.** A stem song is tapped off the mixer's master gain (after the fade) into analysers that lead nowhere. An encoded song is tapped through `captureStream()` where available. Never use `createMediaElementSource`: it takes the element off the speakers for good, binds it to one context a sleep can kill, and puts fades behind a second volume.
-- **No tap → the host's levels.** WebKit has no `captureStream`, so on macOS an encoded song (including a stem song after a key/tempo change) has nothing to listen to.
+- **No tap → the host's levels.** A provider playing outside the page has nothing for the screen to listen to, nor does an encoded song whose capture fails (including a stem song after a key/tempo change).
   - For every song that draws a visualiser, `LocalScreenDisplayProvider` starts `ISongLevelsService` once (a key change's reload keeps them) and sends the URL in `SetVisualiserCommand.LevelsUrl`; the screen fetches `/media/levels/{token}`, which waits for the read.
   - Inputs (`SongLevels.InputsFor`): the stems at their loaded gains when the load carries stems; else, when the load is the host's mix of a renderer's stems, those stems via `IStemStreamService.StemsMixedInto` from the stream URL; else the file when the host opens the format (a `.cdg` through its audio). Stems are read before key/tempo, so they are in song time. A provider's container with no stems draws without the beat.
   - Format (`SongLevels`): eight bands per channel, 30 frames a second of song time, a quarter-decibel per byte against each band's own loudest. ffmpeg at one thread and below-normal priority. Band edges on butterchurn's 320 Hz and 2800 Hz splits.
@@ -369,6 +369,18 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
   - All inputs precede the output seek, or `-ss` binds to the pipe.
   - The session owns the painter: closing it cancels painting and kills ffmpeg, releasing a write blocked in the pipe.
 
+## The screen window
+
+- **LocalScreen runs on Oriel** (Electron's model on .NET and CEF), and so does the console (Oriel.Blazor).
+- **Oriel comes from a local NuGet feed.** `nuget.config` maps `Oriel*` to `../../Oriel/main/artifacts/pkg` (the `{root}/{owner}/{repo}/{branch}` layout). Each machine packs Oriel once into its own checkout, plus the runtime package for its OS (`Oriel.Runtime.osx-arm64`, `win-x64`, `linux-x64`): LocalScreen references the one for its publish RID, else the SDK's. No feed, no build. A repack of the same 1.0.0 is served stale from `~/.nuget/packages`: clear `~/.nuget/packages/oriel*` after one.
+- **macOS needs the bundle.** Chromium will not start from a bare executable: the build lays out `KHost.LocalScreen.app` (CEF framework and helpers inside) beside the output, the console copies it with the rest, and `LocalScreenProvider` launches `KHost.LocalScreen.app/Contents/MacOS/KHost.LocalScreen`. Logs and the remembered placement land under `Contents/MacOS` in a dev build.
+- **Page ↔ screen is one IPC channel, `screen`, carrying the page's JSON strings.** `screen-ui/preload.js` (embedded, written beside the page) exposes `window.khostScreen.send/receive` through `contextBridge`; `player.js` uses only that. The page is still a file written per run (`file://`, a secure context).
+- **Each screen process has its own Chromium profile** under `<temp>/khost-screen/profiles/<screen id>` (`app.SetPath("userData", …)` before `Run`): two screens on one profile fight over Chromium's lock. `--autoplay-policy=no-user-gesture-required` is process-wide, since songs start on the host's command, never a click.
+- **The window is frameless and the page draws its chrome** (`title-bar.js`, `WindowChrome`): strip drag and edge resize are moved by hand in DIPs; maximise fills the work area and hides the buttons (double-click the strip to restore); double-click the picture or Escape toggles full screen. Full screen is `SetSimpleFullScreen` on macOS (native full screen takes a Space and blanks every other display) and `SetFullScreen` elsewhere.
+- **Placement**: Oriel reports windows and displays in DIPs from the primary's top-left, so `MonitorSpace` works on them as they come. With a second monitor a screen opens on it, full screen.
+- **Testing it without a mouse**: start the bundle executable yourself with the host's arguments plus `--remote-debugging-port=9333` and drive the page over CDP (`Input.dispatchMouseEvent`, `Runtime.evaluate` with `khostScreen.send`). Synthetic OS input (cliclick) needs an Accessibility grant.
+- **Oriel gaps** met while porting, each checked against Electron, are logged outside the repo in `~/Developer/riddlemd/KHost/.oriel-gaps.md`.
+
 ## Finding and installing FFmpeg
 
 - **KHost never ships FFmpeg.** `IFFmpegService` (`Domain/Services/FFmpeg/`) finds ffmpeg/ffprobe and, when asked, installs a pinned third-party build.
@@ -391,7 +403,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - Never give the code-behind partial a base class — the generated partial supplies one; a second won't compile.
 - `_Imports.razor` does not reach `.razor.cs` — code-behind needs its own `using` directives.
 - `Dialog` renders its footer only when one is supplied. A viewer (actions commit on click) supplies none and closes from the header X; no close-only footer button.
-- The console is one circuit: the Photino window, or one headless tab. A second tab is a testing convenience, and `IDialogService` is a singleton that publishes to every circuit by design, so a second tab also showing a confirmation is expected, not a bug.
+- The console is one circuit: the native window, or one headless tab. A second tab is a testing convenience, and `IDialogService` is a singleton that publishes to every circuit by design, so a second tab also showing a confirmation is expected, not a bug.
 - Keyboard shortcuts:
   - A list's arrow keys: Blazor `@onkeydown` on a focusable element *inside* the panel (`tabindex` + `data-kh-keylist`). A handler on the column around the panel never sees it.
   - Global chords: `shortcuts.js`, focusing `[data-kh-shortcut]`, matched in JS so typing never crosses the circuit. None of them act while a dialog is open (`.kh-scrim` in the DOM), and closing the last dialog hands focus back to what held it before (`scroll-utils.js`).
@@ -426,7 +438,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
   - `.kh-note` and `.kh-app-settings__apply` share type: `display: block`, `0.75rem` at `1.5`, `--kh-text-muted`, space below in `rem` not `em`.
   - No quieter variant: `--kh-text-muted` is the bottom rung.
 - `.kh-card__body` pads only a direct `<form>` child; a card body without a form needs its own padding.
-- A `<select>` needs `kh-form-select`, not `kh-form-control`, or WebKit draws the native macOS pop-up in the Photino window (a browser looks fine).
+- A `<select>` needs `kh-form-select`, not `kh-form-control`, or macOS draws its native pop-up and ignores the theme.
 
 ## Importing media
 

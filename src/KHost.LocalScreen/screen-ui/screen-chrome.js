@@ -120,9 +120,9 @@ function createScreenChrome({
 
         cardVisualiser = true;
         visualiser.setLook(look);
-        // No song to read levels from. It hears the break music where the page can tap it (not in
-        // WebKit, which has no captureStream, nor a provider playing outside the page); else it draws
-        // its idle motion.
+        // No song to read levels from. It hears the break music where the page can tap it (not on an
+        // engine without captureStream, nor a provider playing outside the page); else it draws its
+        // idle motion.
         loadVisualiserLevels(null);
         visualiser.freeze(false);
         visualiser.setAudio(elementAudioSource(background));

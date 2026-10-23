@@ -11,6 +11,7 @@ using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 using KHost.Common.Media;
+using KHost.Common.Storage;
 
 namespace KHost.UserInterface.Services;
 
@@ -109,7 +110,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         _configuration = configuration;
         _ffmpeg = ffmpeg;
         _breakMusic = breakMusic;
-        _overlayPath = Path.Combine(overlayDirectory ?? Path.Combine(AppContext.BaseDirectory, "cache"), OverlayFileName);
+        _overlayPath = Path.Combine(overlayDirectory ?? AppPaths.Cache, OverlayFileName);
     }
 
     public bool RestartRequired { get; private set; }

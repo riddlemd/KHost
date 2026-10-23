@@ -1,7 +1,7 @@
 // The one place that decides which browser and webview shortcuts a KHost page cancels, for the
 // console (native window or a browser tab) and the LocalScreen window alike.
 //
-// <html data-kh-surface="native"> is the Photino window; anything else is a browser tab, where the
+// <html data-kh-surface="native"> is the console window; anything else is a browser tab, where the
 // browser keeps what is its own (new/close tab and window are never touched). data-kh-devtools="block"
 // also cancels the devtools chords; without it they are left to the webview's own switch.
 //
@@ -119,8 +119,4 @@
         if (event.ctrlKey) event.preventDefault();
     }, { passive: false });
 
-    // WebKit's own pinch gesture, which arrives as gesture events rather than a Ctrl+wheel.
-    root.document.addEventListener('gesturestart', function (event) {
-        event.preventDefault();
-    });
 })(typeof window !== 'undefined' ? window : globalThis);
