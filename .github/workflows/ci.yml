@@ -1,9 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  # Off for push and PR until Oriel is on a feed a runner can reach: nuget.config maps Oriel* to a local folder
+  # (../../Oriel/main/artifacts/pkg), so every leg fails at restore. Run by hand once that changes.
+  workflow_dispatch:
 
 permissions:
   contents: read
