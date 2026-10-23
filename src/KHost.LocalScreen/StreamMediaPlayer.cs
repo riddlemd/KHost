@@ -139,7 +139,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     {
         lock (_lock) _clockOffset = offset;
 
-        _logger.LogInformation("Clock offset to host: {Offset}", offset);
+        // ScreenClient already logs each sync at Information, with its round trip.
+        _logger.LogDebug("Clock offset to host: {Offset}", offset);
     }
 
     /// <summary>Points the second channel at a stream with no song position of its own.</summary>
