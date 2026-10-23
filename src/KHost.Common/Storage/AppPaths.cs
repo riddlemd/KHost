@@ -1,10 +1,11 @@
 namespace KHost.Common.Storage;
 
 /// <summary>Where KHost keeps what it writes: the library database, settings, logs, plugins and screen keys.</summary>
-/// <remarks>Beside the executable on Windows and Linux, so separate installs keep separate data. On macOS the
-/// executable sits inside a signed <c>KHost.app</c>, which must not be written to, so the data lives in
-/// <c>~/Library/Application Support/KHost</c>. <c>KHOST_DATA_ROOT</c> overrides both, e.g. to keep a test run's data
-/// apart.</remarks>
+/// <remarks>Never inside the app's own folder where an installer owns it. On macOS the executable sits inside a signed
+/// <c>KHost.app</c>, so the data lives in <c>~/Library/Application Support/KHost</c>. On Windows an update replaces the
+/// app folder (Velopack's <c>%LocalAppData%\KHost\current</c>), so the data lives one level up, in
+/// <c>%LocalAppData%\KHost</c>, where it survives updates and an uninstall removes it. On Linux it stays beside the
+/// executable. <c>KHOST_DATA_ROOT</c> overrides all of them, e.g. to keep a test run's data apart.</remarks>
 public static class AppPaths
 {
     /// <summary>The environment variable that overrides <see cref="DataRoot"/>.</summary>
@@ -14,8 +15,10 @@ public static class AppPaths
     public static string DataRoot { get; } = Create(Resolve(
         Environment.GetEnvironmentVariable(OverrideVariable),
         OperatingSystem.IsMacOS(),
+        OperatingSystem.IsWindows(),
         AppContext.BaseDirectory,
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
 
     /// <summary>Settings, the database, screen keys and other state that outlives a run.</summary>
     public static string Cache => Path.Combine(DataRoot, "cache");
@@ -23,7 +26,25 @@ public static class AppPaths
     /// <summary>The host's and the screens' log files.</summary>
     public static string Logs => Path.Combine(DataRoot, "logs");
 
-    /// <summary>Picks the data folder for an OS, an executable folder and a home folder.</summary>
+    /// <summary>Picks the data folder for an OS, an executable folder, a home folder and the local app data folder.</summary>
+    /// <param name="overrideRoot">The <see cref="OverrideVariable"/> value, if set.</param>
+    /// <param name="isMacOS">Whether this is macOS.</param>
+    /// <param name="isWindows">Whether this is Windows.</param>
+    /// <param name="baseDirectory">The executable's folder.</param>
+    /// <param name="home">The user's home folder.</param>
+    /// <param name="localAppData">Windows' <c>%LocalAppData%</c>.</param>
+    /// <returns>The folder, not yet created.</returns>
+    public static string Resolve(string? overrideRoot, bool isMacOS, bool isWindows, string baseDirectory, string home, string localAppData)
+    {
+        if (!string.IsNullOrWhiteSpace(overrideRoot)) return Path.GetFullPath(overrideRoot);
+        if (isMacOS) return Path.Combine(home, "Library", "Application Support", "KHost");
+        return isWindows ? Path.Combine(localAppData, "KHost") : baseDirectory;
+    }
+
+    /// <summary>Picks the data folder for an OS, an executable folder and a home folder, as before Windows moved out
+    /// of the app folder: Windows resolves as Linux does here.</summary>
+    /// <remarks>Kept for callers built against an older KHost.Common; <see cref="DataRoot"/> uses the overload that
+    /// knows Windows.</remarks>
     /// <param name="overrideRoot">The <see cref="OverrideVariable"/> value, if set.</param>
     /// <param name="isMacOS">Whether this is macOS.</param>
     /// <param name="baseDirectory">The executable's folder.</param>

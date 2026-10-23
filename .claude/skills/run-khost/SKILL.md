@@ -21,7 +21,10 @@ and the reporting shape.
 **Every graceful exit clears the singer queue and queued performances.** The venue's
 `ClearQueueOnClose` defaults on (`Venue.cs`), and the clear runs on `ApplicationStopping` — a window
 close, a `SIGTERM`, a `WM_CLOSE` and a Ctrl+C are all the same path. The queue, library and users
-live in `src/KHost.UserInterface/bin/Debug/net10.0/cache/` (`singer-queue.json`, `khost.db`).
+live in the data root's `cache/` (`singer-queue.json`, `khost.db`): `%LOCALAPPDATA%\KHost` on Windows,
+`~/Library/Application Support/KHost` on macOS, beside the binary on Linux; `KHOST_DATA_ROOT` overrides it, which
+is the easy way to keep a test run off the operator's data (`AppPaths`). A first Windows run copies an old
+`bin/Debug/net10.0/cache/` into it once.
 
 So bracket ANY run that will stop the app: copy the cache before, restore it after the host has
 fully exited.
@@ -85,7 +88,7 @@ curl -s -o /dev/null -w '%{http_code}\n' --retry 60 --retry-delay 2 --retry-conn
 
 Startup is confirmed by `Singer queue loaded (N users)`. Every launch writes its own file
 (`host-<yyyyMMdd-HHmmss>.log`), so the newest is what to read:
-`ls -t src/KHost.UserInterface/bin/Debug/net10.0/logs/host-*.log | head -1`.
+`ls -t <data root>/logs/host-*.log | head -1`.
 
 ## Driving the windowed UI
 
