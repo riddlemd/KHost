@@ -51,7 +51,7 @@ unchanged. A restore you did not verify is a restore that did not happen.
 
 Take the log line count for this run and the ffmpeg count (`run-khost` toolbox — the ffmpeg count
 must print 0 cleanly rather than erroring). Every launch writes its own file, so the newest one is
-this run's log: `ls -t src/KHost.UserInterface/bin/Debug/net10.0/logs/host-*.log | head -1`.
+this run's log: `ls -t <data root>/logs/host-*.log | head -1` (data root: see `run-khost`).
 
 ## 4. The core pass — run this every time
 
@@ -87,7 +87,7 @@ tell 1× from 2× reliably.
 Step 9 catches double-rotation, and it needs counting rather than reading:
 
 ```bash
-L=$(ls -t src/KHost.UserInterface/bin/Debug/net10.0/logs/host-*.log | head -1)
+L=$(ls -t "$DATA_ROOT"/logs/host-*.log | head -1)   # e.g. DATA_ROOT="$LOCALAPPDATA/KHost"
 grep -c 'Playback concluded'   "$L"
 grep -c 'Dequeued performance' "$L"
 grep "Queue rotated" "$L" | tail -3        # timestamps, not just the count

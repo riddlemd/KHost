@@ -28,6 +28,59 @@ public sealed class AppPathsTests : IDisposable
         => Assert.Equal(Path.GetFullPath("/tmp/khost-data"), AppPaths.Resolve("/tmp/khost-data", isMacOS, "/opt/khost/", "/home/someone"));
 
     [Fact]
+    public void Given_Windows_When_TheDataRootIsResolved_Then_ItIsKHostUnderLocalAppDataNotTheAppFolder()
+    {
+        // Given
+        const string appFolder = @"C:\Users\someone\AppData\Local\KHost\current\";
+        const string localAppData = @"C:\Users\someone\AppData\Local";
+
+        // When
+        var root = AppPaths.Resolve(null, isMacOS: false, isWindows: true, appFolder, @"C:\Users\someone", localAppData);
+
+        // Then
+        Assert.Equal(Path.Combine(localAppData, "KHost"), root);
+    }
+
+    [Fact]
+    public void Given_Linux_When_TheDataRootIsResolved_Then_ItIsBesideTheExecutable()
+    {
+        // Given
+        const string appFolder = "/opt/khost/";
+
+        // When
+        var root = AppPaths.Resolve(null, isMacOS: false, isWindows: false, appFolder, "/home/someone", "");
+
+        // Then
+        Assert.Equal(appFolder, root);
+    }
+
+    [Fact]
+    public void Given_MacOS_When_TheDataRootIsResolved_Then_ItIsApplicationSupport()
+    {
+        // Given
+        const string home = "/Users/someone";
+
+        // When
+        var root = AppPaths.Resolve(null, isMacOS: true, isWindows: false, "/Applications/KHost.app/Contents/MacOS/", home, "");
+
+        // Then
+        Assert.Equal(Path.Combine(home, "Library", "Application Support", "KHost"), root);
+    }
+
+    [Fact]
+    public void Given_AnOverrideOnWindows_When_TheDataRootIsResolved_Then_TheOverrideWins()
+    {
+        // Given
+        const string overrideRoot = "/tmp/khost-data";
+
+        // When
+        var root = AppPaths.Resolve(overrideRoot, isMacOS: false, isWindows: true, @"C:\app\", @"C:\Users\someone", @"C:\Users\someone\AppData\Local");
+
+        // Then
+        Assert.Equal(Path.GetFullPath(overrideRoot), root);
+    }
+
+    [Fact]
     public void AdoptLegacyData_NewDataRoot_CopiesTheCacheAndPlugins()
     {
         var legacy = Path.Combine(_root, "legacy");
