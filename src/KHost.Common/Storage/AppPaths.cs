@@ -2,10 +2,10 @@ namespace KHost.Common.Storage;
 
 /// <summary>Where KHost keeps what it writes: the library database, settings, logs, plugins and screen keys.</summary>
 /// <remarks>Never inside the app's own folder where an installer owns it. On macOS the executable sits inside a signed
-/// <c>KHost.app</c>, so the data lives in <c>~/Library/Application Support/KHost</c>. On Windows an update replaces the
-/// app folder (Velopack's <c>%LocalAppData%\KHost\current</c>), so the data lives one level up, in
-/// <c>%LocalAppData%\KHost</c>, where it survives updates and an uninstall removes it. On Linux it stays beside the
-/// executable. <c>KHOST_DATA_ROOT</c> overrides all of them, e.g. to keep a test run's data apart.</remarks>
+/// <c>KHost.app</c>, so the data lives in <c>~/Library/Application Support/KHost</c>. On Windows the installer owns
+/// <c>%LocalAppData%\KHost.App</c> (Velopack replaces it on install and update and deletes it on uninstall), so the
+/// data lives in <c>%LocalAppData%\KHost</c>, beside the plugins' own, where no install, update or uninstall reaches.
+/// On Linux it stays beside the executable. <c>KHOST_DATA_ROOT</c> overrides all of them, e.g. to keep a test run's data apart.</remarks>
 public static class AppPaths
 {
     /// <summary>The environment variable that overrides <see cref="DataRoot"/>.</summary>

@@ -5,6 +5,7 @@ using KHost.ServiceDefaults;
 using KHost.Telemetry;
 using KHost.UserInterface.Endpoints;
 using KHost.UserInterface.Middleware;
+using KHost.UserInterface.Services;
 using KHost.UserInterface.Startup;
 using KHost.Common.Storage;
 using Oriel;
@@ -31,6 +32,10 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // Before anything else: Velopack's installer and updater start KHost.exe with hook arguments and expect it
+        // to run them and exit, without showing anything.
+        Oriel.AutoUpdater.HandleInstallerHooks();
+
         // First: the already-running path below writes to a console that, on Windows, exists only
         // once attached.
         ParentConsole.TryAttach();
@@ -83,6 +88,12 @@ internal static class Program
             builder.Services.AddOrielBlazor();
 
         builder.Services.AddUserInterfaceServices();
+        // The window only: installing an update quits Oriel, and a headless host has no Oriel to quit.
+        if (shell is not null)
+        {
+            builder.Services.AddSingleton<AppUpdateService>();
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<AppUpdateService>());
+        }
         builder.Services.AddInteractionHandlers();
 
         var app = builder.Build();
