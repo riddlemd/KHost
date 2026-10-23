@@ -5,15 +5,15 @@ namespace KHost.IPC.SignalR;
 
 /// <summary>The signed body of a registration.</summary>
 /// <remarks>No screen id: it names the envelope's key, so the MAC covers it either way.</remarks>
-internal sealed record RegisterPayload(bool SupportsAudio, bool SupportsVideo)
+internal sealed record RegisterPayload(bool SupportsAudio, bool SupportsVideo, bool OpenCodecsOnly = false)
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
     public static RegisterPayload From(ScreenCapabilities capabilities)
-        => new(capabilities.SupportsAudio, capabilities.SupportsVideo);
+        => new(capabilities.SupportsAudio, capabilities.SupportsVideo, capabilities.OpenCodecsOnly);
 
     public ScreenCapabilities ToCapabilities()
-        => new() { SupportsAudio = SupportsAudio, SupportsVideo = SupportsVideo };
+        => new() { SupportsAudio = SupportsAudio, SupportsVideo = SupportsVideo, OpenCodecsOnly = OpenCodecsOnly };
 
     public string ToJson() => JsonSerializer.Serialize(this, Options);
 

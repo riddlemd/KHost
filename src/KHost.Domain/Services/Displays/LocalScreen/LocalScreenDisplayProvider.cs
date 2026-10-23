@@ -336,9 +336,15 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     // --- transport ---
 
     /// <summary>Takes the stems and draws the words itself, so it wants neither mixed nor burned in.</summary>
-    /// <remarks>Both engines behind a screen decode Vorbis, so it can take the stems whole and ride
-    /// their levels rather than making the host re-encode to move one.</remarks>
-    public RenderTarget DescribeTarget() => new() { MixesStems = true, BurnLyrics = false };
+    /// <remarks>Every engine behind a screen decodes Vorbis, so it can take the stems whole and ride
+    /// their levels rather than making the host re-encode to move one. Whether it decodes H.264 is
+    /// the screen's own report from registration.</remarks>
+    public RenderTarget DescribeTarget() => new()
+    {
+        MixesStems = true,
+        BurnLyrics = false,
+        OpenCodecsOnly = ConnectedScreen()?.Capabilities?.OpenCodecsOnly ?? false,
+    };
 
     /// <summary>Sent whole, so the stems ride along with it; the page mixes when there are any.</summary>
     public async Task LoadAsync(DisplayLoad load, CancellationToken cancellationToken = default)

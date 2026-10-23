@@ -123,6 +123,19 @@ public class ScreenServerServiceTests
     }
 
     [Fact]
+    public async Task Register_CarriesAScreenWithNoH264()
+    {
+        Register("conn-a", "Screen 1", capabilities: new ScreenCapabilities { SupportsVideo = true, OpenCodecsOnly = true });
+
+        Assert.True(Assert.Single(await ConnectedScreensAsync()).Capabilities.OpenCodecsOnly);
+    }
+
+    /// <summary>A screen built before the field existed signs a payload without it, and plays H.264.</summary>
+    [Fact]
+    public void RegisterPayload_WithoutOpenCodecsOnly_ReadsAsDecodingH264()
+        => Assert.False(RegisterPayload.TryParse("""{"supportsAudio":true,"supportsVideo":true}""")!.ToCapabilities().OpenCodecsOnly);
+
+    [Fact]
     public async Task Register_WithDuplicateScreenId_CollapsesToOneConnection()
     {
         Register("conn-a", "Screen");

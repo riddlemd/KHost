@@ -34,6 +34,7 @@ public sealed class VideoBackdropService : BaseService, IVideoBackdropService, I
     private readonly IOptionsMonitor<HlsMediaStreamService.ServiceOptions> _options;
     private readonly IVideoBackdropProbe _probe;
     private readonly IVideoBackdropEncoder _encoder;
+    private readonly IDisplayCodecs? _displayCodecs;
     private readonly string _root;
     private readonly string _directory;
     private readonly CancellationTokenSource _stopping = new();
@@ -47,8 +48,9 @@ public sealed class VideoBackdropService : BaseService, IVideoBackdropService, I
         ILogger<VideoBackdropService> logger,
         IOptionsMonitor<HlsMediaStreamService.ServiceOptions> options,
         IVideoBackdropProbe probe,
-        IVideoBackdropEncoder encoder)
-        : this(logger, options, probe, encoder, Path.Combine(Path.GetTempPath(), "khost-backdrops"))
+        IVideoBackdropEncoder encoder,
+        IDisplayCodecs? displayCodecs = null)
+        : this(logger, options, probe, encoder, Path.Combine(Path.GetTempPath(), "khost-backdrops"), displayCodecs)
     {
     }
 
@@ -57,9 +59,11 @@ public sealed class VideoBackdropService : BaseService, IVideoBackdropService, I
         IOptionsMonitor<HlsMediaStreamService.ServiceOptions> options,
         IVideoBackdropProbe probe,
         IVideoBackdropEncoder encoder,
-        string root)
+        string root,
+        IDisplayCodecs? displayCodecs = null)
         : base(logger)
     {
+        _displayCodecs = displayCodecs;
         _options = options;
         _probe = probe;
         _encoder = encoder;
@@ -105,15 +109,25 @@ public sealed class VideoBackdropService : BaseService, IVideoBackdropService, I
     }
 
     /// <summary>Whether the screen's video element plays the file as it is: 8-bit 4:2:0 H.264 in an
-    /// MP4 or QuickTime container, with no sound or AAC.</summary>
-    internal static bool PlaysAsIs(VideoBackdropFacts facts)
-        => (facts.FormatName.Contains("mp4", StringComparison.OrdinalIgnoreCase)
-                || facts.FormatName.Contains("mov", StringComparison.OrdinalIgnoreCase))
-            && string.Equals(facts.VideoCodec, "h264", StringComparison.OrdinalIgnoreCase)
-            // A web view plays only 8-bit 4:2:0 H.264 reliably; 10-bit or 4:2:2 decodes black or not at all.
-            && (string.Equals(facts.PixelFormat, "yuv420p", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(facts.PixelFormat, "yuvj420p", StringComparison.OrdinalIgnoreCase))
-            && (facts.AudioCodec is null || string.Equals(facts.AudioCodec, "aac", StringComparison.OrdinalIgnoreCase));
+    /// MP4 or QuickTime container, with no sound or AAC. A screen with no H.264
+    /// (<paramref name="openCodecs"/>) takes 8-bit 4:2:0 VP9 or AV1 in MP4 or WebM, with no sound,
+    /// Opus or Vorbis.</summary>
+    internal static bool PlaysAsIs(VideoBackdropFacts facts, bool openCodecs = false)
+        => (openCodecs
+                ? Is(facts.VideoCodec, "vp9", "av1")
+                  && (InContainer(facts, "mp4") || InContainer(facts, "webm") || InContainer(facts, "matroska"))
+                  && (facts.AudioCodec is null || Is(facts.AudioCodec, "opus", "vorbis"))
+                : Is(facts.VideoCodec, "h264")
+                  && (InContainer(facts, "mp4") || InContainer(facts, "mov"))
+                  && (facts.AudioCodec is null || Is(facts.AudioCodec, "aac")))
+            // A web view plays only 8-bit 4:2:0 reliably; 10-bit or 4:2:2 decodes black or not at all.
+            && Is(facts.PixelFormat, "yuv420p", "yuvj420p");
+
+    private static bool Is(string? value, params string[] any)
+        => any.Any(name => string.Equals(value, name, StringComparison.OrdinalIgnoreCase));
+
+    private static bool InContainer(VideoBackdropFacts facts, string name)
+        => facts.FormatName.Contains(name, StringComparison.OrdinalIgnoreCase);
 
     private async Task<string?> ResolveAsync(Media media, bool mayEncode, CancellationToken cancellationToken)
     {
@@ -139,18 +153,20 @@ public sealed class VideoBackdropService : BaseService, IVideoBackdropService, I
             return null;
         }
 
-        if (PlaysAsIs(facts)) return UrlFor(path);
+        // Read per call, so a screen with no H.264 gets its own encode of the same file.
+        var openCodecs = _displayCodecs?.OpenCodecsOnly == true;
+        if (PlaysAsIs(facts, openCodecs)) return UrlFor(path);
         if (!mayEncode) return null;
 
-        return await EncodedAsync(path, cancellationToken) is { } encoded ? UrlFor(encoded) : null;
+        return await EncodedAsync(path, openCodecs, cancellationToken) is { } encoded ? UrlFor(encoded) : null;
     }
 
     /// <summary>The run's encode of <paramref name="source"/> as it is on disk now, started if there
     /// is none; every asker of the same file shares one.</summary>
-    private async Task<string?> EncodedAsync(string source, CancellationToken cancellationToken)
+    private async Task<string?> EncodedAsync(string source, bool openCodecs, CancellationToken cancellationToken)
     {
         string key;
-        try { key = $"{Path.GetFullPath(source)}|{File.GetLastWriteTimeUtc(source).Ticks}"; }
+        try { key = $"{Path.GetFullPath(source)}|{File.GetLastWriteTimeUtc(source).Ticks}|{(openCodecs ? "vp9" : "h264")}"; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Logger.LogWarning(ex, "Could not read '{FilePath}' to encode it", source);
@@ -162,7 +178,7 @@ public sealed class VideoBackdropService : BaseService, IVideoBackdropService, I
         {
             if (!_encodes.TryGetValue(key, out var running))
             {
-                running = Task.Run(() => EncodeAsync(source, key), CancellationToken.None);
+                running = Task.Run(() => EncodeAsync(source, key, openCodecs), CancellationToken.None);
                 _encodes[key] = running;
             }
 
@@ -173,7 +189,7 @@ public sealed class VideoBackdropService : BaseService, IVideoBackdropService, I
         return await encode.WaitAsync(cancellationToken);
     }
 
-    private async Task<string?> EncodeAsync(string source, string key)
+    private async Task<string?> EncodeAsync(string source, string key, bool openCodecs)
     {
         var name = Guid.NewGuid().ToString("n");
         var output = Path.Combine(_directory, name + ".mp4");
@@ -190,7 +206,7 @@ public sealed class VideoBackdropService : BaseService, IVideoBackdropService, I
             Logger.LogInformation("Encoding '{FilePath}' for the screen to play under the words", source);
 
             // Written aside and moved when whole, so the screen is never served half a file.
-            if (await _encoder.EncodeAsync(source, partial, _stopping.Token) && File.Exists(partial))
+            if (await _encoder.EncodeAsync(source, partial, openCodecs, _stopping.Token) && File.Exists(partial))
             {
                 File.Move(partial, output);
                 Logger.LogInformation("Encoded '{FilePath}' for the screen", source);

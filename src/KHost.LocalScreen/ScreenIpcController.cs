@@ -42,12 +42,14 @@ internal sealed class ScreenIpcController : IAsyncDisposable
     public string? LastRefusalReason => _client.LastRefusalReason;
 
     /// <summary>Plays sound and picture, and stamps its reports in the host clock from the start.</summary>
-    public async Task ConnectAsync(string serverUri, string screenId, byte[] authKey, CancellationToken cancellationToken = default)
+    /// <param name="openCodecsOnly">The page's engine decodes no H.264 or AAC, as it reported when ready.</param>
+    public async Task ConnectAsync(
+        string serverUri, string screenId, byte[] authKey, bool openCodecsOnly, CancellationToken cancellationToken = default)
     {
         await _client.ConnectAsync(
             serverUri,
             screenId,
-            new ScreenCapabilities { SupportsAudio = true, SupportsVideo = true },
+            new ScreenCapabilities { SupportsAudio = true, SupportsVideo = true, OpenCodecsOnly = openCodecsOnly },
             authKey,
             cancellationToken);
 

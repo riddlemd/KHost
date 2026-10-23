@@ -66,6 +66,10 @@ public sealed class ScreenCapabilities
 
     /// <summary>Independent of audio: a screen may carry the room with no picture at all.</summary>
     public bool SupportsVideo { get; init; }
+
+    /// <summary>Decodes only royalty-free formats (VP9, AV1, Opus): no H.264 or AAC. False for a
+    /// screen that does not say, as every screen before Oriel decoded H.264.</summary>
+    public bool OpenCodecsOnly { get; init; }
 }
 
 /// <summary>Marks a message the host sends to its LocalScreen app.</summary>

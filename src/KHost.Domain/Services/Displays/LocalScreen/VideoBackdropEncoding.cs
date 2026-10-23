@@ -26,8 +26,8 @@ public interface IVideoBackdropProbe
 public interface IVideoBackdropEncoder
 {
     /// <summary>Writes <paramref name="source"/>'s picture to <paramref name="output"/> as H.264 in
-    /// MP4; false when it could not.</summary>
-    Task<bool> EncodeAsync(string source, string output, CancellationToken cancellationToken = default);
+    /// MP4, or as VP9 in MP4 for a screen with no H.264; false when it could not.</summary>
+    Task<bool> EncodeAsync(string source, string output, bool openCodecs, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Asks ffprobe.</summary>
@@ -60,7 +60,7 @@ public sealed class FfmpegVideoBackdropEncoder(ILogger<FfmpegVideoBackdropEncode
     /// <summary>The longest stretch encoded; the screen loops whatever there is.</summary>
     internal const int MaxSeconds = 600;
 
-    public async Task<bool> EncodeAsync(string source, string output, CancellationToken cancellationToken = default)
+    public async Task<bool> EncodeAsync(string source, string output, bool openCodecs, CancellationToken cancellationToken = default)
     {
         // Found afresh, so an install mid-show counts.
         if (ffmpeg.Locate(FFmpegTool.FFmpeg) is not { } ffmpegPath)
@@ -75,7 +75,7 @@ public sealed class FfmpegVideoBackdropEncoder(ILogger<FfmpegVideoBackdropEncode
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-        foreach (var argument in BuildArguments(source, output)) start.ArgumentList.Add(argument);
+        foreach (var argument in BuildArguments(source, output, openCodecs)) start.ArgumentList.Add(argument);
 
         using var process = Process.Start(start)
             ?? throw new InvalidOperationException("ffmpeg did not start.");
@@ -100,9 +100,10 @@ public sealed class FfmpegVideoBackdropEncoder(ILogger<FfmpegVideoBackdropEncode
         return false;
     }
 
-    /// <summary>Picture only, H.264 High in yuv420p fitted inside 1280x720 at even dimensions, capped
-    /// at <see cref="MaxSeconds"/>, moov first so playback starts before the whole file is read.</summary>
-    internal static IReadOnlyList<string> BuildArguments(string source, string output) =>
+    /// <summary>Picture only, H.264 High (or VP9, for a screen with no H.264) in yuv420p fitted inside
+    /// 1280x720 at even dimensions, capped at <see cref="MaxSeconds"/>, moov first so playback starts
+    /// before the whole file is read.</summary>
+    internal static IReadOnlyList<string> BuildArguments(string source, string output, bool openCodecs = false) =>
     [
         "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
         "-i", source,
@@ -111,7 +112,11 @@ public sealed class FfmpegVideoBackdropEncoder(ILogger<FfmpegVideoBackdropEncode
         "-an", "-sn", "-dn",
         "-t", MaxSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
         "-vf", "scale=w=1280:h=720:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
-        "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-pix_fmt", "yuv420p",
+        .. openCodecs
+            // Encoded once and kept for the run, so quality over speed, though not libvpx's slowest.
+            ? new[] { "-c:v", "libvpx-vp9", "-deadline", "good", "-cpu-used", "4", "-row-mt", "1", "-crf", "33", "-b:v", "0" }
+            : ["-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high"],
+        "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         // Named, because the output's extension is the temporary one.
         "-f", "mp4",

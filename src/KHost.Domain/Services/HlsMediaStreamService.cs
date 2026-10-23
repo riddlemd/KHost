@@ -5,6 +5,7 @@ using FFMpegCore;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Displays;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using KHost.Common.Media;
@@ -51,6 +52,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     private readonly IFFmpegService _ffmpeg;
     private readonly TimeProvider _time;
     private readonly IVideoEncoderSelector _encoders;
+    private readonly IDisplayCodecs? _displayCodecs;
     private readonly string _root;
     private int _disposed;
 
@@ -60,7 +62,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         IPlayableMediaSourceService playableSources,
         TimeProvider time,
         IFFmpegService ffmpeg,
-        IVideoEncoderSelector encoders)
+        IVideoEncoderSelector encoders,
+        IDisplayCodecs? displayCodecs = null)
         : base(logger)
     {
         _options = options;
@@ -68,6 +71,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         _time = time;
         _ffmpeg = ffmpeg;
         _encoders = encoders;
+        _displayCodecs = displayCodecs;
 
         // The root is resolved once and the rest is read live. Moving the directory under running
         // sessions would strand the segments they are already serving, where a changed segment
@@ -366,10 +370,21 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         TimeSpan startOffset, int pitch, int tempo, string? adopted, CancellationToken cancellationToken,
         IReadOnlyList<StemSource>? mixedStems = null)
     {
-        var chosen = await _encoders.SelectAsync(Options.Encoder, cancellationToken);
+        // Read per open, so switching to a screen with no H.264 applies from the next song. Its VP9
+        // also decides the audio and the container, so audio alone takes it too; there is no
+        // hardware VP9 path to probe or fall back from.
+        VideoEncoderProfile encoder;
+        if (_displayCodecs?.OpenCodecsOnly == true)
+        {
+            encoder = VideoEncoderProfile.Vp9;
+        }
+        else
+        {
+            var chosen = await _encoders.SelectAsync(Options.Encoder, cancellationToken);
 
-        // Audio alone names no encoder, so there is no hardware run to fall back from.
-        var encoder = chosen.IsHardware && recipe.HasPicture ? chosen : VideoEncoderProfile.Software;
+            // Audio alone names no encoder, so there is no hardware run to fall back from.
+            encoder = chosen.IsHardware && recipe.HasPicture ? chosen : VideoEncoderProfile.Software;
+        }
 
         var started = await TryStartAsync(id, directory, recipe, encoder, adopted, mixedStems, cancellationToken);
 
@@ -520,7 +535,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         failed?.Stop();
 
-        foreach (var file in Directory.EnumerateFiles(directory, "seg_*.ts").Append(Path.Combine(directory, HlsPlaylistFile.FileName)))
+        foreach (var file in Directory.EnumerateFiles(directory, "seg_*")
+                     .Append(Path.Combine(directory, HlsArguments.InitSegmentFileName))
+                     .Append(Path.Combine(directory, HlsPlaylistFile.FileName)))
         {
             try { File.Delete(file); } catch { /* overwritten by the retry */ }
         }
@@ -595,7 +612,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             {
                 try
                 {
-                    if (File.ReadAllText(playlist).Contains(".ts", StringComparison.Ordinal)) return true;
+                    // A listed segment, MPEG-TS or fMP4 alike.
+                    if (File.ReadAllText(playlist).Contains("seg_", StringComparison.Ordinal)) return true;
                 }
                 catch (IOException)
                 {

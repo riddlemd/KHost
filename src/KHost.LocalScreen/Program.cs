@@ -93,13 +93,14 @@ internal static class Program
                 if (message.Contains("\"ready\"", StringComparison.Ordinal) && !ready)
                 {
                     ready = true;
+                    var openCodecsOnly = ReadsOpenCodecsOnly(message);
 
                     player.SendToBrowser = json => window!.SendWebMessage(json);
                     _chrome!.SendToPage = json => window!.SendWebMessage(json);
                     _chrome.PublishState();
 
                     _ = ConnectUntilUpAsync(
-                        cancellationToken => _ipc!.ConnectAsync(serverUri, screenId, authKey, cancellationToken),
+                        cancellationToken => _ipc!.ConnectAsync(serverUri, screenId, authKey, openCodecsOnly, cancellationToken),
                         () => _ipc!.LastRefusalReason, logger, serverUri, Task.Delay, _closing.Token);
                     // Position keeps the host's playhead live between commands, which only report
                     // on completion; the resync keeps those reports' stamps honest as clocks drift.
@@ -217,6 +218,24 @@ internal static class Program
         {
             // Never worth failing a screen over: a window in an odd place still shows the song.
             logger.LogWarning(ex, "Could not check the window is on a monitor");
+            return false;
+        }
+    }
+
+    /// <summary>The page's 'ready' message saying its engine decodes no H.264 or AAC.</summary>
+    /// <remarks>False when the message cannot be read or does not say: every engine before Oriel
+    /// decoded H.264, so that is what a silent page gets.</remarks>
+    internal static bool ReadsOpenCodecsOnly(string message)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(message);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("openCodecsOnly", out var value)
+                && value.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
             return false;
         }
     }
