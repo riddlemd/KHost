@@ -4,6 +4,8 @@
     <KHostOrielRid>$(RuntimeIdentifier)</KHostOrielRid>
     <KHostOrielRid Condition="'$(KHostOrielRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</KHostOrielRid>
     <OrielMacBundleId>dev.riddlemd.khost.screen</OrielMacBundleId>
+    <!-- A Windows publish replaces the apphost with this; LocalScreenProvider looks for it first. -->
+    <OrielExeName>KHost.Screen</OrielExeName>
   </PropertyGroup>
 
   <PropertyGroup>

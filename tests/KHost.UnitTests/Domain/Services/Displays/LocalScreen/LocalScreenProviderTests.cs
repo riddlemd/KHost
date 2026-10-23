@@ -28,9 +28,35 @@ public class LocalScreenProviderTests
     [Fact]
     public void ResolveExePath_UsesExeAppHost_OnWindows()
     {
-        var path = LocalScreenProvider.ResolveExePath(null, "/app", isWindows: true);
+        var path = LocalScreenProvider.ResolveExePath(null, "/app", isWindows: true, fileExists: _ => false);
 
         Assert.Equal(Path.Combine("/app", "KHost.LocalScreen.exe"), path);
+    }
+
+    [Fact]
+    public void Given_APublishedWindowsLayout_When_TheScreenExeIsResolved_Then_ItIsOrielsSandboxedExe()
+    {
+        // Given
+        var published = Path.Combine("/app", LocalScreenProvider.PublishedWindowsExe);
+
+        // When
+        var path = LocalScreenProvider.ResolveExePath(null, "/app", isWindows: true, fileExists: p => p == published);
+
+        // Then
+        Assert.Equal(published, path);
+    }
+
+    [Fact]
+    public void Given_APublishedWindowsLayoutAndAConfiguredPath_When_TheScreenExeIsResolved_Then_TheConfiguredPathWins()
+    {
+        // Given
+        Func<string, bool> everythingExists = _ => true;
+
+        // When
+        var path = LocalScreenProvider.ResolveExePath("/custom/screen.exe", "/app", isWindows: true, fileExists: everythingExists);
+
+        // Then
+        Assert.Equal("/custom/screen.exe", path);
     }
 
     [Theory]

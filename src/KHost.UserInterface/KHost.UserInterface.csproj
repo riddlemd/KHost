@@ -35,6 +35,8 @@
     <KHostOrielRid>$(RuntimeIdentifier)</KHostOrielRid>
     <KHostOrielRid Condition="'$(KHostOrielRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</KHostOrielRid>
     <OrielMacBundleName>KHost</OrielMacBundleName>
+    <!-- A Windows publish names the sandboxed exe this, so the user starts KHost.exe. -->
+    <OrielExeName>KHost</OrielExeName>
     <OrielMacBundleId>dev.riddlemd.khost</OrielMacBundleId>
   </PropertyGroup>
 
