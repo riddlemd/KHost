@@ -53,6 +53,8 @@ internal static class NativeShell
                 WebPreferences = new WebPreferences { DevTools = !lockDown },
             });
 
+            window.PageTitleUpdated += KeepAppTitle;
+
             // A link to the outside opens the browser, never a second app window.
             var links = app.Services.GetRequiredService<IExternalLinkService>();
             window.WebContents.SetWindowOpenHandler(details =>
@@ -88,6 +90,11 @@ internal static class NativeShell
         Log.CloseAndFlush();
         return exitCode;
     }
+
+    /// <summary>Keeps the window titled "KHost".</summary>
+    /// <remarks>Each page titles itself ("KHost: Hosting Dashboard") and Oriel, as Electron, would put that on the
+    /// title bar and taskbar.</remarks>
+    internal static void KeepAppTitle(object? sender, PageTitleUpdatedEventArgs e) => e.Cancel = true;
 
     /// <summary>Where the window opens: what a browser tab's first request would be redirected to (the setup wizard
     /// on a new install, or a <c>--start-page</c>), else the console.</summary>
