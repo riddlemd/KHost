@@ -63,7 +63,7 @@ Each step has a check that fails loudly rather than a screenshot you squint at.
 | 2 | Add a singer | Row appears, singer auto-selects, right-hand panels appear |
 | 3 | Search a song | Results table populated |
 | 4 | Enqueue it | **All three panels** update: singer row count, queue panel row, search row state |
-| 5 | Launch a local screen | `Audio and primary are both on <id>` logged **once** |
+| 5 | Launch a local screen | The screen's log (`logs/<screen>-*.log`): `RegisterScreen sent for <id>` then `IPC state: Connecting -> Connected`, once |
 | 6 | Play | Now Playing shows title + singer, transport flips to ⏸ |
 | 7 | Sample the playhead twice, ≥8s apart | Delta equals wall-clock delta — see below |
 | 8 | Pause, resume, seek | Playhead freezes, resumes, jumps; log lines match the UI |
