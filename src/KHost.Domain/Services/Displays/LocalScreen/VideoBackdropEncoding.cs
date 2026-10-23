@@ -40,7 +40,7 @@ public sealed class FfprobeVideoBackdropProbe(ILogger<FfprobeVideoBackdropProbe>
             var analysis = await FFProbe.AnalyseAsync(path, cancellationToken: cancellationToken);
 
             // A cover image muxed as a video stream is not the picture that plays.
-            var video = analysis.VideoStreams.FirstOrDefault(FfprobeSourcePictureProbe.IsMovingPicture);
+            var video = analysis.VideoStreams.FirstOrDefault(FfprobeMediaProbe.IsMovingPicture);
 
             return new VideoBackdropFacts(analysis.Format.FormatName ?? string.Empty, video?.CodecName,
                 video?.PixelFormat, analysis.PrimaryAudioStream?.CodecName);

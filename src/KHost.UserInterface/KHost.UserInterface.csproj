@@ -14,9 +14,10 @@
 
       Not LocalScreen: LocalScreenProvider launches it by executable path, and it has no keychain of
       its own to be prompted for. Not Release either, where a published KHost is a real signed
-      executable and is the identity the keychain should be trusting.
+      executable and is the identity the keychain should be trusting. Not macOS: the window is
+      Chromium, which starts only from KHost.app, whose executable the apphost is.
     -->
-    <UseAppHost Condition="'$(Configuration)' == 'Debug'">false</UseAppHost>
+    <UseAppHost Condition="'$(Configuration)' == 'Debug' and !$([MSBuild]::IsOSPlatform('OSX'))">false</UseAppHost>
     <RepositoryUrl>https://github.com/riddlemd/KHost</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/riddlemd/KHost</PackageProjectUrl>
@@ -30,6 +31,11 @@
     <EnforceCodeStyleInBuild>False</EnforceCodeStyleInBuild>
     <UserSecretsId>3cc5ab26-24c3-4200-8c4f-9035c6d49c07</UserSecretsId>
     <RunWorkingDirectory>$(OutputPath)</RunWorkingDirectory>
+    <!-- The window: Oriel (CEF) for the OS this builds for, the publish RID, else the SDK's own. -->
+    <KHostOrielRid>$(RuntimeIdentifier)</KHostOrielRid>
+    <KHostOrielRid Condition="'$(KHostOrielRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</KHostOrielRid>
+    <OrielMacBundleName>KHost</OrielMacBundleName>
+    <OrielMacBundleId>dev.riddlemd.khost</OrielMacBundleId>
   </PropertyGroup>
 
   <!-- Windows: a GUI apphost so no console window opens beside the app; ILiveLogService shows the log instead.
@@ -60,7 +66,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Photino.NET" />
+    <PackageReference Include="Oriel" />
+    <PackageReference Include="Oriel.Blazor" />
+    <PackageReference Include="Oriel.Runtime.$(KHostOrielRid)" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.File" />
     <!-- Compiles co-located *.razor.scss before Blazor rewrites scoped selectors; a plain

@@ -140,7 +140,7 @@ namespace KHost.Domain
             // Core, not a plugin: the host's own transport to the local screen app, registered here so it
             // reaches PlaybackService in the same collection a plugin's display does. PluginLoader
             // must never bind it, and it must not appear on the Plugins page.
-            serviceCollection.AddSingleton<ISourcePictureProbe, FfprobeSourcePictureProbe>();
+            serviceCollection.AddSingleton<ISourcePictureProbe, MediaSourcePictureProbe>();
             serviceCollection.AddSingleton<ISongLevelsService, FfmpegSongLevelsService>();
             serviceCollection.AddSingleton<IVideoBackdropProbe, FfprobeVideoBackdropProbe>();
             serviceCollection.AddSingleton<IVideoBackdropEncoder, FfmpegVideoBackdropEncoder>();

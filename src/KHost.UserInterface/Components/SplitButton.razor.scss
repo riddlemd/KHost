@@ -5,7 +5,8 @@
 
     &__primary {
         border-radius: var(--kh-radius) 0 0 var(--kh-radius);
-        border-right: none;
+        // Width only: the shorthand would also reset the colour to the text colour.
+        border-right-width: 0;
     }
 
     &__toggle {
@@ -79,7 +80,7 @@
     // Alone now, so it takes back the corners and the edge it gave up to sit against the toggle.
     .kh-split-btn__primary {
         border-radius: var(--kh-radius);
-        border-right: 1px solid;
+        border-right-width: 1px;
     }
 }
 

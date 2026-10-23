@@ -103,35 +103,6 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         PublishState();
     }
 
-    /// <summary>Where leaving full screen puts the window, given where it was when it went full screen.</summary>
-    /// <remarks>On macOS full screen fills the work area, as maximising does, so a window that went
-    /// full screen maximised would return to the rect it already fills and only the buttons would
-    /// come back. Such a window leaves to its size before maximising, or to
-    /// <paramref name="fallback"/>'s size centred on its monitor, and is no longer maximised.</remarks>
-    public WindowBounds LeaveFullScreenTo(WindowBounds remembered, WindowBounds fallback)
-    {
-        lock (_gate)
-        {
-            var current = window.Bounds;
-            if (remembered != current) return remembered;
-
-            var wasMaximised = _maximised;
-            _maximised = false;
-
-            if (wasMaximised && _restore != current && _restore.Width > 0 && _restore.Height > 0)
-                return _restore;
-
-            var area = window.WorkArea;
-            return MonitorSpace.ClampInto(
-                fallback with
-                {
-                    Left = area.Left + ((area.Width - fallback.Width) / 2),
-                    Top = area.Top + ((area.Height - fallback.Height) / 2),
-                },
-                area);
-        }
-    }
-
     private void ToggleMaximised()
     {
         lock (_gate)
@@ -172,7 +143,6 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         var screenY = Number(root, "screenY");
 
         var unmaximised = false;
-        var native = false;
 
         lock (_gate)
         {
@@ -195,15 +165,6 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
                     {
                         bounds = Unmaximise(bounds, Number(root, "clientX"), Number(root, "innerWidth"), scale);
                         unmaximised = true;
-                    }
-
-                    // The OS drag carries the window across displays; moved by hand it gets pulled back.
-                    if (edge == Edges.None && window.TryBeginNativeMove(out var detail))
-                    {
-                        _gesture = null;
-                        native = true;
-                        logger.LogDebug("Drag start: handed to the OS, {Detail}; unmaximised {Unmaximised}", detail, unmaximised);
-                        break;
                     }
 
                     _gesture = new Gesture(edge, bounds, screenX, screenY, scale);
@@ -230,9 +191,6 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         }
 
         if (unmaximised) PublishState();
-
-        // The OS holds the pointer until release, so the page may never see its pointerup.
-        if (native) SendToPage?.Invoke(JsonSerializer.Serialize(new { type = "window-drag-native" }));
     }
 
     /// <summary>Back to the size it had, with the pointer over the same share of the strip it grabbed.</summary>
@@ -250,10 +208,9 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
     }
 
     /// <summary>Converts a page's pointer movement into the window system's units.</summary>
-    /// <remarks>Worked out from the window rather than assumed: macOS and GTK place windows in
-    /// points, which a page's pixels already are, while Windows places them in device pixels. A
-    /// chromeless window's page spans the whole window, so the page's width is the window's.
-    /// Not outerWidth: WKWebView reports it as 0.</remarks>
+    /// <remarks>Worked out from the window rather than assumed: Oriel places windows in DIPs, which a
+    /// page's pixels match until the page is zoomed. A frameless window's page spans the whole
+    /// window, so the page's width is the window's.</remarks>
     internal static double UnitsPerCssPixel(int windowWidth, double pageWidthCss)
         => pageWidthCss > 0 && windowWidth > 0 ? windowWidth / pageWidthCss : 1;
 

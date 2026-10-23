@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- Oriel's runtime arrives through the UI and the screen; a test host is never a Chromium app. -->
+    <OrielMacBundle>false</OrielMacBundle>
   </PropertyGroup>
 
   <ItemGroup>

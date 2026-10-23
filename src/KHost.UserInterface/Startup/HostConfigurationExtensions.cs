@@ -3,6 +3,7 @@ using KHost.Telemetry;
 using KHost.UserInterface.Services;
 using Serilog;
 using Serilog.Events;
+using KHost.Common.Storage;
 
 namespace KHost.UserInterface.Startup;
 
@@ -20,7 +21,7 @@ internal static class HostConfigurationExtensions
         // The App Settings page writes this overlay; registered last, it wins over the
         // deployment defaults, and reload-on-change lets IOptionsMonitor bindings apply live.
         builder.Configuration.AddJsonFile(
-            Path.Combine(AppContext.BaseDirectory, "cache", AppSettingsService.OverlayFileName),
+            Path.Combine(AppPaths.Cache, AppSettingsService.OverlayFileName),
             optional: true,
             reloadOnChange: true);
     }
@@ -28,7 +29,7 @@ internal static class HostConfigurationExtensions
     /// <summary>Wires Serilog, the log directory sweep, and log retention.</summary>
     internal static void AddKHostLogging(this WebApplicationBuilder builder)
     {
-        var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+        var logDirectory = AppPaths.Logs;
         Directory.CreateDirectory(logDirectory);
         KHostLogFiles.SweepStaleLogs(logDirectory);
 

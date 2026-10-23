@@ -6,6 +6,9 @@ using KHost.Telemetry;
 using KHost.UserInterface.Endpoints;
 using KHost.UserInterface.Middleware;
 using KHost.UserInterface.Startup;
+using KHost.Common.Storage;
+using Oriel;
+using Oriel.Blazor;
 
 namespace KHost.UserInterface;
 
@@ -23,8 +26,8 @@ internal static class Program
     internal const bool IsDebugBuild = false;
 #endif
 
-    // Top-level statements cannot carry [STAThread], which Photino needs on Windows, and the
-    // attribute only holds on a synchronous Main: an async one resumes off the STA thread.
+    // The window's thread runs Windows' OLE drag and drop and native dialogs, which need an STA. Top-level
+    // statements cannot carry the attribute, and it only holds on a synchronous Main.
     [STAThread]
     private static int Main(string[] args)
     {
@@ -34,12 +37,21 @@ internal static class Program
 
         var headless = args.Contains(HeadlessFlag);
 
+        // A build that kept its data beside the executable brings it along, once, to where it lives now.
+        if (AppPaths.AdoptLegacyData(AppContext.BaseDirectory, AppPaths.DataRoot))
+            Console.WriteLine($"Copied the data beside the executable into {AppPaths.DataRoot}");
+
         using var instanceLock = InstanceLock.TryAcquire();
         if (instanceLock is null)
         {
             InstanceLock.ReportAlreadyRunning(headless);
             return InstanceLock.AlreadyRunningExitCode;
         }
+
+        // Before anything else touches Chromium: the window's app, and the app:// scheme its page loads from.
+        var shell = headless ? null : OrielApp.Create("KHost");
+        // Chromium's own profile, kept out of the folder KHost's data shares with it by default.
+        shell?.SetPath("userData", Path.Combine(AppPaths.DataRoot, "browser"));
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -62,8 +74,13 @@ internal static class Program
         builder.Services.AddDataAccess();
         builder.Services.AddSignalRIPCServer();
 
-        builder.Services.AddRazorComponents()
-            .AddInteractiveServerComponents();
+        // A browser tab renders over a Blazor Server circuit; the window renders in-process. One renderer
+        // per run: the two register different JS runtimes and navigation managers.
+        if (shell is null)
+            builder.Services.AddRazorComponents()
+                .AddInteractiveServerComponents();
+        else
+            builder.Services.AddOrielBlazor();
 
         builder.Services.AddUserInterfaceServices();
         builder.Services.AddInteractionHandlers();
@@ -84,15 +101,14 @@ internal static class Program
 
         app.RegisterLifetimeHooks();
 
-        app.UseKHostPipeline();
+        app.UseKHostPipeline(serveConsole: shell is null);
 
-        if (headless)
+        if (shell is null)
         {
             app.Run();
             return 0;
         }
 
-        app.RunWithNativeShell();
-        return 0;
+        return app.RunWithNativeShell(shell);
     }
 }

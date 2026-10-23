@@ -39,7 +39,7 @@ body:
       options:
         - Console / singer queue
         - Media library, search, or import
-        - Screen output (Photino / video)
+        - Screen output (video)
         - Chromecast
         - Plugins & provider SDK
         - Settings & venue configuration
@@ -65,7 +65,7 @@ body:
       label: Where did you see it
       multiple: true
       options:
-        - Photino screen window
+        - Screen window
         - Browser (Blazor Server UI)
         - Chromecast receiver
         - Console output / logs only

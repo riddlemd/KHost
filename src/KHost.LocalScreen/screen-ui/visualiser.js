@@ -5,8 +5,8 @@
 // One engine for the page's life, built with no audio context of its own: butterchurn binds the
 // context it is built with, and every stem song brings a fresh one. The samples are read here from
 // whichever tap the song offers and handed to each frame instead. A song with no tap (an encoded
-// one in WebKit, which has no captureStream) is drawn from the levels the host read from its
-// source, rebuilt into samples at the song's own clock.
+// one on an engine without captureStream, or one a provider plays outside the page) is drawn from
+// the levels the host read from its source, rebuilt into samples at the song's own clock.
 
 /// Frames a second. The song comes first: every frame is GPU and main-thread time taken from the
 /// decoder, the mixer and the words, and a visualiser at 30 reads as smooth.
@@ -371,7 +371,6 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         videoEl.play().catch((e) => { if (e && e.name !== 'AbortError') reportError(`visualiser video: ${e}`); });
     }
 
-    /// Paused before it is hidden: WebKit stalls a decoder whose element leaves the render tree playing.
     function stopVideo() {
         video = false;
         if (!videoEl || !videoEl.hasAttribute('src')) { if (videoEl) videoEl.hidden = true; return; }
@@ -404,9 +403,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         if (eqCanvas) eqCanvas.hidden = true;
 
         if (key !== shownKey) {
-            // Both, because autoplay is judged on the attribute and WebKit reads the property.
             videoEl.muted = true;
-            videoEl.setAttribute('muted', '');
             videoEl.src = url;
             videoEl.currentTime = 0;
         }

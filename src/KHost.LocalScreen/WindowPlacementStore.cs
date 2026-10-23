@@ -46,10 +46,10 @@ internal sealed class WindowPlacementStore : IDisposable
 
     private WindowPlacement? _pending;
 
-    public WindowPlacementStore(string screenId, string baseDirectory, ILogger logger, TimeProvider? time = null)
+    public WindowPlacementStore(string screenId, string dataRoot, ILogger logger, TimeProvider? time = null)
     {
         _logger = logger;
-        _path = Path.Combine(baseDirectory, "cache", "screens", $"{SafeFileName(screenId)}.window.json");
+        _path = Path.Combine(dataRoot, "cache", "screens", $"{SafeFileName(screenId)}.window.json");
         _timer = (time ?? TimeProvider.System).CreateTimer(_ => Flush(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 

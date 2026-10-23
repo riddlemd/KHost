@@ -38,8 +38,13 @@ public sealed class FfprobeMediaProbe(ILogger<FfprobeMediaProbe> logger) : IMedi
             Duration = analysis.Format.Duration > TimeSpan.Zero ? analysis.Format.Duration : null,
             AudioTracks = TracksIn(analysis),
             Tags = TagsIn(analysis),
+            HasMovingPicture = analysis.VideoStreams.Any(IsMovingPicture),
         };
     }
+
+    /// <summary>A cover image muxed as a video stream is one frame, not a picture to play under words.</summary>
+    internal static bool IsMovingPicture(VideoStream stream)
+        => stream.Disposition?.GetValueOrDefault("attached_pic") != true;
 
     private static IReadOnlyList<AudioTrack> TracksIn(IMediaAnalysis analysis)
     {

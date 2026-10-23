@@ -42,7 +42,7 @@ preserve a queue in an emergency, not a way to shut down — it also skips the f
 
 `--headless` serves the console as an ordinary page at `http://localhost:5251`, so it drives with
 browser tooling and reads with the DOM instead of screenshot coordinate math. Every
-platform-specific paragraph below exists only because the Photino window is not a browser tab.
+platform-specific paragraph below exists only because the native window is not a browser tab.
 
 Check one thing before betting on it: **the browser your tooling drives may not be on the same
 machine as the app.** The symptom is unambiguous — the shell's `curl http://localhost:5251/` returns
@@ -89,7 +89,7 @@ Startup is confirmed by `Singer queue loaded (N users)`. Every launch writes its
 
 ## Driving the windowed UI
 
-The Photino window is not a browser tab: browser-extension tooling cannot reach it on any OS. What
+The Oriel window is not a browser tab: browser-extension tooling cannot reach it on any OS. What
 replaces it differs per OS, and the three capabilities are independent — you can often capture
 without being able to click.
 
@@ -102,13 +102,13 @@ without being able to click.
 
 **Capture the window, not the desktop** — it keeps the rest of the screen out of the image. Both
 verified methods capture without foregrounding, so a capture is safe to take while the operator is
-using the app — with one exception on macOS: a **covered WKWebView window stops compositing**, so
+using the app — with one exception on macOS: a **covered window may stop compositing**, so
 `screencapture -l` of the LocalScreen window while something sits over it returns a frozen or blank
 frame that looks like a stalled song. Raise it first
 (`osascript -e 'tell application "System Events" to set frontmost of (first process whose unix id is <pid>) to true'`)
 and compare two captures a second apart before trusting either.
 
-On Windows, `PrintWindow` with flag 2 (`PW_RENDERFULLCONTENT`) is the flag that matters: WebView2
+On Windows, `PrintWindow` with flag 2 (`PW_RENDERFULLCONTENT`) is the flag that matters: Chromium
 composites out of process, and the default flag returns the black rectangle this technique is
 notorious for. Sanity-check a capture by sampling distinct colours before trusting it — an all-black
 image is a failed capture, not a broken theme.

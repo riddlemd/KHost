@@ -26,7 +26,7 @@ public sealed class CdgMediaProbe(
         if (MediaFormats.FindKaraokeAudio(filePath) is not { } audio)
             return new MediaProbeResult();
 
-        return await fallback.ProbeAsync(audio, cancellationToken);
+        return WithGraphics(await fallback.ProbeAsync(audio, cancellationToken));
     }
 
     /// <summary>Reads the audio out of a zipped pair onto disk and describes that.</summary>
@@ -52,7 +52,7 @@ public sealed class CdgMediaProbe(
                     : new MediaProbeResult();
             }
 
-            return await fallback.ProbeAsync(audio, cancellationToken);
+            return WithGraphics(await fallback.ProbeAsync(audio, cancellationToken));
         }
         finally
         {
@@ -61,4 +61,8 @@ public sealed class CdgMediaProbe(
             catch (UnauthorizedAccessException) { }
         }
     }
+
+    /// <summary>The facts are the audio's, but the graphics are the picture: a pair always has one.
+    /// </summary>
+    private static MediaProbeResult? WithGraphics(MediaProbeResult? audio) => audio is null ? null : audio with { HasMovingPicture = true };
 }

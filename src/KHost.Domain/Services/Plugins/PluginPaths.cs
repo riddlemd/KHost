@@ -1,3 +1,5 @@
+using KHost.Common.Storage;
+
 namespace KHost.Domain.Services.Plugins;
 
 /// <summary>Where plugin folders live.</summary>
@@ -15,14 +17,14 @@ public static class PluginPaths
     /// <summary>Download/extraction scratch, kept in staging so the final move stays on one volume.</summary>
     public const string WorkFolderName = ".work";
 
-    public static string Plugins => Path.Combine(AppContext.BaseDirectory, "plugins");
+    public static string Plugins => Path.Combine(AppPaths.DataRoot, "plugins");
 
-    public static string Staging => Path.Combine(AppContext.BaseDirectory, "plugins-staging");
+    public static string Staging => Path.Combine(AppPaths.DataRoot, "plugins-staging");
 
-    public static string Cache => Path.Combine(AppContext.BaseDirectory, "cache");
+    public static string Cache => AppPaths.Cache;
 
     /// <summary>Executables shared by the host and plugins: the installed ffmpeg, and plugins' own.</summary>
-    /// <remarks>A dev run already sits in the project's build <c>bin/</c>, so this is a nested one;
-    /// DeepClean keeps any nested <c>bin/</c> for that reason.</remarks>
-    public static string Bin => Path.Combine(AppContext.BaseDirectory, "bin");
+    /// <remarks>Beside the executable a dev run already sits in the project's build <c>bin/</c>, so this
+    /// is a nested one; DeepClean keeps any nested <c>bin/</c> for that reason.</remarks>
+    public static string Bin => Path.Combine(AppPaths.DataRoot, "bin");
 }

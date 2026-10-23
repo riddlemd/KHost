@@ -30,7 +30,7 @@ let sharedStemContext = null;
 /// interrupted one is asked to resume rather than replaced, since replacing it is the pop.
 function stemAudioContext() {
     if (!sharedStemContext || sharedStemContext.state === 'closed') {
-        sharedStemContext = new (window.AudioContext || window.webkitAudioContext)();
+        sharedStemContext = new AudioContext();
     }
 
     if (sharedStemContext.state !== 'running') {
@@ -188,7 +188,7 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
 
     return {
         /// True so the lyrics clock counts this as something holding the song; it guards on a
-        /// source being present and a bare mixer has neither `src` nor `srcObject` of its own.
+        /// source being present and a bare mixer has no `src` of its own.
         src: 'stems:',
 
         /// Nothing to play until the stems are decoded, and everything once they are. The drift

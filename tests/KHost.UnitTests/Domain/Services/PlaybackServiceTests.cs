@@ -103,7 +103,7 @@ public class PlaybackServiceTests : IDisposable
             screen.ScreenId.Returns($"Screen {i}");
             screen.ConnectionId.Returns($"conn-{i}");
             screen.IsConnected.Returns(true);
-            // A Photino screen declares both: it carries the room and draws the picture.
+            // A local screen declares both: it carries the room and draws the picture.
             screen.Capabilities.Returns(new ScreenCapabilities
             {
                 SupportsAudio = true,

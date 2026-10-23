@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
-using Photino.NET;
 
 // Linked into both executables. The namespace differs so the test assembly, which sees both, can
 // name each copy without an ambiguity error.
@@ -31,7 +30,7 @@ internal static class AppIcon
         : OSPlatform.Linux;
 
     /// <summary>The window icon for <paramref name="platform"/>, or null when there is none to set.</summary>
-    /// <remarks>Null on macOS: Photino puts it only on the title bar's document button there, and the
+    /// <remarks>Null on macOS: a window icon there sits only on the title bar's document button, and the
     /// Dock is <see cref="MacDockIcon"/>'s job.</remarks>
     internal static string? ResolveWindowIcon(string baseDirectory, OSPlatform platform)
     {
@@ -44,33 +43,6 @@ internal static class AppIcon
         var path = Path.Combine(baseDirectory, DirectoryName, name);
         return File.Exists(path) ? path : null;
     }
-
-    /// <summary>Sets the window icon when one is there to set.</summary>
-    /// <remarks>Photino throws on a path that does not exist, so a lost icon file would otherwise
-    /// stop the window opening at all.</remarks>
-    internal static PhotinoWindow SetAppIcon(this PhotinoWindow window, ILogger logger)
-    {
-        var platform = CurrentPlatform;
-        if (platform == OSPlatform.OSX) return window;
-
-        var path = ResolveWindowIcon(AppContext.BaseDirectory, platform);
-        if (path is null)
-        {
-            logger.LogWarning("No window icon under {Directory}; the window opens without one",
-                Path.Combine(AppContext.BaseDirectory, DirectoryName));
-            return window;
-        }
-
-        try
-        {
-            return window.SetIconFile(path);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not set the window icon from {Path}", path);
-            return window;
-        }
-    }
 }
 
 /// <summary>Puts the KHost icon in the macOS Dock.</summary>
@@ -81,7 +53,7 @@ internal static class MacDockIcon
     private const string ObjC = "/usr/lib/libobjc.A.dylib";
 
     /// <summary>Sets the Dock icon from the .icns beside the binary; false when nothing was set.</summary>
-    /// <remarks>Main thread only, after Photino has created NSApp: its window-created handler is both.</remarks>
+    /// <remarks>Main thread only, once NSApp exists: Oriel's Ready is both.</remarks>
     internal static bool TrySet(ILogger logger)
         => TrySet(
             Path.Combine(AppContext.BaseDirectory, AppIcon.DirectoryName, AppIcon.MacIconFileName),

@@ -38,6 +38,7 @@ public class CdgMediaProbeTests : IDisposable
         var result = await new CdgMediaProbe(_fallback).ProbeAsync(zip);
 
         Assert.Equal(TimeSpan.FromSeconds(231), result?.Duration);
+        Assert.True(result?.HasMovingPicture);
         Assert.Equal(Audio, probedBytes);
         Assert.Equal(".mp3", Path.GetExtension(probed));
         Assert.False(Directory.Exists(Path.GetDirectoryName(probed)));
@@ -64,5 +65,28 @@ public class CdgMediaProbeTests : IDisposable
         await File.WriteAllBytesAsync(zip, [1, 2, 3, 4]);
 
         Assert.Null(await new CdgMediaProbe(_fallback).ProbeAsync(zip));
+    }
+
+    /// <summary>The graphics are the picture, whatever the audio beside them reports.</summary>
+    [Fact]
+    public async Task ProbeAsync_ALoosePair_HasAPicture()
+    {
+        var graphics = Path.Combine(_directory, "Song.cdg");
+        File.WriteAllBytes(graphics, Graphics);
+        File.WriteAllBytes(Path.Combine(_directory, "Song.mp3"), Audio);
+        _fallback.ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MediaProbeResult { HasMovingPicture = false });
+
+        Assert.True((await new CdgMediaProbe(_fallback).ProbeAsync(graphics))?.HasMovingPicture);
+    }
+
+    /// <summary>No audio is no song, so it claims no picture either.</summary>
+    [Fact]
+    public async Task ProbeAsync_ALooseGraphicsFileAlone_SaysNothingAboutAPicture()
+    {
+        var graphics = Path.Combine(_directory, "Alone.cdg");
+        File.WriteAllBytes(graphics, Graphics);
+
+        Assert.Null((await new CdgMediaProbe(_fallback).ProbeAsync(graphics))?.HasMovingPicture);
     }
 }

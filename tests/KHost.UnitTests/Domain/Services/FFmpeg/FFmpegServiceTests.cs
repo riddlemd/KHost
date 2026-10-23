@@ -1,3 +1,4 @@
+using KHost.Common.Storage;
 using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography;
@@ -37,8 +38,8 @@ public sealed class FFmpegServiceTests : IDisposable
     }
 
     [Fact]
-    public void HostDirectories_ByDefault_IsABinFolderBesideTheHost()
-        => Assert.Equal(Path.Combine(AppContext.BaseDirectory, "bin"), new HostDirectories().BinDirectory);
+    public void HostDirectories_ByDefault_IsABinFolderInTheDataFolder()
+        => Assert.Equal(Path.Combine(AppPaths.DataRoot, "bin"), new HostDirectories().BinDirectory);
 
     /// <summary>What a plugin reaches through IHostDirectories is where the host looks, ahead of PATH.</summary>
     [Fact]
