@@ -209,6 +209,22 @@ public class LocalScreenDisplayProviderTests
         Assert.False(target.BurnLyrics);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DescribeTarget_FollowsWhatTheScreenDecodes(bool openCodecsOnly)
+    {
+        var screen = Connection("Screen 1", "conn-a");
+        screen.Capabilities.Returns(new ScreenCapabilities { SupportsVideo = true, OpenCodecsOnly = openCodecsOnly });
+        RaiseConnected(screen);
+
+        Assert.Equal(openCodecsOnly, ((IDisplayProvider)_provider).DescribeTarget().OpenCodecsOnly);
+    }
+
+    [Fact]
+    public void DescribeTarget_NoScreen_AssumesH264()
+        => Assert.False(((IDisplayProvider)_provider).DescribeTarget().OpenCodecsOnly);
+
     /// <summary>There is nothing to find on this machine: the host opens the screen itself.</summary>
     [Fact]
     public void SearchesForDevices_IsFalse()

@@ -30,6 +30,16 @@ public class ProgramTests
         Assert.True(calls >= 3);
     }
 
+    [Theory]
+    [InlineData("""{"type":"ready","openCodecsOnly":true}""", true)]
+    [InlineData("""{"type":"ready","openCodecsOnly":false}""", false)]
+    [InlineData("""{"type":"ready"}""", false)]
+    [InlineData("""{"type":"ready","openCodecsOnly":"yes"}""", false)]
+    [InlineData("not json", false)]
+    [InlineData("[]", false)]
+    public void ReadsOpenCodecsOnly_TrueOnlyWhenThePageSaysSo(string message, bool expected)
+        => Assert.Equal(expected, Program.ReadsOpenCodecsOnly(message));
+
     [Fact]
     public async Task RepeatAsync_Cancelled_CompletesWithoutThrowing()
     {

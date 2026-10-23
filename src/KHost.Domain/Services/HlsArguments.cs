@@ -54,7 +54,9 @@ internal static class HlsArguments
     /// <summary>EVENT playlist type so a consumer can start on the first segment.</summary>
     /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and in WKWebView, which is what
     /// LocalScreen renders through; a display provider's device is a third consumer it also suits.
-    /// A frame taller than 1080 lines is Main@5.1, the lowest level that allows one.</remarks>
+    /// A frame taller than 1080 lines is Main@5.1, the lowest level that allows one. A display with
+    /// no H.264 (Oriel on stock Chromium) is handed <see cref="VideoEncoderProfile.Vp9"/>, which
+    /// brings Opus and fMP4 with it, picture or not.</remarks>
     internal static string BuildArguments(
         EncodeInputs inputs, VideoEncoderProfile? encoder = null, PlaylistPart part = default)
     {
@@ -170,7 +172,7 @@ internal static class HlsArguments
 
         if (holdsPictureToTheAudio) arguments += " -shortest";
 
-        return arguments + HlsOutput(segment, part);
+        return arguments + HlsOutput(segment, part, encoder?.IsOpenCodec == true);
     }
 
     /// <summary>Whether the encode cuts any video, and so has an encoder to choose: not for a display
@@ -225,27 +227,35 @@ internal static class HlsArguments
             arguments += $" -filter_complex \"{mixGraph}\" -map \"[a]\"";
         }
 
-        return arguments + HlsOutput(segment, part);
+        return arguments + HlsOutput(segment, part, encoder?.IsOpenCodec == true);
     }
 
     /// <remarks>MPEG-TS segments rather than fMP4: TS plays everywhere, and CMAF needs a newer device
     /// than some display providers reach. Wanting CMAF means asking the provider first.
     ///
     /// <para>A run appending to a playlist numbers on from it and shifts its timestamps to follow
-    /// what is listed; ffmpeg marks the join a discontinuity itself.</para></remarks>
-    private static string HlsOutput(int segment, PlaylistPart part)
-        => " -c:a aac -ar 44100 -ac 2 -b:a 128k"
+    /// what is listed; ffmpeg marks the join a discontinuity itself.</para>
+    ///
+    /// <para>An open-codec encode (VP9, for a display with no H.264) carries Opus, which needs 48 kHz,
+    /// in fMP4 segments: neither VP9 nor Opus travels in MPEG-TS for hls.js.</para></remarks>
+    private static string HlsOutput(int segment, PlaylistPart part, bool openCodecs)
+        => (openCodecs ? " -c:a libopus -ar 48000 -ac 2 -b:a 128k" : " -c:a aac -ar 44100 -ac 2 -b:a 128k")
            + (part.Appends
                ? string.Format(CultureInfo.InvariantCulture, " -output_ts_offset {0:F6}", part.After.TotalSeconds)
                : "")
            + string.Format(
                CultureInfo.InvariantCulture,
-               " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments{1}{2}"
-               + " -hls_segment_filename seg_%05d.ts",
+               " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments{1}{2}",
                segment,
                part.LeftOpen ? "+omit_endlist" : "",
                part.Appends ? "+append_list" : "")
+           + (openCodecs
+               ? $" -hls_segment_type fmp4 -hls_fmp4_init_filename {InitSegmentFileName} -hls_segment_filename seg_%05d.m4s"
+               : " -hls_segment_filename seg_%05d.ts")
            + $" {HlsPlaylistFile.FileName}";
+
+    /// <summary>An fMP4 stream's initialisation segment, which every media segment needs first.</summary>
+    internal const string InitSegmentFileName = "init.mp4";
 
     /// <summary>A loose .cdg: this is asked of what ffmpeg opens, after a zipped pair is written out.</summary>
     internal static bool IsGraphicsOnly(string filePath) => MediaFormats.IsGraphicsOnlyKaraoke(filePath);

@@ -104,6 +104,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();
             serviceCollection.AddSingleton<IFfmpegProcessRunner, FfmpegProcessRunner>();
             serviceCollection.AddSingleton<IVideoEncoderSelector, VideoEncoderSelector>();
+            serviceCollection.AddSingleton<IDisplayCodecs, ConnectedDisplayCodecs>();
             serviceCollection.AddSingleton<HlsMediaStreamService>();
             serviceCollection.AddSingleton<IMediaStreamService>(services => services.GetRequiredService<HlsMediaStreamService>());
             // The same instance, so a burned-in stream is one of its sessions and closes like any other.

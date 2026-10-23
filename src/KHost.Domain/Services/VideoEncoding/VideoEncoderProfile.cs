@@ -25,12 +25,29 @@ public sealed record VideoEncoderProfile(string Codec, bool IsHardware)
     public static readonly VideoEncoderProfile Amf = new("h264_amf", true);
     public static readonly VideoEncoderProfile MediaFoundation = new("h264_mf", true);
 
+    /// <summary>VP9 for a display that decodes no H.264 (stock Chromium); software only.</summary>
+    public static readonly VideoEncoderProfile Vp9 = new("libvpx-vp9", false);
+
+    /// <summary>Whether the encode is royalty-free: VP9 with Opus in fMP4, not H.264 with AAC in
+    /// MPEG-TS. The audio and the container follow the picture's codec.</summary>
+    public bool IsOpenCodec => Codec == Vp9.Codec;
+
     /// <summary>The ffmpeg arguments from <c>-c:v</c> through the keyframe options.</summary>
     /// <param name="frameHeight">The output height when the caller knows it, else zero.</param>
     public string Arguments(int frameHeight, int segment)
     {
         var keyframes = string.Format(
             CultureInfo.InvariantCulture, " -force_key_frames \"expr:gte(t,n_forced*{0})\"", segment);
+
+        if (IsOpenCodec)
+        {
+            // Realtime: a song is cut while it plays. -lag-in-frames 0 keeps the first segment as
+            // quick as x264's; -crf with -b:v 0 is libvpx's constant quality. A GOP past any segment
+            // at 120fps, as for hardware below, so only the forced keyframes cut.
+            return " -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -row-mt 1 -lag-in-frames 0 -crf 32 -b:v 0"
+                   + " -pix_fmt yuv420p"
+                   + string.Format(CultureInfo.InvariantCulture, " -g {0}", segment * 120) + keyframes;
+        }
 
         if (!IsHardware)
         {

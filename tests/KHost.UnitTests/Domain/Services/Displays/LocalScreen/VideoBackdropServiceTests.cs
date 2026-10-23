@@ -24,7 +24,7 @@ public class VideoBackdropServiceTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         _options.CurrentValue.Returns(new HlsMediaStreamService.ServiceOptions { BaseAddress = "http://host:5251/" });
-        _encoder.EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _encoder.EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(call => WriteAsync(call.ArgAt<string>(1)));
     }
 
@@ -66,6 +66,57 @@ public class VideoBackdropServiceTests : IDisposable
     public void PlaysAsIs_OnlyEightBit420H264InMp4WithAacOrNoSound(string format, string video, string? pixels, string? audio, bool expected)
         => Assert.Equal(expected, VideoBackdropService.PlaysAsIs(new VideoBackdropFacts(format, video, pixels, audio)));
 
+    [Theory]
+    [InlineData("matroska,webm", "vp9", "yuv420p", "opus", true)]
+    [InlineData("matroska,webm", "vp9", "yuv420p", null, true)]
+    [InlineData("mov,mp4,m4a,3gp,3g2,mj2", "av1", "yuv420p", null, true)]
+    [InlineData("matroska,webm", "vp9", "yuv420p", "vorbis", true)]
+    [InlineData("mov,mp4,m4a,3gp,3g2,mj2", "h264", "yuv420p", "aac", false)]
+    [InlineData("mov,mp4,m4a,3gp,3g2,mj2", "vp9", "yuv420p", "aac", false)]
+    [InlineData("matroska,webm", "vp9", "yuv420p10le", null, false)]
+    [InlineData("avi", "vp9", "yuv420p", null, false)]
+    public void PlaysAsIs_OpenCodecs_OnlyEightBit420Vp9OrAv1WithOpusVorbisOrNoSound(string format, string video, string? pixels, string? audio, bool expected)
+        => Assert.Equal(expected, VideoBackdropService.PlaysAsIs(new VideoBackdropFacts(format, video, pixels, audio), openCodecs: true));
+
+    /// <summary>A screen with no H.264 gets its own encode of a file another screen plays as it is,
+    /// and an open-codec file as it is.</summary>
+    [Fact]
+    public async Task UrlForAsync_ScreenWithNoH264_EncodesH264AndServesVp9AsItIs()
+    {
+        var codecs = Substitute.For<KHost.Domain.Services.Displays.IDisplayCodecs>();
+        codecs.OpenCodecsOnly.Returns(true);
+        var service = new VideoBackdropService(NullLogger<VideoBackdropService>.Instance, _options, _probe, _encoder, _root, codecs);
+        _services.Add(service);
+        var h264 = Video("waves.mp4", Direct);
+        var vp9 = Video("waves.webm", NeedsEncoding);
+
+        var h264Url = await service.UrlForAsync(h264);
+        var vp9Url = await service.UrlForAsync(vp9);
+
+        Assert.NotEqual(h264.FilePath, service.ResolveFile(TokenOf(h264Url!)));
+        await _encoder.Received(1).EncodeAsync(h264.FilePath, Arg.Any<string>(), true, Arg.Any<CancellationToken>());
+        Assert.Equal(vp9.FilePath, service.ResolveFile(TokenOf(vp9Url!)));
+        await _encoder.DidNotReceive().EncodeAsync(vp9.FilePath, Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The screen changed in the run: the same file is encoded again for what it decodes.</summary>
+    [Fact]
+    public async Task UrlForAsync_TheScreenSwitchesCodecs_EncodesForEach()
+    {
+        var codecs = Substitute.For<KHost.Domain.Services.Displays.IDisplayCodecs>();
+        var service = new VideoBackdropService(NullLogger<VideoBackdropService>.Instance, _options, _probe, _encoder, _root, codecs);
+        _services.Add(service);
+        var media = Video("waves.avi", Direct with { FormatName = "avi" });
+
+        codecs.OpenCodecsOnly.Returns(false);
+        await service.UrlForAsync(media);
+        codecs.OpenCodecsOnly.Returns(true);
+        await service.UrlForAsync(media);
+
+        await _encoder.Received(1).EncodeAsync(media.FilePath, Arg.Any<string>(), false, Arg.Any<CancellationToken>());
+        await _encoder.Received(1).EncodeAsync(media.FilePath, Arg.Any<string>(), true, Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task UrlForAsync_TenBitH264InMp4_ServesAnEncode()
     {
@@ -75,7 +126,7 @@ public class VideoBackdropServiceTests : IDisposable
         var url = await service.UrlForAsync(media);
 
         Assert.NotEqual(media.FilePath, service.ResolveFile(TokenOf(url!)));
-        await _encoder.Received(1).EncodeAsync(media.FilePath, Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _encoder.Received(1).EncodeAsync(media.FilePath, Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -104,7 +155,7 @@ public class VideoBackdropServiceTests : IDisposable
         Assert.Equal(Path.Combine(service.WorkingDirectory, Path.GetFileName(served)), served);
         Assert.Equal(".mp4", Path.GetExtension(served));
         Assert.Equal("encoded", await File.ReadAllTextAsync(served));
-        await _encoder.Received(1).EncodeAsync(media.FilePath, Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _encoder.Received(1).EncodeAsync(media.FilePath, Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -112,7 +163,7 @@ public class VideoBackdropServiceTests : IDisposable
     {
         var media = Video();
         var gate = new TaskCompletionSource();
-        _encoder.EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _encoder.EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(async call => { await gate.Task; return await WriteAsync(call.ArgAt<string>(1)); });
         var service = Service();
 
@@ -121,7 +172,7 @@ public class VideoBackdropServiceTests : IDisposable
         gate.SetResult();
 
         Assert.Equal(await first, await second);
-        await _encoder.Received(1).EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _encoder.Received(1).EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -134,7 +185,7 @@ public class VideoBackdropServiceTests : IDisposable
         var second = await service.UrlForAsync(media);
 
         Assert.Equal(first, second);
-        await _encoder.Received(1).EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _encoder.Received(1).EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
         await _probe.Received(2).ProbeAsync(media.FilePath, Arg.Any<CancellationToken>());
     }
 
@@ -149,20 +200,20 @@ public class VideoBackdropServiceTests : IDisposable
         var second = await service.UrlForAsync(media);
 
         Assert.NotEqual(first, second);
-        await _encoder.Received(2).EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _encoder.Received(2).EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task UrlForAsync_TheEncodeFails_AnswersNullAndTriesAgainNextTime()
     {
         var media = Video();
-        _encoder.EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        _encoder.EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(false);
         var service = Service();
 
         Assert.Null(await service.UrlForAsync(media));
         Assert.Null(await service.UrlForAsync(media));
 
-        await _encoder.Received(2).EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _encoder.Received(2).EncodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
         Assert.Empty(Directory.Exists(service.WorkingDirectory) ? Directory.GetFiles(service.WorkingDirectory, "*.mp4*") : []);
     }
 
@@ -278,6 +329,17 @@ public class VideoBackdropServiceTests : IDisposable
         Assert.Contains("-vf scale=w=1280:h=720:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2", line);
         Assert.Contains("-c:v libx264 -preset veryfast -profile:v high -pix_fmt yuv420p", line);
         Assert.Contains("-movflags +faststart", line);
+        Assert.EndsWith("-f mp4 /out/x.mp4.part", line);
+    }
+
+    [Fact]
+    public void BuildArguments_OpenCodecs_IsVp9NotH264()
+    {
+        var line = string.Join(' ', FfmpegVideoBackdropEncoder.BuildArguments("/in/waves.mkv", "/out/x.mp4.part", openCodecs: true));
+
+        Assert.Contains("-c:v libvpx-vp9", line);
+        Assert.Contains("-pix_fmt yuv420p", line);
+        Assert.DoesNotContain("libx264", line);
         Assert.EndsWith("-f mp4 /out/x.mp4.part", line);
     }
 

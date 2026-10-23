@@ -42,6 +42,13 @@ public sealed class RenderTarget
     /// failing, and that song reaches the display without its words.</remarks>
     public bool BurnLyrics { get; init; }
 
+    /// <summary>Whether the display decodes only royalty-free formats (VP9, AV1, Opus, Vorbis), and
+    /// no H.264 or AAC.</summary>
+    /// <remarks>A screen on stock Chromium (Oriel without its codec runtime). The host's own encodes
+    /// follow it by themselves; a renderer that answers with a URL of its own picks a format the
+    /// display plays, or declines so the host encodes.</remarks>
+    public bool OpenCodecsOnly { get; init; }
+
     /// <summary>Nothing connected, or nothing special asked for: every flag false.</summary>
     public static RenderTarget None { get; } = new();
 }

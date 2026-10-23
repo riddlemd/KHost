@@ -948,6 +948,13 @@ if (window.external && window.external.receiveMessage) {
     window.external.receiveMessage(handleCommand);
 }
 
+// Whether this engine decodes only royalty-free formats: stock Chromium (Oriel without its codec
+// runtime) has no H.264 or AAC, so the host must send VP9 and Opus instead.
+function decodesOnlyOpenCodecs() {
+    const probe = window.MediaSource && MediaSource.isTypeSupported;
+    return probe ? !MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401f,mp4a.40.2"') : false;
+}
+
 // Last line on purpose: until this arrives the host doesn't know the screen exists, and a command
 // pushed into a page-less web view crashes the whole process inside Photino's SendWebMessage.
-send({ type: 'ready' });
+send({ type: 'ready', openCodecsOnly: decodesOnlyOpenCodecs() });
