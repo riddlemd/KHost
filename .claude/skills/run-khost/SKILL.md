@@ -92,7 +92,7 @@ Startup is confirmed by `Singer queue loaded (N users)`. Every launch writes its
 
 ## Driving the windowed UI
 
-The Oriel window is not a browser tab: browser-extension tooling cannot reach it on any OS. What
+The Riftway window is not a browser tab: browser-extension tooling cannot reach it on any OS. What
 replaces it differs per OS, and the three capabilities are independent — you can often capture
 without being able to click.
 

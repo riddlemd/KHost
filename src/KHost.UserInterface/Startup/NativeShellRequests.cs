@@ -1,4 +1,4 @@
-using Oriel;
+using Riftway;
 
 namespace KHost.UserInterface.Startup;
 

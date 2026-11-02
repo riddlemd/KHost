@@ -1,13 +1,13 @@
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components.Web;
-using Oriel;
-using Oriel.Blazor;
+using Riftway;
+using Riftway.Blazor;
 using Serilog;
 
 namespace KHost.UserInterface.Startup;
 
-/// <summary>The console window: the UI's components rendered in-process into an Oriel window (Blazor Hybrid).</summary>
+/// <summary>The console window: the UI's components rendered in-process into a Riftway window (Blazor Hybrid).</summary>
 /// <remarks>Kestrel keeps serving beside it, for screens, network clients and the media the page loads.</remarks>
 internal static class NativeShell
 {
@@ -15,7 +15,7 @@ internal static class NativeShell
     private const int Height = 900;
 
     /// <summary>Starts the host, opens the window on this thread, and stops the host once the window has closed.</summary>
-    internal static int RunWithNativeShell(this WebApplication app, OrielApp shell)
+    internal static int RunWithNativeShell(this WebApplication app, RiftwayApp shell)
     {
         app.StartAsync().GetAwaiter().GetResult();
 
@@ -92,7 +92,7 @@ internal static class NativeShell
     }
 
     /// <summary>Keeps the window titled "KHost".</summary>
-    /// <remarks>Each page titles itself ("KHost: Hosting Dashboard") and Oriel, as Electron, would put that on the
+    /// <remarks>Each page titles itself ("KHost: Hosting Dashboard") and Riftway, as Electron, would put that on the
     /// title bar and taskbar.</remarks>
     internal static void KeepAppTitle(object? sender, PageTitleUpdatedEventArgs e) => e.Cancel = true;
 

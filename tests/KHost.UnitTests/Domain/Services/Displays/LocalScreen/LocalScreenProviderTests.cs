@@ -34,7 +34,7 @@ public class LocalScreenProviderTests
     }
 
     [Fact]
-    public void Given_APublishedWindowsLayout_When_TheScreenExeIsResolved_Then_ItIsOrielsSandboxedExe()
+    public void Given_APublishedWindowsLayout_When_TheScreenExeIsResolved_Then_ItIsRiftwaysSandboxedExe()
     {
         // Given
         var published = Path.Combine("/app", LocalScreenProvider.PublishedWindowsExe);

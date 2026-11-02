@@ -921,7 +921,7 @@ function reportState() {
 
 if (window.khostScreen) window.khostScreen.receive(handleCommand);
 
-// Whether this engine decodes only royalty-free formats: stock Chromium (Oriel without its codec
+// Whether this engine decodes only royalty-free formats: stock Chromium (Riftway without its codec
 // runtime) has no H.264 or AAC, so the host must send VP9 and Opus instead.
 function decodesOnlyOpenCodecs() {
     const probe = window.MediaSource && MediaSource.isTypeSupported;

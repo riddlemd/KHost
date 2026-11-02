@@ -53,7 +53,7 @@ internal static class MacDockIcon
     private const string ObjC = "/usr/lib/libobjc.A.dylib";
 
     /// <summary>Sets the Dock icon from the .icns beside the binary; false when nothing was set.</summary>
-    /// <remarks>Main thread only, once NSApp exists: Oriel's Ready is both.</remarks>
+    /// <remarks>Main thread only, once NSApp exists: Riftway's Ready is both.</remarks>
     internal static bool TrySet(ILogger logger)
         => TrySet(
             Path.Combine(AppContext.BaseDirectory, AppIcon.DirectoryName, AppIcon.MacIconFileName),

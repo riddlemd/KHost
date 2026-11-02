@@ -117,7 +117,7 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
     // The apphost is only .exe on Windows, so a hardcoded name makes IsAvailable false elsewhere. On
     // macOS the screen runs from inside its bundle: Chromium will not start from a bare executable.
     // Path.Combine leaves a rooted second argument alone, so an absolute configured path still wins.
-    // A Windows publish replaces the apphost with Oriel's sandboxed KHost.Screen.exe; a dev build has only the apphost.
+    // A Windows publish replaces the apphost with Riftway's sandboxed KHost.Screen.exe; a dev build has only the apphost.
     internal static string ResolveExePath(string? configuredExePath, string baseDirectory, bool isWindows, bool isMacOS = false,
         Func<string, bool>? fileExists = null)
         => Path.Combine(baseDirectory, string.IsNullOrWhiteSpace(configuredExePath)

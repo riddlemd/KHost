@@ -1,4 +1,4 @@
-using Oriel;
+using Riftway;
 using Velopack;
 
 namespace KHost.UserInterface.Services;
@@ -33,7 +33,7 @@ public sealed class AppUpdateService(IConfiguration configuration, ILogger<AppUp
             return;
         }
 
-        var updater = Oriel.AutoUpdater.Default;
+        var updater = Riftway.AutoUpdater.Default;
         updater.SetFeedUrl(feedUrl!);
         updater.UpdateDownloaded += (_, e) =>
         {
@@ -58,6 +58,6 @@ public sealed class AppUpdateService(IConfiguration configuration, ILogger<AppUp
     public void RestartToUpdate()
     {
         logger.LogInformation("Restarting to install update {Version}", ReadyVersion);
-        Oriel.AutoUpdater.Default.QuitAndInstall();
+        Riftway.AutoUpdater.Default.QuitAndInstall();
     }
 }

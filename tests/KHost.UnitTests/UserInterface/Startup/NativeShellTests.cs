@@ -1,5 +1,5 @@
 using KHost.UserInterface.Startup;
-using Oriel;
+using Riftway;
 
 namespace KHost.UnitTests.UserInterface.Startup;
 

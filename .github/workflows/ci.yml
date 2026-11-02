@@ -1,8 +1,8 @@
 name: CI
 
 on:
-  # Off for push and PR until Oriel is on a feed a runner can reach: nuget.config maps Oriel* to a local folder
-  # (../../Oriel/main/artifacts/pkg), so every leg fails at restore. Run by hand once that changes.
+  # Off for push and PR until Riftway is on a feed a runner can reach: nuget.config maps Riftway* to a local folder
+  # (../../Riftway/main/artifacts/pkg), so every leg fails at restore. Run by hand once that changes.
   workflow_dispatch:
 
 permissions:

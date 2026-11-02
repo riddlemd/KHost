@@ -153,7 +153,7 @@ public sealed class NativeShellRequestsTests
         Assert.Equal("Not Found", response.StatusText);
     }
 
-    private static Task<Oriel.ProtocolResponse?> Handle(
+    private static Task<Riftway.ProtocolResponse?> Handle(
         string url, HttpClient host, bool lockDown = false, string method = "GET", byte[]? body = null,
         Dictionary<string, string>? headers = null)
         => NativeShellRequests.HandleAsync(url, method, headers ?? NoHeaders, body, host, lockDown, CancellationToken.None);

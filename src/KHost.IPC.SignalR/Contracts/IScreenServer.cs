@@ -68,7 +68,7 @@ public sealed class ScreenCapabilities
     public bool SupportsVideo { get; init; }
 
     /// <summary>Decodes only royalty-free formats (VP9, AV1, Opus): no H.264 or AAC. False for a
-    /// screen that does not say, as every screen before Oriel decoded H.264.</summary>
+    /// screen that does not say, as every screen before Riftway decoded H.264.</summary>
     public bool OpenCodecsOnly { get; init; }
 }
 

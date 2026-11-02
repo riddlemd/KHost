@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Oriel;
+using Riftway;
 using KHost.Common.Storage;
 
 namespace KHost.UserInterface.Startup;
@@ -43,7 +43,7 @@ internal static class InstanceLock
         }
 
         // A window-less app: the dialog is all this process shows before it exits.
-        var app = OrielApp.Create("KHost");
+        var app = RiftwayApp.Create("KHost");
         // Not the running window's profile, which that window's Chromium holds locked.
         app.SetPath("userData", Path.Combine(Path.GetTempPath(), "khost-instance-dialog"));
         app.Ready += (_, _) =>

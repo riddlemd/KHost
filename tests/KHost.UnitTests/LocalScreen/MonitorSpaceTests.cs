@@ -2,7 +2,7 @@ using KHost.LocalScreen;
 
 namespace KHost.UnitTests.LocalScreen;
 
-/// <summary>Monitors as Oriel reports them: DIPs, top-down from the primary's top-left.</summary>
+/// <summary>Monitors as Riftway reports them: DIPs, top-down from the primary's top-left.</summary>
 public class MonitorSpaceTests
 {
     // Measured on a 2x Retina laptop (points) with a 1x 1920x1080 display to its right; each work

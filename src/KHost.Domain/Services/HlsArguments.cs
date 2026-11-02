@@ -55,7 +55,7 @@ internal static class HlsArguments
     /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and on cast devices; LocalScreen
     /// renders through stock Chromium, which has no H.264, so it is not one of them.
     /// A frame taller than 1080 lines is Main@5.1, the lowest level that allows one. A display with
-    /// no H.264 (Oriel on stock Chromium) is handed <see cref="VideoEncoderProfile.Vp9"/>, which
+    /// no H.264 (Riftway on stock Chromium) is handed <see cref="VideoEncoderProfile.Vp9"/>, which
     /// brings Opus and fMP4 with it, picture or not.</remarks>
     internal static string BuildArguments(
         EncodeInputs inputs, VideoEncoderProfile? encoder = null, PlaylistPart part = default)

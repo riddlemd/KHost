@@ -1,4 +1,4 @@
-using Oriel;
+using Riftway;
 
 namespace KHost.LocalScreen;
 
@@ -31,7 +31,7 @@ internal interface IScreenWindow
     void Close();
 }
 
-/// <summary>The rules that place a window on the monitors, all in Oriel's DIPs from the primary's top-left.</summary>
+/// <summary>The rules that place a window on the monitors, all in Riftway's DIPs from the primary's top-left.</summary>
 internal static class MonitorSpace
 {
     /// <summary>The monitor under the window's centre, else the one it overlaps most, else the first.</summary>
@@ -136,9 +136,9 @@ internal static class MonitorSpace
     }
 }
 
-/// <remarks>Oriel reports windows and displays alike in DIPs from the primary's top-left, so its
+/// <remarks>Riftway reports windows and displays alike in DIPs from the primary's top-left, so its
 /// rects are window space as they come.</remarks>
-internal sealed class OrielScreenWindow(BrowserWindow window) : IScreenWindow
+internal sealed class RiftwayScreenWindow(BrowserWindow window) : IScreenWindow
 {
     public WindowBounds Bounds => ToBounds(window.GetBounds());
 
@@ -154,7 +154,7 @@ internal sealed class OrielScreenWindow(BrowserWindow window) : IScreenWindow
 
     public void Minimise() => window.Minimize();
 
-    // The same exit the OS close button takes: the last window closing ends OrielApp.Run.
+    // The same exit the OS close button takes: the last window closing ends RiftwayApp.Run.
     public void Close() => window.Close();
 
     private static WindowBounds ToBounds(Rectangle r) => new(r.X, r.Y, r.Width, r.Height);

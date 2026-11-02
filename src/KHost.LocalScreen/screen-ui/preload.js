@@ -1,5 +1,5 @@
-// Runs in Oriel's isolated world before the page: the page gets one string channel to the host and nothing else.
-const { ipcRenderer, contextBridge } = oriel;
+// Runs in Riftway's isolated world before the page: the page gets one string channel to the host and nothing else.
+const { ipcRenderer, contextBridge } = riftway;
 
 contextBridge.exposeInMainWorld('khostScreen', {
     send: (json) => ipcRenderer.send('screen', json),

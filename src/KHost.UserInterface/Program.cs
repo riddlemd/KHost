@@ -8,8 +8,8 @@ using KHost.UserInterface.Middleware;
 using KHost.UserInterface.Services;
 using KHost.UserInterface.Startup;
 using KHost.Common.Storage;
-using Oriel;
-using Oriel.Blazor;
+using Riftway;
+using Riftway.Blazor;
 
 namespace KHost.UserInterface;
 
@@ -34,7 +34,7 @@ internal static class Program
     {
         // Before anything else: Velopack's installer and updater start KHost.exe with hook arguments and expect it
         // to run them and exit, without showing anything.
-        Oriel.AutoUpdater.HandleInstallerHooks();
+        Riftway.AutoUpdater.HandleInstallerHooks();
 
         // First: the already-running path below writes to a console that, on Windows, exists only
         // once attached.
@@ -54,7 +54,7 @@ internal static class Program
         }
 
         // Before anything else touches Chromium: the window's app, and the app:// scheme its page loads from.
-        var shell = headless ? null : OrielApp.Create("KHost");
+        var shell = headless ? null : RiftwayApp.Create("KHost");
         // Chromium's own profile, kept out of the folder KHost's data shares with it by default.
         shell?.SetPath("userData", Path.Combine(AppPaths.DataRoot, "browser"));
 
@@ -85,10 +85,10 @@ internal static class Program
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
         else
-            builder.Services.AddOrielBlazor();
+            builder.Services.AddRiftwayBlazor();
 
         builder.Services.AddUserInterfaceServices();
-        // The window only: installing an update quits Oriel, and a headless host has no Oriel to quit.
+        // The window only: installing an update quits Riftway, and a headless host has no Riftway to quit.
         if (shell is not null)
         {
             builder.Services.AddSingleton<AppUpdateService>();

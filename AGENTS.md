@@ -1,12 +1,12 @@
 # AGENTS.md
 
-**KHost** — karaoke host app. .NET 10 + Blazor UI in an Oriel window (Blazor Hybrid through Oriel.Blazor), Oriel screen app. Solution: `KHost.slnx` (no `.sln`).
+**KHost** — karaoke host app. .NET 10 + Blazor UI in a Riftway window (Blazor Hybrid through Riftway.Blazor), Riftway screen app. Solution: `KHost.slnx` (no `.sln`).
 
 Projects (`src/`):
 - `Abstractions` — every plugin-facing interface, the shared models, what a plugin builds against. MIT, no project refs, the bottom layer.
 - `Common` — helpers over those contracts. MIT.
 - `Domain` (services) / `DataAccess` (EF Core 10 + SQLite).
-- `UserInterface` (the console: Blazor components rendered in an Oriel window through Oriel.Blazor; Kestrel still serves screens, media and `--headless`) and `LocalScreen` (the video output: an Oriel window, Chromium through CEF, in its own process).
+- `UserInterface` (the console: Blazor components rendered in a Riftway window through Riftway.Blazor; Kestrel still serves screens, media and `--headless`) and `LocalScreen` (the video output: a Riftway window, Chromium through CEF, in its own process).
 - `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager — keep it textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults` (HTTP client defaults: decompression + standard resilience; OpenTelemetry that exports only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set).
 - `tools/`: `KHost.CatalogSync`, the CLI that writes entries into the plugin catalog (`plugins.json` in `riddlemd/KHost.Releases`).
 - `build/`: `KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time.
@@ -15,7 +15,7 @@ Projects (`src/`):
 ## Commands
 
 ```bash
-dotnet run --project src/KHost.UserInterface                # run the app (native Oriel window)
+dotnet run --project src/KHost.UserInterface                # run the app (native Riftway window)
 dotnet run --project src/KHost.UserInterface -- --headless  # no window; console served at http://localhost:5251
 dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"    # build (redirected so VS's bin/ isn't locked)
 dotnet test tests/KHost.UnitTests                           # --filter "FullyQualifiedName~Name" to narrow
@@ -346,7 +346,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 ## Streaming a song
 
 - `HlsMediaStreamService` encodes at play time, one ffmpeg per song, into `<temp>/khost-streams`. No pre-render, no stream-copy path.
-- **The connected display decides the codecs.** A screen on stock Chromium (Oriel without its codec runtime) decodes no H.264 or AAC; its page says so in its `ready` message (`MediaSource.isTypeSupported`), LocalScreen registers it as `ScreenCapabilities.OpenCodecsOnly`, and `DescribeTarget` hands it on as `RenderTarget.OpenCodecsOnly`.
+- **The connected display decides the codecs.** A screen on stock Chromium (Riftway without its codec runtime) decodes no H.264 or AAC; its page says so in its `ready` message (`MediaSource.isTypeSupported`), LocalScreen registers it as `ScreenCapabilities.OpenCodecsOnly`, and `DescribeTarget` hands it on as `RenderTarget.OpenCodecsOnly`.
   - Every encode the host opens reads it per open through `IDisplayCodecs` (Domain; resolves the providers per read, as they take the stream service): true → `VideoEncoderProfile.Vp9` (libvpx-vp9 realtime, software only, no probe, no hardware fallback) with Opus 48 kHz in fMP4 segments (`init.mp4`, `seg_%05d.m4s`); audio alone takes it too. Otherwise H.264 + AAC in MPEG-TS as below.
   - A renderer answering with a URL of its own reads `RenderTarget.OpenCodecsOnly` and picks a format the display plays, or declines.
   - Video backdrops follow the same flag: VP9/AV1 with Opus, Vorbis or no sound plays as it is; anything else is encoded to VP9 in MP4, cached per file and codec.
@@ -371,15 +371,15 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 
 ## The screen window
 
-- **LocalScreen runs on Oriel** (Electron's model on .NET and CEF), and so does the console (Oriel.Blazor).
-- **Oriel comes from a local NuGet feed.** `nuget.config` maps `Oriel*` to `../../Oriel/main/artifacts/pkg` (the `{root}/{owner}/{repo}/{branch}` layout). Each machine packs Oriel once into its own checkout, plus the runtime package for its OS (`Oriel.Runtime.osx-arm64`, `win-x64`, `linux-x64`): LocalScreen references the one for its publish RID, else the SDK's. No feed, no build. A repack of the same 1.0.0 is served stale from `~/.nuget/packages`: clear `~/.nuget/packages/oriel*` after one.
+- **LocalScreen runs on Riftway** (Electron's model on .NET and CEF), and so does the console (Riftway.Blazor).
+- **Riftway comes from a local NuGet feed.** `nuget.config` maps `Riftway*` to `../../Riftway/main/artifacts/pkg` (the `{root}/{owner}/{repo}/{branch}` layout). Each machine packs Riftway once into its own checkout, plus the runtime package for its OS (`Riftway.Runtime.osx-arm64`, `win-x64`, `linux-x64`): LocalScreen references the one for its publish RID, else the SDK's. No feed, no build. A repack of the same 1.0.0 is served stale from `~/.nuget/packages`: clear `~/.nuget/packages/riftway*` after one.
 - **macOS needs the bundle.** Chromium will not start from a bare executable: the build lays out `KHost.LocalScreen.app` (CEF framework and helpers inside) beside the output, the console copies it with the rest, and `LocalScreenProvider` launches `KHost.LocalScreen.app/Contents/MacOS/KHost.LocalScreen`. Logs and the remembered placement land under `Contents/MacOS` in a dev build.
 - **Page ↔ screen is one IPC channel, `screen`, carrying the page's JSON strings.** `screen-ui/preload.js` (embedded, written beside the page) exposes `window.khostScreen.send/receive` through `contextBridge`; `player.js` uses only that. The page is still a file written per run (`file://`, a secure context).
 - **Each screen process has its own Chromium profile** under `<temp>/khost-screen/profiles/<screen id>` (`app.SetPath("userData", …)` before `Run`): two screens on one profile fight over Chromium's lock. `--autoplay-policy=no-user-gesture-required` is process-wide, since songs start on the host's command, never a click.
 - **The window is frameless and the page draws its chrome** (`title-bar.js`, `WindowChrome`): strip drag and edge resize are moved by hand in DIPs; maximise fills the work area and hides the buttons (double-click the strip to restore); double-click the picture or Escape toggles full screen. Full screen is `SetSimpleFullScreen` on macOS (native full screen takes a Space and blanks every other display) and `SetFullScreen` elsewhere.
-- **Placement**: Oriel reports windows and displays in DIPs from the primary's top-left, so `MonitorSpace` works on them as they come. With a second monitor a screen opens on it, full screen.
+- **Placement**: Riftway reports windows and displays in DIPs from the primary's top-left, so `MonitorSpace` works on them as they come. With a second monitor a screen opens on it, full screen.
 - **Testing it without a mouse**: start the bundle executable yourself with the host's arguments plus `--remote-debugging-port=9333` and drive the page over CDP (`Input.dispatchMouseEvent`, `Runtime.evaluate` with `khostScreen.send`). Synthetic OS input (cliclick) needs an Accessibility grant.
-- **Oriel gaps** met while porting, each checked against Electron, are logged outside the repo in `~/Developer/riddlemd/KHost/.oriel-gaps.md`.
+- **Riftway gaps** met while porting, each checked against Electron, are logged outside the repo in `~/Developer/riddlemd/KHost/.riftway-gaps.md`.
 
 ## Finding and installing FFmpeg
 

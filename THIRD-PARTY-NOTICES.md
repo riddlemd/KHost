@@ -22,7 +22,7 @@ These ship inside a KHost build (host and/or screen app, or the browser assets).
 | Component | Version | Used in | License | Copyright / Author |
 |---|---|---|---|---|
 | FFMpegCore | 5.4.0 | host | MIT | Malte Rosenbjerg and contributors |
-| Oriel (with CEF and Chromium in `Oriel.Runtime.<rid>`) | 1.0.0 | host, screen | MIT (CEF: BSD-3-Clause; Chromium: BSD-3-Clause and the licenses in its `credits.html`) | riddlemd / Marshall A. Greenblatt / The Chromium Authors |
+| Riftway (with CEF and Chromium in `Riftway.Runtime.<rid>`) | 1.0.0 | host, screen | MIT (CEF: BSD-3-Clause; Chromium: BSD-3-Clause and the licenses in its `credits.html`) | riddlemd / Marshall A. Greenblatt / The Chromium Authors |
 | QRCoder | 1.6.0 | host | MIT | Raffael Herrmann |
 | SkiaSharp / HarfBuzzSharp (with their Win32, macOS and Linux native assets) | SkiaSharp 3.119.3-preview.1.1; HarfBuzzSharp 8.3.1.3 | host (burned-in words) | MIT (Skia: BSD-3-Clause; HarfBuzz: Old MIT) | Microsoft / Google / HarfBuzz contributors |
 | Konscious.Security.Cryptography.Argon2 | 1.3.1 | host | MIT | Keef Aragon |

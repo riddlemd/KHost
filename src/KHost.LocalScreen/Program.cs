@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using KHost.IPC.SignalR;
 using Microsoft.Extensions.Logging;
-using Oriel;
+using Riftway;
 using Serilog;
 using Serilog.Events;
 using KHost.Common.Storage;
@@ -17,7 +17,7 @@ internal static class Program
     private static ScreenIpcController? _ipc;
     private static WindowPlacementStore? _placement;
     private static WindowChrome? _chrome;
-    private static OrielScreenWindow? _screenWindow;
+    private static RiftwayScreenWindow? _screenWindow;
 
     /// <summary>A first run's window: small enough to fit any monitor rather than fill whatever it landed on.</summary>
     private static readonly WindowBounds DefaultBounds = new(80, 80, 1280, 720);
@@ -32,7 +32,7 @@ internal static class Program
         var serverUri = GetArg(args, "--server-uri") ?? "http://localhost:5000/ipc/screen";
         var screenId = GetArg(args, "--screen-id") ?? Environment.MachineName;
 
-        var app = OrielApp.Create("KHost Screen");
+        var app = RiftwayApp.Create("KHost Screen");
         var authKey = ReadAuthKey(GetArg(args, "--key-file"));
 
         var logLevel = ParseLogLevel(GetArg(args, "--log-level"));
@@ -164,7 +164,7 @@ internal static class Program
             window.Maximized += (_, _) => Remember(window);
             window.Unmaximized += (_, _) => Remember(window);
 
-            _screenWindow = new OrielScreenWindow(window);
+            _screenWindow = new RiftwayScreenWindow(window);
             _chrome = new WindowChrome(_screenWindow, logger);
 
             MacDockIcon.TrySet(logger);
@@ -207,7 +207,7 @@ internal static class Program
     /// <summary>Moves a remembered window onto the monitors there are now; see <see cref="MonitorSpace.Fit"/>
     /// and <see cref="MonitorSpace.OntoSecondary"/>.</summary>
     /// <returns>Whether the window was carried off the primary onto another monitor.</returns>
-    private static bool FitOntoMonitors(OrielScreenWindow window, Microsoft.Extensions.Logging.ILogger logger)
+    private static bool FitOntoMonitors(RiftwayScreenWindow window, Microsoft.Extensions.Logging.ILogger logger)
     {
         try
         {
@@ -237,7 +237,7 @@ internal static class Program
     }
 
     /// <summary>The page's 'ready' message saying its engine decodes no H.264 or AAC.</summary>
-    /// <remarks>False when the message cannot be read or does not say: every engine before Oriel
+    /// <remarks>False when the message cannot be read or does not say: every engine before Riftway
     /// decoded H.264, so that is what a silent page gets.</remarks>
     internal static bool ReadsOpenCodecsOnly(string message)
     {

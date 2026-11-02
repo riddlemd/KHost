@@ -54,14 +54,14 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
     <!-- Cast - CASTV2 sender (discovery, receiver control, media control) -->
-    <!-- Console window and screen - Oriel (Electron-style shell on CEF), from the local feed in nuget.config -->
-    <PackageVersion Include="Oriel" Version="1.0.0" />
-    <PackageVersion Include="Oriel.Blazor" Version="1.0.0" />
-    <PackageVersion Include="Oriel.AutoUpdater" Version="1.0.0" />
-    <PackageVersion Include="Oriel.Runtime.osx-arm64" Version="1.0.0" />
-    <PackageVersion Include="Oriel.Runtime.osx-x64" Version="1.0.0" />
-    <PackageVersion Include="Oriel.Runtime.win-x64" Version="1.0.0" />
-    <PackageVersion Include="Oriel.Runtime.linux-x64" Version="1.0.0" />
+    <!-- Console window and screen - Riftway (Electron-style shell on CEF), from the local feed in nuget.config -->
+    <PackageVersion Include="Riftway" Version="1.0.0" />
+    <PackageVersion Include="Riftway.Blazor" Version="1.0.0" />
+    <PackageVersion Include="Riftway.AutoUpdater" Version="1.0.0" />
+    <PackageVersion Include="Riftway.Runtime.osx-arm64" Version="1.0.0" />
+    <PackageVersion Include="Riftway.Runtime.osx-x64" Version="1.0.0" />
+    <PackageVersion Include="Riftway.Runtime.win-x64" Version="1.0.0" />
+    <PackageVersion Include="Riftway.Runtime.linux-x64" Version="1.0.0" />
     <!-- Real-time Communication -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
     <!-- Build -->

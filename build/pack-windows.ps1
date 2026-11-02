@@ -3,7 +3,7 @@
 # The pack id is KHost.App, not KHost: Velopack owns %LocalAppData%\<packId> outright (an install or reinstall
 # replaces it, an uninstall deletes it), and %LocalAppData%\KHost is where KHost and its plugins keep their data.
 # Usage: build/pack-windows.ps1 -Version 2.1.0 [-Output artifacts/velopack] [-PreviousReleases <dir>]
-# Needs: the vpk tool at Velopack's version (dotnet tool install -g vpk --version 1.2.161) and Oriel in the
+# Needs: the vpk tool at Velopack's version (dotnet tool install -g vpk --version 1.2.161) and Riftway in the
 # local feed (nuget.config). Unsigned: SmartScreen warns on first run until a signing certificate is wired in.
 param(
     [Parameter(Mandatory)] [string] $Version,
@@ -21,8 +21,8 @@ if (Test-Path $publish) { Remove-Item -Recurse -Force $publish }
 dotnet publish (Join-Path $root 'src' 'KHost.UserInterface' 'KHost.UserInterface.csproj') `
     -c Release -r win-x64 --self-contained -o $publish -p:Version=$Version -nologo
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
-foreach ($file in 'KHost.exe', 'KHost.Screen.exe', 'KHost.oriel-app', 'KHost.Screen.oriel-app') {
-    if (-not (Test-Path (Join-Path $publish $file))) { throw "$file is missing from the publish: is Oriel's layout in the feed?" }
+foreach ($file in 'KHost.exe', 'KHost.Screen.exe', 'KHost.riftway-app', 'KHost.Screen.riftway-app') {
+    if (-not (Test-Path (Join-Path $publish $file))) { throw "$file is missing from the publish: is Riftway's layout in the feed?" }
 }
 
 New-Item -ItemType Directory -Force $Output | Out-Null

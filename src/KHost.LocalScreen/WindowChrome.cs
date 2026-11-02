@@ -208,7 +208,7 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
     }
 
     /// <summary>Converts a page's pointer movement into the window system's units.</summary>
-    /// <remarks>Worked out from the window rather than assumed: Oriel places windows in DIPs, which a
+    /// <remarks>Worked out from the window rather than assumed: Riftway places windows in DIPs, which a
     /// page's pixels match until the page is zoomed. A frameless window's page spans the whole
     /// window, so the page's width is the window's.</remarks>
     internal static double UnitsPerCssPixel(int windowWidth, double pageWidthCss)

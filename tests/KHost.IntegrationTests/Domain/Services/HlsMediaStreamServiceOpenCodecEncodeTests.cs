@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.IntegrationTests.Domain.Services;
 
-/// <summary>A display with no H.264 (Oriel on stock Chromium) gets a real VP9 + Opus stream in fMP4
+/// <summary>A display with no H.264 (Riftway on stock Chromium) gets a real VP9 + Opus stream in fMP4
 /// segments, cut on the clock like the H.264 one.</summary>
 /// <remarks>Skipped where ffmpeg lacks libvpx-vp9 or libopus.</remarks>
 public sealed class HlsMediaStreamServiceOpenCodecEncodeTests : IDisposable

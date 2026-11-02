@@ -61,7 +61,7 @@ anything depends on them.
 
 ## What the webview can do
 
-Measured inside the earlier Photino screen's webview (before the move to Oriel) rather than a desktop browser, with a real Vorbis stem cut
+Measured inside the earlier Photino screen's webview (before the move to Riftway) rather than a desktop browser, with a real Vorbis stem cut
 from the file above. WebView2 on this machine:
 
 | | |
@@ -313,9 +313,9 @@ What it does not do yet:
    rather than one oscillator through a silent gain — the rate held under a trivial graph, which is
    not proof it holds under the real one.
 3. What are the unidentified chunks (ids 5, 12-20) and the extra images?
-4. Every number here is WebView2, Chromium under Photino on Windows. The screen now runs on Oriel
+4. Every number here is WebView2, Chromium under Photino on Windows. The screen now runs on Riftway
    (Chromium through CEF) on every OS, so they are a closer guide than they were, but nothing has
-   been measured on the Oriel screen yet: Vorbis decode, the canvas rate and the clock all need
+   been measured on the Riftway screen yet: Vorbis decode, the canvas rate and the clock all need
    measuring there, and on macOS and Linux, before this path is offered.
 5. Does the gate move to the hand-off, or does a native path only ever serve a screen in the same
    trust boundary as the host?
@@ -327,8 +327,8 @@ What it does not do yet:
    - **`http://localhost` from the host's own server** — a real origin and same-origin with the
      media, at the cost of a screen that cannot draw anything until the host is serving.
    - **A custom scheme (`khost://`) through `RegisterCustomSchemeHandler`** — did not work, and
-     could not in Photino.NET 4.0.16 / Photino.Native 4.0.22. Oriel registers custom schemes as
-     Electron does (`protocol`), so on the Oriel screen this is open again, untried. That handler is wired to WebView2's
+     could not in Photino.NET 4.0.16 / Photino.Native 4.0.22. Riftway registers custom schemes as
+     Electron does (`protocol`), so on the Riftway screen this is open again, untried. That handler is wired to WebView2's
      `WebResourceRequested`, which only sees sub-resource requests from a page already loaded;
      `Load()` reaches the native layer as a bare `ICoreWebView2::Navigate`, and Chromium rejects an
      unregistered scheme before any request is raised. The registration it would need

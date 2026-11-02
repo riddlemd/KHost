@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <KHostOrielRid>$(RuntimeIdentifier)</KHostOrielRid>
-    <KHostOrielRid Condition="'$(KHostOrielRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</KHostOrielRid>
-    <OrielMacBundleId>dev.riddlemd.khost.screen</OrielMacBundleId>
+    <KHostRiftwayRid>$(RuntimeIdentifier)</KHostRiftwayRid>
+    <KHostRiftwayRid Condition="'$(KHostRiftwayRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</KHostRiftwayRid>
+    <RiftwayMacBundleId>dev.riddlemd.khost.screen</RiftwayMacBundleId>
     <!-- A Windows publish replaces the apphost with this; LocalScreenProvider looks for it first. -->
-    <OrielExeName>KHost.Screen</OrielExeName>
+    <RiftwayExeName>KHost.Screen</RiftwayExeName>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -47,9 +47,9 @@
 
   <ItemGroup>
     <!-- Logging comes with the AspNetCore framework reference above. -->
-    <PackageReference Include="Oriel" />
+    <PackageReference Include="Riftway" />
     <!-- CEF itself, for the OS this builds for: the publish RID, else the SDK's own. -->
-    <PackageReference Include="Oriel.Runtime.$(KHostOrielRid)" />
+    <PackageReference Include="Riftway.Runtime.$(KHostRiftwayRid)" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Logging" />
     <PackageReference Include="Serilog.Sinks.Console" />

@@ -5,7 +5,7 @@ using KHost.Domain.Services.VideoEncoding;
 
 namespace KHost.UnitTests.Domain.Services;
 
-/// <summary>A display with no H.264 (Oriel on stock Chromium) gets VP9 with Opus in fMP4; every other
+/// <summary>A display with no H.264 (Riftway on stock Chromium) gets VP9 with Opus in fMP4; every other
 /// display keeps H.264 with AAC in MPEG-TS.</summary>
 public class HlsOpenCodecArgumentsTests
 {
