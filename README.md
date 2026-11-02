@@ -151,6 +151,11 @@ and never skip. The integration tests need ffmpeg and fail without it; set
 [CI](.github/workflows/ci.yml) builds and runs the unit tests on Ubuntu, Windows and macOS for
 every pull request.
 
+A `v<x.y.z>` tag (or a run of [Release](.github/workflows/release.yml) by hand) builds the Windows installer
+with [Velopack](https://velopack.io) and publishes it as a GitHub release: `KHost.App-win-Setup.exe`, a
+portable zip and the update packages. The latest release is the update feed an installed KHost checks at
+startup (`Updates:FeedUrl`). `build/pack-windows.ps1 -Version <x.y.z>` builds the same files locally.
+
 ## Further reading
 
 - [AGENTS.md](AGENTS.md): architecture, rules and conventions, for contributors and coding agents.

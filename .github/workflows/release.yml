@@ -1,0 +1,89 @@
+name: Release
+
+# A v<x.y.z> tag, or a run by hand with the version, builds the Windows installer and publishes it as a GitHub
+# release. The release is the update feed: an installed KHost reads releases.win.json from the latest release.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, e.g. 2.0.1 (tagged v<version> on the commit this runs on)
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    env:
+      FEED: artifacts/velopack
+    steps:
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.event_name }}' -eq 'push') { '${{ github.ref_name }}'.TrimStart('v') } else { '${{ inputs.version }}' }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "'$version' is not x.y.z" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/KHost.UserInterface/package-lock.json
+
+      # The UI build runs `npm run copy:vendors` and fails without node_modules.
+      - run: npm ci
+        working-directory: src/KHost.UserInterface
+
+      - run: npm test
+        working-directory: src/KHost.LocalScreen/screen-ui-tests
+
+      # The same gate as CI: a release never ships a red build.
+      - run: dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"
+
+      - run: dotnet test tests/KHost.UnitTests "-p:BaseOutputPath=./obj/_build" --no-build --logger "trx;LogFileName=unit.trx" --results-directory TestResults
+
+      # vpk must match the Velopack version Riftway.AutoUpdater ships, or the packages it writes may not be readable.
+      - run: dotnet tool install -g vpk --version 1.2.161
+
+      # The previous release's full package lets vpk build a delta; the first release has none.
+      - name: Previous release
+        shell: pwsh
+        run: |
+          vpk download github --repoUrl '${{ github.server_url }}/${{ github.repository }}' --token '${{ secrets.GITHUB_TOKEN }}' --outputDir $env:FEED
+          if ($LASTEXITCODE -ne 0) { Write-Host '::notice::No previous release to build a delta from'; exit 0 }
+
+      - name: Pack
+        shell: pwsh
+        run: ./build/pack-windows.ps1 -Version ${{ steps.version.outputs.version }} -Output $env:FEED
+
+      - name: Publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = 'v${{ steps.version.outputs.version }}'
+          vpk upload github --repoUrl '${{ github.server_url }}/${{ github.repository }}' --token $env:GH_TOKEN `
+            --outputDir $env:FEED --publish --tag $tag --releaseName "KHost ${{ steps.version.outputs.version }}" `
+            --targetCommitish '${{ github.sha }}'
+          if ($LASTEXITCODE -ne 0) { throw "vpk upload failed ($LASTEXITCODE)" }
+          $notes = gh api 'repos/${{ github.repository }}/releases/generate-notes' -f tag_name=$tag --jq .body
+          if ($LASTEXITCODE -ne 0) { throw 'generating release notes failed' }
+          $notes | Set-Content -Encoding utf8 notes.md
+          gh release edit $tag --repo '${{ github.repository }}' --notes-file notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'setting release notes failed' }
+          gh release view $tag --repo '${{ github.repository }}' --json assets --jq '.assets[].name'
