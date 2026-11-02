@@ -1,0 +1,83 @@
+// A 1940s cartoon short: ink-brown theatre dark, cream type, teal primary, gold accent and the
+// red reserved for danger and the logo, so a red button still means "careful".
+:root {
+    --kh-primary: #4F9DA6;
+    --kh-primary-hover: #3F858D;
+    --kh-primary-bright: #8FD0C8;
+    --kh-primary-glow: rgba(79, 157, 166, 0.45);
+    --kh-primary-subtle: rgba(79, 157, 166, 0.14);
+    --kh-primary-dim: rgba(79, 157, 166, 0.08);
+    --kh-accent: #E9C46A;
+    --kh-accent-hover: #D4AD4F;
+    --kh-accent-bright: #F3D891;
+    --kh-accent-glow: rgba(233, 196, 106, 0.45);
+    --kh-bg: #1D1510;
+    --kh-button-primary-text: #1D1510;
+    --kh-button-accent-text: #1D1510;
+    --kh-bg-card: #2A1F17;
+    --kh-bg-card-dark: #241A13;
+    --kh-bg-elevated: #3A2B1F;
+    --kh-bg-input: #18110C;
+    --kh-border: rgba(201, 169, 106, 0.3);
+    --kh-border-bright: rgba(201, 169, 106, 0.6);
+    --kh-text: #F4E7C5;
+    --kh-text-secondary: #D6C39A;
+    --kh-text-muted: #A8916C;
+    --kh-success: #7FB069;
+    --kh-warning: #F0B85C;
+    --kh-info: #6FA8DC;
+    --kh-danger: #E0483C;
+    --kh-danger-glow: rgba(224, 72, 60, 0.3);
+    // Rubber-hose shapes are round and chunky; sharp corners read as a different decade.
+    --kh-radius: 10px;
+    --kh-radius-lg: 16px;
+    --kh-transition: 0.15s ease;
+    --kh-font: 'Segoe UI', sans-serif;
+    --kh-font-display: 'Cooper Black', 'Rockwell', 'American Typewriter', Georgia, serif;
+
+    --bs-body-bg: var(--kh-bg);
+    --bs-body-color: var(--kh-text);
+    --bs-secondary-color: var(--kh-text-secondary);
+    --bs-tertiary-color: var(--kh-text-muted);
+    --bs-card-bg: var(--kh-bg-card);
+    --bs-card-border-color: var(--kh-border);
+    --bs-border-color: var(--kh-border);
+    --bs-border-color-translucent: var(--kh-border);
+    --bs-link-color: var(--kh-accent-bright);
+    --bs-link-hover-color: #FBEBC0;
+    --bs-primary: var(--kh-primary);
+    --bs-primary-rgb: 79, 157, 166;
+    --bs-table-hover-bg: var(--kh-primary-subtle);
+    --bs-table-striped-bg: var(--kh-primary-dim);
+
+    --kh-bg-header: repeating-conic-gradient(from 0deg at 50% 160%, rgba(233, 196, 106, 0.09) 0deg 5deg, transparent 5deg 10deg), linear-gradient(180deg, #3A2B1F 0%, #2A1F17 100%);
+    --kh-logo-from: #E0483C;
+    --kh-logo-to: #E9C46A;
+    --kh-card-header-bg: radial-gradient(rgba(233, 196, 106, 0.16) 1px, transparent 1.6px) 0 0 / 7px 7px, rgba(233, 196, 106, 0.07);
+
+    --kh-primary-active: rgba(79, 157, 166, 0.3);
+    --kh-primary-glow-strong: rgba(79, 157, 166, 0.7);
+    --kh-primary-bright-glow: rgba(143, 208, 200, 0.7);
+
+    --kh-badge-info-bg: rgba(233, 196, 106, 0.2);
+    --kh-badge-info-text: #F3D891;
+    --kh-badge-info-border: rgba(233, 196, 106, 0.4);
+
+    --kh-scrim: rgba(18, 13, 10, 0.7);
+    --kh-track-bg: rgba(244, 231, 197, 0.1);
+    --kh-table-stripe: rgba(0, 0, 0, 0.18);
+    --kh-error-bg: linear-gradient(135deg, #3A1410, #24120D);
+
+    --kh-danger-bg-subtle: rgba(224, 72, 60, 0.1);
+    --kh-danger-bg-dim: rgba(224, 72, 60, 0.2);
+    --kh-danger-border-subtle: rgba(224, 72, 60, 0.35);
+    --kh-danger-bright: #F07A6E;
+
+    --kh-warning-subtle: rgba(240, 184, 92, 0.1);
+    --kh-warning-border-subtle: rgba(240, 184, 92, 0.3);
+
+    --kh-success-subtle: rgba(127, 176, 105, 0.1);
+    --kh-success-border-subtle: rgba(127, 176, 105, 0.25);
+
+    --kh-flag-regular: #E2645A;
+}
