@@ -3,8 +3,8 @@
 # The pack id is KHost.App, not KHost: Velopack owns %LocalAppData%\<packId> outright (an install or reinstall
 # replaces it, an uninstall deletes it), and %LocalAppData%\KHost is where KHost and its plugins keep their data.
 # Usage: build/pack-windows.ps1 -Version 2.1.0 [-Output artifacts/velopack] [-PreviousReleases <dir>]
-# Needs: the vpk tool at Velopack's version (dotnet tool install -g vpk --version 1.2.161) and Riftway in the
-# local feed (nuget.config). Unsigned: SmartScreen warns on first run until a signing certificate is wired in.
+# Needs: the vpk tool at Velopack's version (dotnet tool install -g vpk --version 1.2.161) and nuget.org reachable
+# for Riftway. Unsigned: SmartScreen warns on first run until a signing certificate is wired in.
 param(
     [Parameter(Mandatory)] [string] $Version,
     [string] $Output = (Join-Path $PSScriptRoot '..' 'artifacts' 'velopack'),

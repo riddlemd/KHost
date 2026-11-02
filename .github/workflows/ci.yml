@@ -1,8 +1,7 @@
 name: CI
 
 on:
-  # Off for push and PR until Riftway is on a feed a runner can reach: nuget.config maps Riftway* to a local folder
-  # (../../Riftway/main/artifacts/pkg), so every leg fails at restore. Run by hand once that changes.
+  # Run by hand: Riftway now restores from nuget.org, so push and PR triggers can be added once a manual run is green.
   workflow_dispatch:
 
 permissions:
