@@ -55,13 +55,13 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
     <!-- Cast - CASTV2 sender (discovery, receiver control, media control) -->
     <!-- Console window and screen - Riftway (Electron-style shell on CEF), from nuget.org -->
-    <PackageVersion Include="Riftway" Version="0.1.0-preview.1" />
-    <PackageVersion Include="Riftway.Blazor" Version="0.1.0-preview.1" />
-    <PackageVersion Include="Riftway.AutoUpdater" Version="0.1.0-preview.1" />
-    <PackageVersion Include="Riftway.Runtime.osx-arm64" Version="0.1.0-preview.1" />
-    <PackageVersion Include="Riftway.Runtime.osx-x64" Version="0.1.0-preview.1" />
-    <PackageVersion Include="Riftway.Runtime.win-x64" Version="0.1.0-preview.1" />
-    <PackageVersion Include="Riftway.Runtime.linux-x64" Version="0.1.0-preview.1" />
+    <PackageVersion Include="Riftway" Version="0.1.0-preview.2" />
+    <PackageVersion Include="Riftway.Blazor" Version="0.1.0-preview.2" />
+    <PackageVersion Include="Riftway.AutoUpdater" Version="0.1.0-preview.2" />
+    <PackageVersion Include="Riftway.Runtime.osx-arm64" Version="0.1.0-preview.2" />
+    <PackageVersion Include="Riftway.Runtime.osx-x64" Version="0.1.0-preview.2" />
+    <PackageVersion Include="Riftway.Runtime.win-x64" Version="0.1.0-preview.2" />
+    <PackageVersion Include="Riftway.Runtime.linux-x64" Version="0.1.0-preview.2" />
     <!-- Real-time Communication -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
     <!-- Build -->
