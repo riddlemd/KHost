@@ -10,7 +10,9 @@ namespace KHost.UnitTests.IPC.SignalR;
 /// so the reconnect loop is driven against a host that really goes away and really comes back.</summary>
 public sealed class ScreenClientReconnectTests : IAsyncDisposable
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(20);
+    // Windows spends ~2s on each connect to a closed localhost port, so riding out an outage (two
+    // SignalR attempts plus five of the loop's) takes ~14s before any load on the machine.
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(60);
 
     // Short enough that SignalR's own reconnect gives up within the test.
     private static readonly TimeSpan[] QuickAutomaticReconnect = [TimeSpan.Zero, TimeSpan.FromMilliseconds(50)];

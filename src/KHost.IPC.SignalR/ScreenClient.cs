@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.WebSockets;
 using KHost.IPC.SignalR.Contracts;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
@@ -64,6 +65,9 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
     /// <summary>SignalR's own reconnect schedule; null keeps its default of 0, 2, 10 and 30 seconds.</summary>
     internal TimeSpan[]? AutomaticReconnectDelays { get; init; }
+
+    /// <summary>How long one negotiate or WebSocket upgrade may wait on the host.</summary>
+    internal TimeSpan ConnectAttemptTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
     public ScreenClient(ILoggerFactory? loggerFactory, TimeProvider? time = null)
     {
@@ -138,7 +142,35 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
                 _connection = null;
             }
 
-            var builder = new HubConnectionBuilder().WithUrl(serverUri);
+            var builder = new HubConnectionBuilder().WithUrl(serverUri, options =>
+            {
+                // Neither SignalR nor ClientWebSocket bounds a connect: a host that accepts the
+                // socket and never answers (shutting down, or gone off the network) would hold
+                // the reconnect forever.
+                var attemptTimeout = ConnectAttemptTimeout;
+                options.HttpMessageHandlerFactory = inner => new AttemptTimeoutHandler(inner, attemptTimeout);
+                options.WebSocketFactory = async (context, cancellationToken) =>
+                {
+                    var socket = new ClientWebSocket();
+                    using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    bounded.CancelAfter(attemptTimeout);
+                    try
+                    {
+                        await socket.ConnectAsync(context.Uri, bounded.Token);
+                    }
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        socket.Dispose();
+                        throw new TimeoutException($"No WebSocket upgrade from {context.Uri} within {attemptTimeout}.");
+                    }
+                    catch
+                    {
+                        socket.Dispose();
+                        throw;
+                    }
+                    return socket;
+                };
+            });
             builder = AutomaticReconnectDelays is { } delays
                 ? builder.WithAutomaticReconnect(delays)
                 : builder.WithAutomaticReconnect();
