@@ -1,4 +1,8 @@
-# KHost
+<div align="center">
+
+![KHost: who's up next? you are!](docs/assets/social-preview.png)
+
+</div>
 
 Karaoke hosting software built on **.NET 10**. KHost pairs a Blazor Server host console, where you
 run the night, with a local screen app that shows the song to the room. It runs on Windows, Linux
