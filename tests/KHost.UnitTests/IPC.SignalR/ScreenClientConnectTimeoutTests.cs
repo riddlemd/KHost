@@ -9,7 +9,8 @@ namespace KHost.UnitTests.IPC.SignalR;
 /// network) must not hold a screen's connect, and so its reconnect, forever.</summary>
 public sealed class ScreenClientConnectTimeoutTests : IAsyncDisposable
 {
-    private static readonly TimeSpan AttemptTimeout = TimeSpan.FromMilliseconds(500);
+    // Room for the fake host to answer negotiate on a loaded runner; still far inside Patience.
+    private static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(2);
 
     // Well past the attempt timeout, well short of anything that would pass without one.
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(20);
@@ -34,6 +35,7 @@ public sealed class ScreenClientConnectTimeoutTests : IAsyncDisposable
         // Then
         Assert.Same(connect, finished);
         await Assert.ThrowsAnyAsync<Exception>(() => connect);
+        await UntilAsync(() => _host.NegotiatesSeen >= 1, "the host never saw the negotiate");
         Assert.Equal(1, _host.NegotiatesSeen);
     }
 
@@ -55,10 +57,20 @@ public sealed class ScreenClientConnectTimeoutTests : IAsyncDisposable
         // Then
         Assert.Same(connect, finished);
         await Assert.ThrowsAnyAsync<Exception>(() => connect);
-        Assert.True(_host.UpgradesSeen >= 1, "the client never reached the WebSocket upgrade");
+        await UntilAsync(() => _host.UpgradesSeen >= 1, "the client never reached the WebSocket upgrade");
     }
 
     public async ValueTask DisposeAsync() => await _host.DisposeAsync();
+
+    // The fake host reads a request a byte at a time on its own task, so it can record one after the
+    // client has already timed out on it.
+    private static async Task UntilAsync(Func<bool> condition, string failure)
+    {
+        for (var start = DateTime.UtcNow; DateTime.UtcNow - start < Patience; await Task.Delay(20))
+            if (condition()) return;
+
+        Assert.Fail(failure);
+    }
 
     private sealed class BoundedDispose(ScreenClient client) : IAsyncDisposable
     {
