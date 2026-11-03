@@ -5,6 +5,7 @@ using KHost.IPC.SignalR;
 using KHost.IPC.SignalR.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -34,6 +35,14 @@ internal sealed class LoopbackScreenHost : IAsyncDisposable
     public ScreenServerService Server => _app?.Services.GetRequiredService<ScreenServerService>()
         ?? throw new InvalidOperationException("The host is not running.");
 
+    /// <summary>Sent to a screen just ahead of its register being handled while
+    /// <see cref="StallBeforeRegistering"/> is set.</summary>
+    public const string StallMethod = "Stall";
+
+    /// <summary>A screen that holds its handler for <see cref="StallMethod"/> keeps everything the hub
+    /// sends after it, the refusal reason included, queued until it lets go.</summary>
+    public volatile bool StallBeforeRegistering;
+
     public byte[] Provision(string screenId) => _keys[screenId] = RandomNumberGenerator.GetBytes(32);
 
     public async Task StartAsync()
@@ -43,7 +52,7 @@ internal sealed class LoopbackScreenHost : IAsyncDisposable
         builder.Logging.ClearProviders();
         // A stop with a client still attached otherwise sits out the 30 s graceful drain.
         builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.Zero);
-        builder.Services.AddSignalR().AddJsonProtocol(o =>
+        builder.Services.AddSignalR(o => o.AddFilter(new StallFilter(this))).AddJsonProtocol(o =>
             o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, ScreenCommandJsonContext.Default));
         builder.Services.AddOptions<ScreenServerService.ServiceOptions>();
         builder.Services.AddSingleton<IScreenKeyStore>(new KeyStore(_keys));
@@ -74,6 +83,18 @@ internal sealed class LoopbackScreenHost : IAsyncDisposable
     }
 
     public ValueTask DisposeAsync() => new(StopAsync());
+
+    private sealed class StallFilter(LoopbackScreenHost host) : IHubFilter
+    {
+        public async ValueTask<object?> InvokeMethodAsync(
+            HubInvocationContext invocationContext, Func<HubInvocationContext, ValueTask<object?>> next)
+        {
+            if (host.StallBeforeRegistering && invocationContext.HubMethodName == nameof(ScreenHub.RegisterScreenAsync))
+                await invocationContext.Hub.Clients.Caller.SendAsync(StallMethod);
+
+            return await next(invocationContext);
+        }
+    }
 
     private sealed class KeyStore(Dictionary<string, byte[]> keys) : IScreenKeyStore
     {

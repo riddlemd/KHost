@@ -107,6 +107,77 @@ public sealed class ScreenClientReconnectTests : IAsyncDisposable
         Assert.Empty(_log.Containing("Could not reconnect"));
     }
 
+    /// <summary>SignalR fails a pending call as soon as the link closes, without first running the
+    /// messages queued ahead of the close, so the reason the hub sends before aborting a refused
+    /// register can arrive after the register has already failed.</summary>
+    [Fact]
+    public async Task Given_TheRefusalReasonQueuedBehindAnotherMessage_When_TheAbortFailsTheRegisterFirst_Then_TheRefusalIsStillNamed()
+    {
+        // Given
+        await _host.StartAsync();
+        var key = _host.Provision("Screen 1");
+        var otherKey = _host.Provision("Screen 2");
+        await using var other = new ScreenClient(null);
+
+        var waits = 0;
+        var firstWait = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var otherIn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondWait = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var parked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var client = new ScreenClient(_log, new ScriptedWaits(async _ =>
+            {
+                switch (Interlocked.Increment(ref waits))
+                {
+                    case 1:
+                        firstWait.TrySetResult();
+                        await otherIn.Task;
+                        break;
+                    case 2:
+                        secondWait.TrySetResult();
+                        await parked.Task;
+                        break;
+                }
+            }))
+        {
+            // Far longer than the test allows, so only the reason arriving can end the wait in time.
+            RefusalGrace = Patience,
+        };
+        await client.ConnectAsync(_host.Url, "Screen 1", authKey: key);
+
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        ConnectionOf(client).On(LoopbackScreenHost.StallMethod, () => release.Task);
+
+        await ConnectionOf(client).SendAsync(nameof(ScreenHub.ReceiveStateAsync), "not an envelope");
+        await firstWait.Task.WaitAsync(Patience);
+        await UntilNoScreenIsRegisteredAsync();
+        await other.ConnectAsync(_host.Url, "Screen 2", authKey: otherKey);
+        _host.StallBeforeRegistering = true;
+
+        // When
+        otherIn.SetResult();
+        await UntilAsync(() => _log.Containing("RegisterScreen sent").Count >= 2, "the retry never registered");
+        await UntilAsync(() => ConnectionOf(client).State == HubConnectionState.Disconnected, "the refused link never closed");
+        await Task.Delay(200);
+        release.SetResult();
+
+        // Then
+        await secondWait.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var refused = Assert.Single(_log.Containing("Registration refused by the host"));
+        Assert.Contains("already registered", refused.Message);
+        Assert.Empty(_log.Containing("Could not reconnect"));
+    }
+
+    [Fact]
+    public async Task Given_ANewClient_When_NothingIsConfigured_Then_ItWaitsAMomentButNotLongForALateRefusalReason()
+    {
+        // Given / When
+        await using var client = new ScreenClient(null);
+
+        // Then
+        Assert.InRange(client.RefusalGrace, TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public async Task DisconnectAsync_WhileWaitingToReconnect_EndsTheLoopPromptly()
     {

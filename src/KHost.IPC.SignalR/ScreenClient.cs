@@ -52,6 +52,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
     /// <summary>1 while a reconnect loop runs; the loop is the only thing that restarts a closed link.</summary>
     private int _reconnecting;
     private TaskCompletionSource _sessionReady = NewSessionSignal();
+    private TaskCompletionSource _refusal = NewSessionSignal();
 
     public event EventHandler<ScreenCommandReceivedEventArgs>? CommandReceived;
     public event EventHandler<ScreenClientStateChangedEventArgs>? StateChanged;
@@ -68,6 +69,9 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
     /// <summary>How long one negotiate or WebSocket upgrade may wait on the host.</summary>
     internal TimeSpan ConnectAttemptTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>How long a failed register waits for a refusal reason still on its way.</summary>
+    internal TimeSpan RefusalGrace { get; init; } = TimeSpan.FromSeconds(1);
 
     public ScreenClient(ILoggerFactory? loggerFactory, TimeProvider? time = null)
     {
@@ -196,9 +200,13 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
             _connection.On<string>(ScreenClientMethods.ReceiveCommand, OnCommandEnvelope);
 
-            // Arrives right before the hub aborts a refused registration, so it is in hand by the
-            // time the abort turns SendRegisterAsync's pending invoke into an exception.
-            _connection.On<string>(ScreenClientMethods.RegistrationRefused, reason => LastRefusalReason = reason);
+            // Sent right before the hub aborts a refused registration; SendRegisterAsync waits for it
+            // when the abort fails the pending invoke first.
+            _connection.On<string>(ScreenClientMethods.RegistrationRefused, reason =>
+            {
+                LastRefusalReason = reason;
+                _refusal.TrySetResult();
+            });
 
             _connection.Closed += error => OnClosedAsync(connection, error);
 
@@ -450,6 +458,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         // Cleared per attempt: a reason left over from an earlier refusal must not be blamed for a
         // later, genuine network failure on a retry.
         LastRefusalReason = null;
+        var refusal = _refusal = NewSessionSignal();
 
         _logger.LogInformation(
             "RegisterScreen sent for {ScreenId} (audio={SupportsAudio} video={SupportsVideo})",
@@ -457,8 +466,20 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
         var connection = _connection;
 
-        await SendSignedAsync(
-            connection, nameof(ScreenHub.RegisterScreenAsync), RegisterPayload.From(_capabilities).ToJson(), requiresRegistration: false);
+        try
+        {
+            await SendSignedAsync(
+                connection, nameof(ScreenHub.RegisterScreenAsync), RegisterPayload.From(_capabilities).ToJson(), requiresRegistration: false);
+        }
+        catch when (LastRefusalReason is null)
+        {
+            // SignalR fails the pending call the moment the link closes, without first running the
+            // messages queued ahead of the close, so the reason sent before a refusal's abort can trail it.
+            try { await refusal.Task.WaitAsync(RefusalGrace, TimeProvider.System); }
+            catch (TimeoutException) { }
+
+            throw;
+        }
 
         lock (_signLock) { _registeredOn = connection.ConnectionId; }
     }
