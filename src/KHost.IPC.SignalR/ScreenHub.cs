@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.IPC.SignalR;
@@ -6,16 +7,27 @@ namespace KHost.IPC.SignalR;
 internal sealed class ScreenHub : Hub
 {
     private readonly IHubCallback _callback;
+    private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger<ScreenHub> _logger;
 
-    public ScreenHub(IHubCallback callback, ILogger<ScreenHub> logger)
+    public ScreenHub(IHubCallback callback, IHostApplicationLifetime lifetime, ILogger<ScreenHub> logger)
     {
         _callback = callback;
+        _lifetime = lifetime;
         _logger = logger;
     }
 
     public override async Task OnConnectedAsync()
     {
+        // SignalR closes its links once, as stopping begins, and Kestrel cannot close a WebSocket itself: a screen
+        // that reconnects in the gap would hold the exit open for the whole shutdown timeout.
+        if (_lifetime.ApplicationStopping.IsCancellationRequested)
+        {
+            _logger.LogInformation("Dropped connection {ConnectionId}: the host is shutting down", Context.ConnectionId);
+            Context.Abort();
+            return;
+        }
+
         // Rejected before the cap-holder set gains an entry: Abort() still runs OnDisconnectedAsync,
         // whose ReleaseConnectionSlot is a no-op for a connectionId that was never acquired.
         if (!_callback.TryAcquireConnectionSlot(Context.ConnectionId))

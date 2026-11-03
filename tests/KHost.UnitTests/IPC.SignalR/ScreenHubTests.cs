@@ -9,6 +9,7 @@ public class ScreenHubTests
     private readonly HubCallerContext _context = Substitute.For<HubCallerContext>();
     private readonly IHubCallerClients _clients = Substitute.For<IHubCallerClients>();
     private readonly ISingleClientProxy _caller = Substitute.For<ISingleClientProxy>();
+    private readonly CancellationTokenSource _stopping = new();
     private readonly ScreenHub _hub;
 
     public ScreenHubTests()
@@ -16,7 +17,25 @@ public class ScreenHubTests
         _context.ConnectionId.Returns("conn-a");
         _clients.Caller.Returns(_caller);
         _callback.BeginSession("conn-a").Returns("nonce-xyz");
-        _hub = new ScreenHub(_callback, Microsoft.Extensions.Logging.Abstractions.NullLogger<ScreenHub>.Instance) { Context = _context, Clients = _clients };
+        var lifetime = Substitute.For<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+        lifetime.ApplicationStopping.Returns(_stopping.Token);
+        _hub = new ScreenHub(_callback, lifetime, Microsoft.Extensions.Logging.Abstractions.NullLogger<ScreenHub>.Instance) { Context = _context, Clients = _clients };
+    }
+
+    [Fact]
+    public async Task Given_TheHostIsStopping_When_AScreenConnects_Then_ItIsAbortedBeforeTakingASlotOrASession()
+    {
+        // Given
+        _callback.TryAcquireConnectionSlot("conn-a").Returns(true);
+        _stopping.Cancel();
+
+        // When
+        await _hub.OnConnectedAsync();
+
+        // Then
+        _context.Received(1).Abort();
+        _callback.DidNotReceive().TryAcquireConnectionSlot(Arg.Any<string>());
+        _callback.DidNotReceive().BeginSession(Arg.Any<string>());
     }
 
     [Fact]

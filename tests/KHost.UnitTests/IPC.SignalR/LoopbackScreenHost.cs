@@ -43,6 +43,19 @@ internal sealed class LoopbackScreenHost : IAsyncDisposable
     /// sends after it, the refusal reason included, queued until it lets go.</summary>
     public volatile bool StallBeforeRegistering;
 
+    /// <summary>How long a stop waits for open connections to drain. Zero keeps the outage tests fast;
+    /// a test about the drain itself sets the framework's real default.</summary>
+    public TimeSpan ShutdownTimeout { get; init; } = TimeSpan.Zero;
+
+    /// <summary>Awaited while the host stops, after SignalR has closed its links and before Kestrel
+    /// stops listening: the window in which KHost runs its own shutdown work.</summary>
+    public Func<CancellationToken, Task>? BeforeServerStops { get; set; }
+
+    private int _connectionsSeen;
+
+    /// <summary>Hub connections whose OnConnectedAsync has finished, accepted or not.</summary>
+    public int ConnectionsSeen => Volatile.Read(ref _connectionsSeen);
+
     public byte[] Provision(string screenId) => _keys[screenId] = RandomNumberGenerator.GetBytes(32);
 
     public async Task StartAsync()
@@ -50,8 +63,7 @@ internal sealed class LoopbackScreenHost : IAsyncDisposable
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls($"http://127.0.0.1:{Port}");
         builder.Logging.ClearProviders();
-        // A stop with a client still attached otherwise sits out the 30 s graceful drain.
-        builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.Zero);
+        builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = ShutdownTimeout);
         builder.Services.AddSignalR(o => o.AddFilter(new StallFilter(this))).AddJsonProtocol(o =>
             o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, ScreenCommandJsonContext.Default));
         builder.Services.AddOptions<ScreenServerService.ServiceOptions>();
@@ -61,6 +73,10 @@ internal sealed class LoopbackScreenHost : IAsyncDisposable
         builder.Services.AddSingleton<IHubCallback>(sp => sp.GetRequiredService<ScreenServerService>());
 
         _app = builder.Build();
+        // Registered before SignalR's connection manager exists, and stopping callbacks run last-in first-out,
+        // so this runs after SignalR has closed its links and before Kestrel stops listening.
+        _app.Lifetime.ApplicationStopping.Register(() =>
+            BeforeServerStops?.Invoke(CancellationToken.None).GetAwaiter().GetResult());
         _app.MapHub<ScreenHub>("/ipc/screen");
         await _app.StartAsync();
     }
@@ -93,6 +109,12 @@ internal sealed class LoopbackScreenHost : IAsyncDisposable
                 await invocationContext.Hub.Clients.Caller.SendAsync(StallMethod);
 
             return await next(invocationContext);
+        }
+
+        public async Task OnConnectedAsync(HubLifetimeContext context, Func<HubLifetimeContext, Task> next)
+        {
+            await next(context);
+            Interlocked.Increment(ref host._connectionsSeen);
         }
     }
 
