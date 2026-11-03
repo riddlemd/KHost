@@ -166,11 +166,13 @@ public sealed class ScreenClientReconnectTests : IAsyncDisposable
             AutomaticReconnectDelays = QuickAutomaticReconnect,
         };
         await client.ConnectAsync(_host.Url, "Screen 1", authKey: key);
-        var backUp = WhenBackUp(client);
 
         await _host.StopAsync();
         await lastStepReached.Task.WaitAsync(Patience);
         await _host.StartAsync();
+        // Not watched from the start: SignalR's first retry can land on the host while it is still
+        // stopping and register for a moment, a Connected that is not the loop winning the link back.
+        var backUp = WhenConnected(client);
         hostBack.SetResult();
 
         await backUp.WaitAsync(Patience);
@@ -204,6 +206,17 @@ public sealed class ScreenClientReconnectTests : IAsyncDisposable
         };
 
         return backUp.Task;
+    }
+
+    private static Task WhenConnected(ScreenClient client)
+    {
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.StateChanged += (_, e) =>
+        {
+            if (e.NewState == ScreenClientState.Connected) connected.TrySetResult();
+        };
+
+        return connected.Task;
     }
 
     private static HubConnection ConnectionOf(ScreenClient client) => (HubConnection)typeof(ScreenClient)
